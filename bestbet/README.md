@@ -6,9 +6,7 @@ BestBet helps you find the best betting odds for any sports match by comparing m
 
 ## Demo
 
-https://github.com/user-attachments/assets/placeholder
-
-> See the full demo video: [`../VideosAndScreenshots/BestBet - gamble like a pro.mp4`](../VideosAndScreenshots/BestBet%20-%20gamble%20like%20a%20pro.mp4)
+https://github.com/user-attachments/assets/ee1d7f23-6bbd-4b88-92e0-4811382cbb77
 
 ## TinyFish API Usage
 

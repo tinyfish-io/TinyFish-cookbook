@@ -87,28 +87,28 @@ If you encounter a geo-restriction or region block, mention that in the message.
 
     // Stream the Mino response directly to the client
     const readable = new ReadableStream({
-      async start(controller) {
-        const reader = minoResponse.body!.getReader()
-        const decoder = new TextDecoder()
+  async start(controller) {
+    const decoder = new TextDecoder()
 
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
+    try {
+      for await (const chunk of minoResponse.body as any) {
+        controller.enqueue(
+          encoder.encode(decoder.decode(chunk, { stream: true }))
+        )
+      }
+    } catch (error) {
+      console.error('Error streaming Mino response:', error)
+      controller.enqueue(
+        encoder.encode(
+          `data: ${JSON.stringify({ type: 'ERROR', message: 'Stream interrupted' })}\n\n`
+        )
+      )
+    } finally {
+      controller.close()
+    }
+  },
+})
 
-            const chunk = decoder.decode(value, { stream: true })
-            controller.enqueue(encoder.encode(chunk))
-          }
-        } catch (error) {
-          console.error('Error streaming Mino response:', error)
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ type: 'ERROR', message: 'Stream interrupted' })}\n\n`)
-          )
-        } finally {
-          controller.close()
-        }
-      },
-    })
 
     return new Response(readable, {
       headers: {

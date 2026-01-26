@@ -1,0 +1,10 @@
+project_id = "avonxqdzywtrqqcybgyn"
+
+[functions.discover-schools]
+verify_jwt = false
+
+[functions.mino-search]
+verify_jwt = false
+
+[functions.mino-search-stream]
+verify_jwt = false

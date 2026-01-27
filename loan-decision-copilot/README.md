@@ -139,7 +139,7 @@ Add secrets in your Supabase / Lovable dashboard before running.
 
 ## Tech Stack
 
-- **Frontend:** Frontend: React, TypeScript, Tailwind CSS
+- **Frontend**: React, TypeScript, Tailwind CSS
 
 - **Backend**: Supabase Edge Functions (Deno)
 

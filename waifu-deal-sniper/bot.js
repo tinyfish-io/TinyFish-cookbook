@@ -559,7 +559,8 @@ function createFigureEmbed(item) {
     .setTitle(`${isGoodDeal ? '🔥 ' : rarityPrefix}${(item.name || 'Figure').slice(0, 250)}`)
     .setURL(item.url || 'https://www.amiami.com');
   
-  if (item.image) {
+  // Only set thumbnail if it's a valid URL
+  if (item.image && item.image.startsWith('http')) {
     embed.setThumbnail(item.image);
   }
   
@@ -1058,7 +1059,8 @@ function createSiteEmbed(item, site) {
     .setTitle(`${(item.name || item.raw_title || 'Figure').slice(0, 250)}`)
     .setURL(item.url || site.searchUrl(''));
   
-  if (item.image) {
+  // Only set thumbnail if it's a valid URL
+  if (item.image && item.image.startsWith('http')) {
     embed.setThumbnail(item.image);
   }
   

@@ -1,10 +1,8 @@
 # 🎎 Waifu Deal Sniper
 
-**Live Demo:** [Add your bot invite link here]
+**Live Demo:** (https://discord.com/oauth2/authorize?client_id=1465346765611077871&permissions=277025508352&scope=bot)
 
 A Discord bot that helps anime figure collectors find discounted pre-owned figures by scraping deals in real-time from multiple sites using the TinyFish Mino API.
-
-![Waifu Deal Sniper Demo](demo.gif)
 
 ---
 
@@ -18,7 +16,7 @@ Waifu Deal Sniper lets users search for anime figures across **AmiAmi**, **Merca
 
 ## 🎬 Demo
 
-![Bot Demo](demo.gif)
+https://github.com/user-attachments/assets/demo.mp4
 
 **Commands in action:**
 - `rem bunny` - Search AmiAmi for Rem bunny figures

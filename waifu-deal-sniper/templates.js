@@ -539,13 +539,13 @@ const TEMPLATES = {
   // ===== ERROR / MISC =====
   errors: {
     search_failed: [
-      "😵 Something went wrong! AmiAmi might be down or my brain broke. Try again?",
+      "😵 Something went wrong! The site might be down or my brain broke. Try again?",
       "💀 Error! The hunt failed... Let's try again?",
       "🫠 Oops, something died. Not the waifus though, they're fine.",
       "😅 Technical difficulties! Even the best hunters miss sometimes. Retry?",
     ],
     slow: [
-      "⏳ AmiAmi is being slow... Must be all the collectors shopping",
+      "⏳ The site is being slow... Must be all the collectors shopping",
       "⏳ Taking a moment... *taps table impatiently*",
       "⏳ Loading... The waifu hunt requires patience~",
     ],

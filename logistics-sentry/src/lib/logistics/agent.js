@@ -132,10 +132,15 @@ You are a Logistics Intelligence Scout. Your job is to locate ${carrier}'s offic
 // --- STAGE 2: PARALLEL AGENT EXECUTION ---
 function createSseParser(onEvent) {
     let buffer = "";
-    return (chunk) => {
-        buffer += chunk;
+
+    const parseBuffer = (final = false) => {
+        // Normalize CRLF to LF
+        buffer = buffer.replace(/\r\n/g, "\n");
+
         const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
+        // If not final, keep the last part in buffer as it might be incomplete
+        buffer = final ? "" : parts.pop() || "";
+
         for (const part of parts) {
             const lines = part.split("\n");
             for (const line of lines) {
@@ -148,6 +153,18 @@ function createSseParser(onEvent) {
                 } catch (e) {
                     // Ignore partial JSON or non-JSON heartbeats.
                 }
+            }
+        }
+    };
+
+    return {
+        parse: (chunk) => {
+            buffer += chunk;
+            parseBuffer(false);
+        },
+        flush: () => {
+            if (buffer.trim().length > 0) {
+                parseBuffer(true);
             }
         }
     };
@@ -199,7 +216,7 @@ You are a Logistics Intelligence Scout. Your job is to extract DETAILED operatio
             const decoder = new TextDecoder();
             let finalResult = null;
 
-            const parse = createSseParser((data) => {
+            const { parse, flush } = createSseParser((data) => {
                 if (data.final_result) {
                     finalResult = data.final_result;
                 }
@@ -211,6 +228,7 @@ You are a Logistics Intelligence Scout. Your job is to extract DETAILED operatio
                 const chunk = decoder.decode(value, { stream: true });
                 parse(chunk);
             }
+            flush();
 
             return {
                 source: source.name,
@@ -242,7 +260,7 @@ function synthesizeRisk(context, findings) {
     let riskScore = 0;
     let signals = [];
     let primaryCauses = new Set();
-    let severityCounts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+    let severityCounts = { HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0 };
     let categoryCounts = { METRIC: 0, QUOTE: 0, STATUS: 0 };
     let recencyBuckets = { recent: 0, stale: 0, unknown: 0 };
     let signalDates = [];
@@ -254,6 +272,10 @@ function synthesizeRisk(context, findings) {
                 const safeSummary = (typeof s.summary === 'string' && s.summary) ? s.summary : '';
                 let formattedSignal = safeSummary || "No summary available";
 
+                // Normalize severity
+                const validSeverities = ["HIGH", "MEDIUM", "LOW"];
+                const severity = validSeverities.includes(s.severity) ? s.severity : "UNKNOWN";
+
                 if (s.category === "METRIC") formattedSignal = `[METRIC] ${safeSummary}`;
                 if (s.category === "QUOTE") formattedSignal = `"${safeSummary}"`;
 
@@ -261,13 +283,20 @@ function synthesizeRisk(context, findings) {
                     source: f.source,
                     signal: formattedSignal,
                     date: s.date || "Just now",
-                    severity: s.severity
+                    severity: severity
                 });
 
-                if (s.severity === "HIGH") riskScore += 50;
-                if (s.severity === "MEDIUM") riskScore += 20;
-                if (s.severity === "LOW") riskScore += 0; // Low doesn't increase risk, but provides context
-                if (severityCounts[s.severity] !== undefined) severityCounts[s.severity] += 1;
+                if (severity === "HIGH") riskScore += 50;
+                if (severity === "MEDIUM") riskScore += 20;
+                // LOW and UNKNOWN don't increase risk score
+
+                // Safe increment
+                if (severityCounts[severity] !== undefined) {
+                    severityCounts[severity] += 1;
+                } else {
+                    severityCounts["UNKNOWN"] += 1;
+                }
+
                 if (categoryCounts[s.category] !== undefined) categoryCounts[s.category] += 1;
                 if (s.date) {
                     signalDates.push(s.date);
@@ -283,7 +312,7 @@ function synthesizeRisk(context, findings) {
                     recencyBuckets.unknown += 1;
                 }
 
-                if (s.severity !== "LOW" && safeSummary) {
+                if (severity !== "LOW" && severity !== "UNKNOWN" && safeSummary) {
                     // Try to infer cause from summary keywords
                     const text = safeSummary.toLowerCase();
                     if (text.includes("congestion") || text.includes("anchor") || text.includes("dwell")) primaryCauses.add("CONGESTION");

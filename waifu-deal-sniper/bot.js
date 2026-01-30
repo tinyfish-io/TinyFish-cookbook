@@ -703,22 +703,52 @@ function parseMessage(content) {
     }
   }
   
-  // Search patterns
+  // Search patterns - extract query and optional price
+  // First, detect if price is in USD (need to convert to JPY for AmiAmi)
+  const usdPattern = /[\$](\d+)|(\d+)\s*[\$]|(\d+)\s*(dollars?|bucks?|usd)/i;
+  const usdMatch = lower.match(usdPattern);
+  const isUSD = !!usdMatch;
+  const USD_TO_JPY = 150; // Approximate conversion rate
+  
+  // Clean the input of conversational fluff
+  let cleanedInput = lower
+    .replace(/^(yo|hey|hi|hello|sup|bro|dude|man|guys?),?\s*/gi, '')  // Remove greetings
+    .replace(/^bro,?\s*/gi, '')  // Remove "bro" again if still there
+    .replace(/,?\s*(anything\s+)?(under|below|max|less than)\s*[\$¥]?(\d+)[\$¥]?\s*(works|dollars?|bucks?|usd|jpy|yen)?.*$/i, ' under $3')  // Normalize price
+    .trim();
+  
   const searchPatterns = [
-    /^(?:looking for|find|search|hunt|show|any|got any|get me|i want|i need)\s+(.+?)(?:\s+under\s+|\s*<\s*)(\d+)?.*$/i,
-    /^(?:any\s+)?(.+?)\s+(?:figures?|deals?|available|in stock)\??(?:\s+under\s+(\d+))?$/i,
-    /^(.+?)\s+under\s+(\d+)/i,
+    // "find me some figure of ganyu from genshin impact under 500"
+    /^(?:looking for|find|search|hunt|show|got any|get me|i want|i need)\s+(?:me\s+)?(?:some\s+)?(?:figure[s]?\s+of\s+)?(.+?)(?:\s+under\s+)?(\d+)?$/i,
+    // "any ganyu figures under 500"
+    /^(?:any\s+)?(.+?)\s+(?:figures?|deals?)(?:\s+under\s+)?(\d+)?$/i,
+    // "ganyu under 500"
+    /^(.+?)\s+under\s+(\d+)$/i,
   ];
+  
   for (const pattern of searchPatterns) {
-    const match = lower.match(pattern);
+    const match = cleanedInput.match(pattern);
     if (match) {
-      const query = match[1]
-        .replace(/\?+$/, '')
+      let query = match[1]
         .replace(/\s*(figures?|deals?|please|pls|thx|thanks)\s*/gi, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
-      const price = match[2] ? parseInt(match[2]) : null;
+      
+      // Extract "X from Y" → "X Y" (e.g., "ganyu from genshin" → "ganyu genshin")
+      const fromMatch = query.match(/(.+?)\s+from\s+(.+)/i);
+      if (fromMatch) {
+        query = fromMatch[1].trim() + ' ' + fromMatch[2].trim();
+      }
+      
+      let price = match[2] ? parseInt(match[2]) : null;
+      
+      // Convert USD to JPY if detected
+      if (price && isUSD) {
+        price = Math.round(price * USD_TO_JPY);
+      }
+      
       if (query.length > 2) {
-        return { intent: 'search', query, maxPrice: price };
+        return { intent: 'search', query, maxPrice: price, isUSD };
       }
     }
   }
@@ -765,7 +795,7 @@ async function handleMessage(message, content) {
         break;
         
       case 'search':
-        await handleSearch(message, user, parsed.query, parsed.maxPrice);
+        await handleSearch(message, user, parsed.query, parsed.maxPrice, parsed.isUSD);
         break;
         
       case 'watch':
@@ -828,7 +858,7 @@ async function handleMessage(message, content) {
   }
 }
 
-async function handleSearch(message, user, query, maxPrice) {
+async function handleSearch(message, user, query, maxPrice, isUSD = false) {
   // Validate inputs
   const cleanQuery = sanitizeQuery(query);
   if (!cleanQuery) {
@@ -851,6 +881,13 @@ async function handleSearch(message, user, query, maxPrice) {
   
   // Build response
   let searchMsg = '';
+  
+  // Show USD conversion notice
+  if (isUSD && cleanPrice) {
+    const originalUSD = Math.round(cleanPrice / 150);
+    searchMsg += `💱 *$${originalUSD} USD → ¥${cleanPrice.toLocaleString()} JPY*\n\n`;
+  }
+  
   if (charReaction) {
     searchMsg += charReaction + '\n\n';
   } else if (figureType && TEMPLATES.figure_types[figureType]) {
@@ -1412,50 +1449,71 @@ async function handleCopium(message, user) {
 // =====================================
 // 🔔 BACKGROUND WATCH CHECKER
 // =====================================
+let watchCheckerRunning = false;
+
 async function runWatchChecker(client) {
-  console.log('🔔 Running watch checker...');
-  
-  const watches = db.getAllActiveWatches();
-  console.log(`   Checking ${watches.length} active watches`);
-  
-  for (const watch of watches) {
-    try {
-      await new Promise(r => setTimeout(r, 3000)); // Rate limit
-      
-      const result = await searchAmiAmi(watch.query, watch.max_price);
-      db.updateWatchChecked(watch.id);
-      
-      if (!result.success || !result.items?.length) continue;
-      
-      const user = db.getOrCreateUser(watch.discord_id);
-      const deals = result.items.filter(isDeal);
-      
-      for (const deal of deals) {
-        if (!deal.url || db.hasBeenNotified(user.id, deal.url)) continue;
-        
-        try {
-          const discordUser = await client.users.fetch(watch.discord_id);
-          const embed = createFigureEmbed(deal);
-          embed.setTitle(`🚨 DEAL: ${(deal.name || watch.query).slice(0, 200)}`);
-          
-          await discordUser.send({
-            content: `🔔 **Found a deal for "${sanitizeForDisplay(watch.query)}"!**`,
-            embeds: [embed]
-          });
-          
-          db.markNotified(user.id, deal.url);
-          db.incrementWatchNotified(watch.id);
-          console.log(`   ✅ Notified ${watch.discord_id}`);
-        } catch (e) {
-          console.log(`   ❌ Couldn't DM ${watch.discord_id}: ${e.message}`);
-        }
-      }
-    } catch (e) {
-      console.error(`   Error on watch ${watch.id}:`, e.message);
-    }
+  // Prevent overlapping runs
+  if (watchCheckerRunning) {
+    console.log('🔔 Watch checker already running, skipping...');
+    return;
   }
   
-  console.log('🔔 Watch check complete');
+  watchCheckerRunning = true;
+  console.log('🔔 Running watch checker...');
+  
+  try {
+    const watches = db.getAllActiveWatches();
+    console.log(`   Checking ${watches.length} active watches`);
+    
+    // Limit batch size to prevent long-running loops
+    const MAX_BATCH = 50;
+    const batch = watches.slice(0, MAX_BATCH);
+    
+    if (watches.length > MAX_BATCH) {
+      console.log(`   ⚠️ Limited to ${MAX_BATCH} watches this cycle`);
+    }
+    
+    for (const watch of batch) {
+      try {
+        await new Promise(r => setTimeout(r, 2000)); // 2s between checks
+        
+        const result = await searchAmiAmi(watch.query, watch.max_price);
+        db.updateWatchChecked(watch.id);
+        
+        if (!result.success || !result.items?.length) continue;
+        
+        const user = db.getOrCreateUser(watch.discord_id);
+        const deals = result.items.filter(isDeal);
+        
+        for (const deal of deals) {
+          if (!deal.url || db.hasBeenNotified(user.id, deal.url)) continue;
+          
+          try {
+            const discordUser = await client.users.fetch(watch.discord_id);
+            const embed = createFigureEmbed(deal);
+            embed.setTitle(`🚨 DEAL: ${(deal.name || watch.query).slice(0, 200)}`);
+            
+            await discordUser.send({
+              content: `🔔 **Found a deal for "${sanitizeForDisplay(watch.query)}"!**`,
+              embeds: [embed]
+            });
+            
+            db.markNotified(user.id, deal.url);
+            db.incrementWatchNotified(watch.id);
+            console.log(`   ✅ Notified ${watch.discord_id}`);
+          } catch (e) {
+            console.log(`   ❌ Couldn't DM ${watch.discord_id}: ${e.message}`);
+          }
+        }
+      } catch (e) {
+        console.error(`   Error on watch ${watch.id}:`, e.message);
+      }
+    }
+    
+    console.log('🔔 Watch check complete');
+  } finally {
+    watchCheckerRunning = false;
+  }
 }
 
 // =====================================

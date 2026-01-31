@@ -34,6 +34,7 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | Recipe | Description |
 |--------|-------------|
 | [bestbet](./bestbet) | Sports betting odds comparison tool |
+| [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
 
 > More recipes added weekly!
 

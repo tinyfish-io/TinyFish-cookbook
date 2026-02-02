@@ -2,9 +2,11 @@
 
 **Live:** [https://tinyskills.vercel.app](https://tinyskills.vercel.app)
 
-**Source:** [https://github.com/pranavjana/mino-tinyskills](https://github.com/pranavjana/mino-tinyskills)
-
 TinySkills generates comprehensive technical skill guides by scraping multiple source types (official documentation, GitHub issues, Stack Overflow, and dev blogs) in parallel using TinyFish, then synthesizing everything with AI into a ready-to-use markdown skill guide. Perfect for quickly learning new technologies or creating documentation.
+
+## Demo
+
+![TinySkills Demo](./screenshot.png)
 
 ## How It Works
 

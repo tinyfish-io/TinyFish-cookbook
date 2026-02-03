@@ -1,0 +1,7 @@
+project_id = "hspjxcouamcdqrvqhkgg"
+
+[functions.discover-tutor-websites]
+verify_jwt = false
+
+[functions.search-tutors-mino]
+verify_jwt = false

@@ -38,7 +38,7 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
 | [competitor-analysis](./competitor-analysis) | a Live Competitive Pricing Intelligence Dashboard |
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when travel for conventions or events |
-| [summer-school-finder](./summer-school-finder) | Discover and compare summer sch`ool programs from universities around the world |
+| [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world |
 
 > More recipes added weekly!
 

@@ -85,14 +85,17 @@ IMPORTANT: Only return "found": true if you see a clear match for "${mangaTitle}
         const encoder = new TextEncoder();
         let streamingUrlSent = false;
 
+        let buffer = "";
+
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value);
-            const lines = chunk.split("\n");
-
+            buffer += decoder.decode(value, { stream: true }); 
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            
             for (const line of lines) {
               if (line.startsWith("data: ")) {
                 try {

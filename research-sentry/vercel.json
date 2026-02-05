@@ -1,0 +1,13 @@
+{
+    "functions": {
+        "app/api/search/voice/route.ts": {
+            "maxDuration": 300
+        },
+        "app/api/search/text/route.ts": {
+            "maxDuration": 300
+        },
+        "app/api/summarize/route.ts": {
+            "maxDuration": 120
+        }
+    }
+}

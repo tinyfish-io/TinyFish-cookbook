@@ -30,21 +30,21 @@ The application employs a two-stage process. After getting search URLs from Gemi
 
 const response = await fetch("https://mino.ai/v1/automation/run-sse", {
 
-&nbsp; method: "POST",
+     method: "POST",
 
-&nbsp; headers: {
+     headers: {
 
-&nbsp;   "X-API-Key": process.env.MINO\_API\_KEY,
+       "X-API-Key": process.env.MINO\_API\_KEY,
 
-&nbsp;   "Content-Type": "application/json",
+       "Content-Type": "application/json",
 
-&nbsp; },
+     },
 
-&nbsp; body: JSON.stringify({
+     body: JSON.stringify({
 
-&nbsp;   url: platform.searchUrl,
+       url: platform.searchUrl,
 
-&nbsp;   goal: `You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
+       goal: `You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
 
 
 
@@ -72,15 +72,15 @@ STEP 4 - RETURN RESULT:
 
 {
 
-&nbsp; "available": true/false,
+     "available": true/false,
 
-&nbsp; "watchUrl": "URL if available",
+     "watchUrl": "URL if available",
 
-&nbsp; "message": "Brief description of what was found"
+     "message": "Brief description of what was found"
 
 }`,
 
-&nbsp; }),
+     }),
 
 });
 
@@ -113,20 +113,18 @@ The app processes the SSE stream to show live browser status updates and provide
 ```bash
 
   cd anime-watch-hub
+  npm install
 
-   npm install
-
-  ```
+```
 
 2. Configure Environment: Create a ```.env.local``` file in the root directory:
 
  ```bash
 
   GEMINI\_API\_KEY=your\_gemini\_api\_key
+  MINO\_API\_KEY=your\_tinyfish\_api\_key
 
-   MINO\_API\_KEY=your\_tinyfish\_api\_key
-
-  ```
+ ```
 
 3. Launch Development Server:
 
@@ -134,7 +132,7 @@ The app processes the SSE stream to show live browser status updates and provide
 
   npm run dev
 
-  ```
+```
 
 4. Access the App: Navigate to http://localhost:3000
 
@@ -152,35 +150,35 @@ The system follows a two-stage orchestration pattern to ensure high accuracy and
 
 graph TD
 
-&nbsp;   User((User)) -->|Search Title| FE\[Next.js App]
+       User((User)) -->|Search Title| FE\[Next.js App]
 
-&nbsp;   FE -->|Stage 1: Platform Discovery| Gemini\[Gemini API]
+       FE -->|Stage 1: Platform Discovery| Gemini\[Gemini API]
 
-&nbsp;   Gemini -->|Returns Search URLs| FE
+       Gemini -->|Returns Search URLs| FE
 
-&nbsp;   
+       
 
-&nbsp;   subgraph TinyFish\_Agents \[Stage 2: Verification]
+       subgraph TinyFish\_Agents \[Stage 2: Verification]
 
-&nbsp;       FE -->|POST /run-sse| API\[Mino API]
+           FE -->|POST /run-sse| API\[Mino API]
 
-&nbsp;       API --> A1\[Agent: Crunchyroll]
+           API --> A1\[Agent: Crunchyroll]
 
-&nbsp;       API --> A2\[Agent: Netflix]
+           API --> A2\[Agent: Netflix]
 
-&nbsp;       API --> A3\[Agent: Hulu]
+           API --> A3\[Agent: Hulu]
 
-&nbsp;   end
+       end
 
-&nbsp;   
+       
 
-&nbsp;   A1 -.->|Real-time Events| FE
+       A1 -.->|Real-time Events| FE
 
-&nbsp;   A2 -.->|Real-time Events| FE
+       A2 -.->|Real-time Events| FE
 
-&nbsp;   A3 -.->|Real-time Events| FE
+       A3 -.->|Real-time Events| FE
 
-&nbsp;   
+       
 
-&nbsp;   FE -->|Update UI| User
+       FE -->|Update UI| User
 

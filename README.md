@@ -119,6 +119,9 @@ while (true) {
 }
 ```
 
+> By the way! if you want to expose your project on localhost to your friends to show them a demo, you can now use the [tinyfi.sh](https://tinyfi.sh) by us! Completly free and easy to use!
+
+
 ## Star History
 
 <p align="center">

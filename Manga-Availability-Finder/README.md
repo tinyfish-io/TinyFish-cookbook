@@ -1,4 +1,4 @@
-# 🔍 Webtoon Hunter
+# 🔍 Webtoon/Manga Availability Finder
 
 **Live Demo:** [webtoonhunter.lovable.app](https://webtoonhunter.lovable.app)
 
@@ -6,7 +6,7 @@
 
 ## What is this?
 
-Webtoon Hunter is an AI-powered manga/webtoon availability checker that searches multiple reading platforms simultaneously. It uses the TinyFish Web Agent API for real-time browser automation, deploying parallel browser agents to search and verify availability across multiple platforms.
+Webtoon/Manga Availability Finder is an AI-powered manga/webtoon availability checker that searches multiple reading platforms simultaneously. It uses the TinyFish Web Agent API for real-time browser automation, deploying parallel browser agents to search and verify availability across multiple platforms.
 
 ---
 

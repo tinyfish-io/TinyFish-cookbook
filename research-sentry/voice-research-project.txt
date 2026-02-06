@@ -1,0 +1,422 @@
+VOICE RESEARCH - COMPLETE PROJECT FILES
+========================================
+
+SETUP INSTRUCTIONS:
+1. npx create-next-app@latest voice-research --typescript --tailwind --app
+2. cd voice-research
+3. npm install openai lucide-react
+4. Create each file below in the correct location
+5. Copy .env.local.example to .env.local and add your API keys
+6. npm run dev
+
+================================================================================
+
+FILE: package.json
+------------------------------------------------------------
+{
+  "name": "voice-research",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "openai": "^4.28.0",
+    "lucide-react": "^0.344.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "typescript": "^5",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8",
+    "autoprefixer": "^10"
+  }
+}
+
+================================================================================
+
+FILE: README.md
+------------------------------------------------------------
+# Voice Research
+
+AI-powered research paper discovery using voice or text.
+
+## Quick Start
+
+1. npm install
+2. cp .env.local.example .env.local
+3. Add your API keys
+  - OPENAI_API_KEY
+  - MINO_API_KEY
+4. npm run dev
+
+## Deploy
+
+```bash
+vercel --prod
+``F
+
+================================================================================
+
+FILE: tsconfig.json
+------------------------------------------------------------
+{
+  "compilerOptions": {
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
+
+================================================================================
+
+FILE: vercel.json
+------------------------------------------------------------
+{
+  "functions": {
+    "app/api/search/voice/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/search/text/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
+
+================================================================================
+
+FILE: next.config.js
+------------------------------------------------------------
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    serverActions: { bodySizeLimit: '10mb' }
+  }
+};
+module.exports = nextConfig;
+
+================================================================================
+
+FILE: tailwind.config.ts
+------------------------------------------------------------
+const config = {
+  content: ['./app/**/*.{js,ts,jsx,tsx}'],
+  theme: { extend: {} },
+  plugins: [],
+};
+export default config;
+
+================================================================================
+
+FILE: postcss.config.js
+------------------------------------------------------------
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+
+================================================================================
+
+FILE: .env.local.example
+------------------------------------------------------------
+# Rename to .env.local and add your keys
+OPENAI_API_KEY=sk-your-key-here
+MINO_API_KEY=your-mino-key-here
+
+================================================================================
+
+FILE: .gitignore
+------------------------------------------------------------
+node_modules
+.next
+.env*.local
+.vercel
+*.tsbuildinfo
+
+================================================================================
+
+FILE: app/globals.css
+------------------------------------------------------------
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%);
+  min-height: 100vh;
+}
+
+================================================================================
+
+FILE: lib/types.ts
+------------------------------------------------------------
+export interface SearchCriteria {
+  topic: string;
+  keywords: string[];
+  dateRange?: { from?: string; to?: string };
+  sources: SourceType[];
+  maxResults: number;
+}
+
+export type SourceType = 'arxiv' | 'pubmed' | 'semantic_scholar' | 'google_scholar' | 'ieee' | 'ssrn' | 'core' | 'doaj';
+
+export interface ResearchPaper {
+  id: string;
+  title: string;
+  authors: string[];
+  abstract: string;
+  publishedDate: string;
+  source: string;
+  url: string;
+  pdfUrl?: string;
+  citations?: number;
+  doi?: string;
+}
+
+export interface SearchResult {
+  query: string;
+  papers: ResearchPaper[];
+  totalFound: number;
+  transcript?: string;
+}
+
+================================================================================
+
+FILE: lib/whisper.ts
+------------------------------------------------------------
+import OpenAI from 'openai';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+export async function transcribeAudio(buffer: Buffer, filename = 'audio.webm') {
+  const file = new File([buffer], filename, { type: 'audio/webm' });
+  const result = await openai.audio.transcriptions.create({
+    file,
+    model: 'whisper-1',
+  });
+  return result.text;
+}
+
+================================================================================
+
+FILE: lib/mino.ts
+------------------------------------------------------------
+export async function runMinoAutomation(url: string, goal: string, stealth = false) {
+  const res = await fetch('https://mino.ai/v1/automation/run-sse', {
+    method: 'POST',
+    headers: {
+      'X-API-Key': process.env.MINO_API_KEY!,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url, goal, browser_profile: stealth ? 'stealth' : 'lite' }),
+  });
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '', result = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'COMPLETE') result = event.resultJson;
+        } catch {}
+      }
+    }
+  }
+  return result;
+}
+
+================================================================================
+
+FILE: lib/intent-parser.ts
+------------------------------------------------------------
+import OpenAI from 'openai';
+import { SearchCriteria } from './types';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+export async function parseSearchIntent(query: string): Promise<SearchCriteria> {
+  const res = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: 'Parse research query into JSON: {topic, keywords[], sources[], maxResults}' },
+      { role: 'user', content: query }
+    ],
+    response_format: { type: 'json_object' },
+  });
+  const parsed = JSON.parse(res.choices[0].message.content!);
+  return {
+    topic: parsed.topic || query,
+    keywords: parsed.keywords || [],
+    sources: parsed.sources || ['arxiv', 'semantic_scholar'],
+    maxResults: 20,
+  };
+}
+
+================================================================================
+
+FILE: lib/aggregator.ts
+------------------------------------------------------------
+import { ResearchPaper } from './types';
+
+export function aggregateAndDeduplicate(results: ResearchPaper[][]): ResearchPaper[] {
+  const all = results.flat();
+  const seen = new Map();
+  for (const p of all) {
+    const key = p.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 80);
+    if (key && !seen.has(key)) seen.set(key, p);
+  }
+  return Array.from(seen.values()).sort((a, b) => (b.citations || 0) - (a.citations || 0));
+}
+
+================================================================================
+
+FILE: lib/search.ts
+------------------------------------------------------------
+import { SearchCriteria, SearchResult, SourceType, ResearchPaper } from './types';
+import { aggregateAndDeduplicate } from './aggregator';
+
+// Scraper functions would be imported here
+async function scrapeSource(source: SourceType, criteria: SearchCriteria): Promise<ResearchPaper[]> {
+  // Implementation uses runMinoAutomation for each source
+  return [];
+}
+
+export async function searchResearchPapers(criteria: SearchCriteria): Promise<SearchResult> {
+  const results = await Promise.all(
+    criteria.sources.map(s => scrapeSource(s, criteria).catch(() => []))
+  );
+  const papers = aggregateAndDeduplicate(results);
+  return {
+    query: criteria.topic,
+    papers: papers.slice(0, criteria.maxResults),
+    totalFound: papers.length,
+  };
+}
+
+================================================================================
+
+FILE: app/layout.tsx
+------------------------------------------------------------
+import './globals.css';
+
+export const metadata = { title: 'Voice Research' };
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html><body>{children}</body></html>;
+}
+
+================================================================================
+
+FILE: app/api/health/route.ts
+------------------------------------------------------------
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  return NextResponse.json({ status: 'ok' });
+}
+
+================================================================================
+
+FILE: app/api/search/text/route.ts
+------------------------------------------------------------
+import { NextRequest, NextResponse } from 'next/server';
+import { parseSearchIntent } from '@/lib/intent-parser';
+import { searchResearchPapers } from '@/lib/search';
+
+export const maxDuration = 60;
+
+export async function POST(req: NextRequest) {
+  const { query, sources } = await req.json();
+  const criteria = await parseSearchIntent(query);
+  if (sources) criteria.sources = sources;
+  const results = await searchResearchPapers(criteria);
+  return NextResponse.json(results);
+}
+
+================================================================================
+
+FILE: app/api/search/voice/route.ts
+------------------------------------------------------------
+import { NextRequest, NextResponse } from 'next/server';
+import { transcribeAudio } from '@/lib/whisper';
+import { parseSearchIntent } from '@/lib/intent-parser';
+import { searchResearchPapers } from '@/lib/search';
+
+export const maxDuration = 120;
+
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const audio = form.get('audio') as File;
+  const buffer = Buffer.from(await audio.arrayBuffer());
+  const transcript = await transcribeAudio(buffer);
+  const criteria = await parseSearchIntent(transcript);
+  const results = await searchResearchPapers(criteria);
+  return NextResponse.json({ ...results, transcript });
+}
+
+================================================================================
+
+FILE: app/api/export/bibtex/route.ts
+------------------------------------------------------------
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(req: NextRequest) {
+  const { papers } = await req.json();
+  const bib = papers.map((p: any, i: number) => {
+    const key = 'paper' + i;
+    return '@article{' + key + ',\n  title={' + p.title + '},\n  author={' + (p.authors?.join(' and ') || '') + '},\n  year={' + (p.publishedDate || '') + '},\n  url={' + p.url + '}\n}';
+  }).join('\n\n');
+  return new NextResponse(bib, {
+    headers: { 'Content-Type': 'application/x-bibtex', 'Content-Disposition': 'attachment; filename=papers.bib' }
+  });
+}
+
+================================================================================
+

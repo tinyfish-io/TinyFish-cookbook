@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: hsl(0 0% 4%);
+  --color-foreground: hsl(0 0% 85%);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-border: hsl(0 0% 14%);
+  --color-border-subtle: hsl(0 0% 10%);
+
+  --color-accent: hsl(190 40% 45%);
+  --color-accent-glow: hsl(190 50% 50%);
+
+  --color-signal: hsl(38 70% 50%);
+  --color-signal-glow: hsl(38 80% 55%);
+
+  --color-critical: hsl(0 50% 45%);
+  --color-success: hsl(145 40% 40%);
+
+  --color-card: hsl(0 0% 7%);
+  --color-foreground-muted: hsl(0 0% 55%);
+  --color-foreground-subtle: hsl(0 0% 35%);
+}
+
+@layer base {
+  :root {
+    /* Core greys - graphite to silver spectrum */
+    --background: 0 0% 4%;
+    --background-elevated: 0 0% 6%;
+    --background-overlay: 0 0% 8%;
+    --foreground: 0 0% 85%;
+    --foreground-muted: 0 0% 55%;
+    --foreground-subtle: 0 0% 35%;
+
+    /* Card surfaces - layered depth */
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 85%;
+    --card-border: 0 0% 12%;
+
+    /* Accent - Subtle cyan for data highlights */
+    --accent: 190 40% 45%;
+    --accent-foreground: 190 40% 90%;
+    --accent-glow: 190 50% 50%;
+
+    /* Signal colors - amber for warnings/alerts */
+    --signal: 38 70% 50%;
+    --signal-foreground: 38 70% 95%;
+    --signal-glow: 38 80% 55%;
+
+    /* Critical - muted red for high-risk */
+    --critical: 0 50% 45%;
+    --critical-foreground: 0 50% 95%;
+
+    /* Success - muted green */
+    --success: 145 40% 40%;
+    --success-foreground: 145 40% 90%;
+
+    --border: 0 0% 14%;
+    --border-subtle: 0 0% 10%;
+
+    --glass-bg: 0 0% 100% / 0.03;
+    --glass-border: 0 0% 100% / 0.08;
+    --glass-highlight: 0 0% 100% / 0.12;
+
+    --trace-primary: 0 0% 25%;
+    --trace-active: 190 50% 50%;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+
+  /* Glass panel effect */
+  .glass-panel {
+    background: hsl(var(--card) / 0.5);
+    backdrop-filter: blur(24px);
+    border: 1px solid hsl(var(--glass-border));
+    box-shadow:
+      0 0 0 1px hsl(var(--glass-highlight)),
+      0 8px 32px -8px hsl(0 0% 0% / 0.5),
+      inset 0 1px 0 hsl(var(--glass-highlight));
+  }
+
+  /* Grid overlay for technical feel */
+  .grid-overlay {
+    background-image:
+      linear-gradient(hsl(var(--border-subtle)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border-subtle)) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .heading-technical {
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: hsl(var(--foreground-muted));
+    font-size: 0.7rem;
+  }
+
+  .text-gradient-silver {
+    background: linear-gradient(135deg, hsl(0 0% 70%), hsl(0 0% 90%), hsl(0 0% 70%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}

@@ -1,0 +1,7 @@
+project_id = "vodjiazkxpszllbonlck"
+
+[functions.discover-manga-sites]
+verify_jwt = false
+
+[functions.search-manga]
+verify_jwt = false

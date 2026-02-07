@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open-Box Deals | Warehouse Outlet</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background: #e8e8e0;
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 27px,
+                    #ddd 28px
+                );
+            min-height: 100vh;
+            color: #1a1a1a;
+            padding: 20px;
+        }
+        
+        .receipt-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fffef8;
+            min-height: 100vh;
+            box-shadow: 
+                0 0 0 1px #ccc,
+                0 0 30px rgba(0,0,0,0.15);
+            border-left: 1px dashed #bbb;
+            border-right: 1px dashed #bbb;
+            position: relative;
+        }
+        
+        .receipt-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(180deg, rgba(255,254,248,0.8) 0%, transparent 100%);
+            z-index: 10;
+        }
+        
+        /* Header */
+        header {
+            text-align: center;
+            padding: 40px 20px 30px;
+            border-bottom: 2px dashed #333;
+            position: relative;
+        }
+        
+        .created-by {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 0.65rem;
+            color: #666;
+            text-decoration: none;
+            letter-spacing: 0.5px;
+            transition: color 0.2s;
+        }
+        
+        .created-by:hover {
+            color: #000;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 6px;
+            margin-bottom: 5px;
+        }
+        
+        .tagline {
+            font-size: 0.7rem;
+            letter-spacing: 3px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .barcode-visual {
+            display: flex;
+            justify-content: center;
+            gap: 2px;
+            margin-top: 20px;
+            padding: 10px 0;
+        }
+        
+        .barcode-visual span {
+            display: block;
+            height: 35px;
+            background: #1a1a1a;
+        }
+        
+        .barcode-number {
+            font-size: 0.7rem;
+            letter-spacing: 4px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* Search Section */
+        .search-section {
+            padding: 25px 30px;
+            border-bottom: 1px dashed #aaa;
+        }
+        
+        .search-label {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .search-row {
+            display: flex;
+            gap: 10px;
+        }
+        
+        input {
+            flex: 1;
+            padding: 14px 16px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1rem;
+            border: 2px solid #1a1a1a;
+            background: #fff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus {
+            border-color: #c41e3a;
+        }
+        
+        input::placeholder {
+            color: #999;
+        }
+        
+        .price-input {
+            width: 120px;
+            flex: none;
+        }
+        
+        button {
+            padding: 14px 28px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: 2px solid #1a1a1a;
+            background: #1a1a1a;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #c41e3a;
+            border-color: #c41e3a;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Transaction Info */
+        .transaction-info {
+            padding: 12px 30px;
+            border-bottom: 1px dashed #aaa;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 0.7rem;
+            color: #666;
+            letter-spacing: 1px;
+        }
+        
+        /* Status Section */
+        .status-section {
+            padding: 15px 30px;
+            border-bottom: 1px dashed #aaa;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #f9f9f4;
+        }
+        
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ddd;
+            border-top-color: #1a1a1a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+        
+        .spinner.active { display: block; }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .status-text {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .status-text .highlight {
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+        
+        /* Browsers Section */
+        .browsers-section {
+            padding: 20px 30px;
+            border-bottom: 1px dashed #aaa;
+        }
+        
+        .section-label {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+            color: #666;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-label::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #ddd;
+        }
+        
+        .browsers-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        
+        @media (max-width: 800px) {
+            .browsers-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        .browser-box {
+            border: 2px solid #1a1a1a;
+            background: #f5f5f0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .browser-box-header {
+            padding: 6px 10px;
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 0.65rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff;
+            letter-spacing: 1px;
+        }
+        
+        .browser-box-status {
+            font-size: 0.6rem;
+            color: #999;
+            font-weight: 400;
+        }
+        
+        .browser-box-status.active {
+            color: #2e7d32;
+        }
+        
+        .browser-box-status.done {
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+        
+        .browser-box-status.error {
+            color: #c41e3a;
+        }
+        
+        .browser-box-content {
+            aspect-ratio: 4/3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: #999;
+            background: #e8e8e0;
+            position: relative;
+        }
+        
+        .browser-box-content iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .browser-box-content .placeholder {
+            text-align: center;
+        }
+        
+        .browser-box-content .placeholder-icon {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+        
+        /* Items Section */
+        .items-section {
+            padding: 0 30px;
+        }
+        
+        .items-header {
+            padding: 15px 0;
+            border-bottom: 1px solid #ddd;
+            display: grid;
+            grid-template-columns: 2.5fr 1fr 1fr;
+            gap: 15px;
+            font-size: 0.65rem;
+            letter-spacing: 1px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .items-list {
+            min-height: 100px;
+        }
+        
+        .item {
+            padding: 18px 0;
+            border-bottom: 1px dotted #ccc;
+            display: grid;
+            grid-template-columns: 2.5fr 1fr 1fr;
+            gap: 15px;
+            align-items: start;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .item-info {
+            min-width: 0;
+        }
+        
+        .item-name {
+            font-size: 0.85rem;
+            font-weight: 500;
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+        
+        .item-name a {
+            color: #1a1a1a;
+            text-decoration: none;
+        }
+        
+        .item-name a:hover {
+            text-decoration: underline;
+        }
+        
+        .item-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .item-condition {
+            font-size: 0.6rem;
+            color: #666;
+        }
+        
+        .item-site {
+            font-size: 0.55rem;
+            color: #999;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        .stamp {
+            display: inline-block;
+            padding: 2px 6px;
+            border: 2px solid #c41e3a;
+            color: #c41e3a;
+            font-size: 0.55rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            transform: rotate(-2deg);
+            text-transform: uppercase;
+            margin-top: 6px;
+        }
+        
+        .stamp.refurb {
+            border-color: #1a5f7a;
+            color: #1a5f7a;
+        }
+        
+        .stamp.certified {
+            border-color: #2e7d32;
+            color: #2e7d32;
+        }
+        
+        .item-original {
+            text-align: right;
+            font-size: 0.85rem;
+            color: #999;
+            text-decoration: line-through;
+        }
+        
+        .item-original.empty {
+            color: #ccc;
+            text-decoration: none;
+            font-style: italic;
+        }
+        
+        .item-pricing {
+            text-align: right;
+        }
+        
+        .item-price {
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+        
+        .item-savings {
+            font-size: 0.65rem;
+            color: #c41e3a;
+            font-weight: 600;
+            margin-top: 3px;
+        }
+        
+        .item-percent {
+            font-size: 0.6rem;
+            color: #666;
+            margin-top: 2px;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: #999;
+        }
+        
+        .empty-state-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        /* Perforated Edge */
+        .perforated {
+            border-top: 2px dashed #999;
+            margin: 25px 30px;
+            position: relative;
+        }
+        
+        .perforated::before {
+            content: "✂";
+            position: absolute;
+            left: -10px;
+            top: -12px;
+            background: #fffef8;
+            padding: 0 5px;
+            color: #999;
+            font-size: 0.9rem;
+        }
+        
+        /* Footer / Summary */
+        .receipt-footer {
+            padding: 20px 30px 40px;
+        }
+        
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 0.8rem;
+            border-bottom: 1px dotted #ddd;
+        }
+        
+        .summary-row:last-of-type {
+            border-bottom: none;
+        }
+        
+        .summary-row.total {
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-top: 2px solid #1a1a1a;
+            border-bottom: none;
+            margin-top: 10px;
+            padding-top: 15px;
+        }
+        
+        .summary-row .value {
+            font-weight: 600;
+        }
+        
+        .summary-row .value.savings {
+            color: #c41e3a;
+        }
+        
+        .thank-you {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #666;
+            letter-spacing: 2px;
+            line-height: 1.8;
+        }
+        
+        .thank-you .stars {
+            color: #999;
+            margin: 10px 0;
+            letter-spacing: 5px;
+        }
+        
+        /* Loading dots animation */
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            
+            .search-row {
+                flex-direction: column;
+            }
+            
+            .price-input {
+                width: 100%;
+            }
+            
+            .items-header,
+            .item {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            
+            .items-header span:not(:first-child) { display: none; }
+            
+            .item-original,
+            .item-pricing {
+                text-align: left;
+            }
+            
+            .item-pricing {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-container">
+        <header>
+            <a href="https://x.com/_shakechilli_" target="_blank" rel="noopener" class="created-by">Created by @_shakechilli_</a>
+            <div class="logo">OPEN-BOX DEALS</div>
+            <div class="tagline">Warehouse Outlet Pricing</div>
+            <div class="barcode-visual" id="barcode"></div>
+            <div class="barcode-number" id="barcodeNumber">*LOADING*</div>
+        </header>
+        
+        <div class="search-section">
+            <div class="search-label">Search Inventory</div>
+            <div class="search-row">
+                <input type="text" id="searchQuery" placeholder="Enter product name..." autofocus>
+                <input type="number" id="maxPrice" class="price-input" placeholder="Max $">
+                <button id="searchBtn" onclick="startSearch()">SEARCH</button>
+            </div>
+        </div>
+        
+        <div class="transaction-info">
+            <span id="txnId">TXN #--------</span>
+            <span id="txnDate">DATE: --/--/---- --:--:--</span>
+            <span id="txnSites">0 SITES QUERIED</span>
+        </div>
+        
+        <div class="status-section" id="statusSection" style="display: none;">
+            <div class="spinner active" id="spinner"></div>
+            <div class="status-text" id="statusText">Initializing<span class="loading-dots"></span></div>
+        </div>
+        
+        <div class="browsers-section">
+            <div class="section-label">Live Warehouse Scan</div>
+            <div class="browsers-grid" id="browsersGrid"></div>
+        </div>
+        
+        <div class="items-section">
+            <div class="items-header">
+                <span>Item Description</span>
+                <span style="text-align:right">Was</span>
+                <span style="text-align:right">Now</span>
+            </div>
+            <div class="items-list" id="itemsList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📦</div>
+                    <div>Enter a search term to find deals</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="perforated"></div>
+        
+        <div class="receipt-footer">
+            <div class="summary-row">
+                <span>ITEMS FOUND:</span>
+                <span class="value" id="summaryItems">0</span>
+            </div>
+            <div class="summary-row">
+                <span>SITES SEARCHED:</span>
+                <span class="value" id="summarySites">0 / 8</span>
+            </div>
+            <div class="summary-row">
+                <span>SEARCH TIME:</span>
+                <span class="value" id="summaryTime">0.0 SEC</span>
+            </div>
+            <div class="summary-row">
+                <span>AVG SAVINGS:</span>
+                <span class="value" id="summaryAvgSavings">--</span>
+            </div>
+            <div class="summary-row total">
+                <span>POTENTIAL SAVINGS:</span>
+                <span class="value savings" id="summarySavings">--</span>
+            </div>
+            
+            <div class="thank-you">
+                <div class="stars">★ ★ ★</div>
+                THANK YOU FOR SHOPPING SMART<br>
+                DEALS REFRESH EVERY 30 MINUTES
+                <div class="stars">★ ★ ★</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const SITES = {
+            amazon: { name: "AMAZON", fullName: "Amazon Warehouse" },
+            bestbuy: { name: "BEST BUY", fullName: "Best Buy Outlet" },
+            newegg: { name: "NEWEGG", fullName: "Newegg Open Box" },
+            backmarket: { name: "BACKMARKET", fullName: "BackMarket" },
+            swappa: { name: "SWAPPA", fullName: "Swappa" },
+            walmart: { name: "WALMART", fullName: "Walmart Renewed" },
+            target: { name: "TARGET", fullName: "Target Clearance" },
+            microcenter: { name: "MICRO CTR", fullName: "Micro Center" }
+        };
+        
+        let allProducts = [];
+        let sitesCompleted = 0;
+        let startTime = 0;
+        let timerInterval = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            generateBarcode();
+            initBrowserPanels();
+            updateDateTime();
+            
+            document.getElementById('searchQuery').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') startSearch();
+            });
+        });
+        
+        function generateBarcode() {
+            const barcode = document.getElementById('barcode');
+            const widths = [2,1,3,1,2,1,1,3,2,1,1,2,3,1,2,1,3,1,2,1,1,3,2,1,2,1,1,3,1,2];
+            barcode.innerHTML = widths.map(w => `<span style="width:${w}px"></span>`).join('');
+            
+            const txnNum = Math.floor(Math.random() * 90000000 + 10000000);
+            document.getElementById('barcodeNumber').textContent = `*${txnNum}*`;
+            document.getElementById('txnId').textContent = `TXN #${txnNum}`;
+        }
+        
+        function updateDateTime() {
+            const now = new Date();
+            const formatted = now.toLocaleString('en-US', {
+                month: '2-digit',
+                day: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).replace(',', '');
+            document.getElementById('txnDate').textContent = `DATE: ${formatted}`;
+        }
+        
+        function initBrowserPanels() {
+            const grid = document.getElementById('browsersGrid');
+            grid.innerHTML = '';
+            
+            for (const [key, site] of Object.entries(SITES)) {
+                const box = document.createElement('div');
+                box.className = 'browser-box';
+                box.id = `browser-${key}`;
+                box.innerHTML = `
+                    <div class="browser-box-header">
+                        <span>${site.name}</span>
+                        <span class="browser-box-status" id="status-${key}">○ STANDBY</span>
+                    </div>
+                    <div class="browser-box-content" id="content-${key}">
+                        <div class="placeholder">
+                            <div class="placeholder-icon">📡</div>
+                            <div>READY</div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(box);
+            }
+        }
+        
+        let isSearching = false;  // Prevent spam clicks
+        
+        async function startSearch() {
+            const query = document.getElementById('searchQuery').value.trim();
+            const maxPrice = document.getElementById('maxPrice').value;
+            
+            if (!query) {
+                alert('Please enter a search term');
+                return;
+            }
+            
+            // Prevent concurrent searches
+            if (isSearching) {
+                alert('Search already in progress. Please wait for it to complete.');
+                return;
+            }
+            
+            // Validate query length
+            if (query.length > 100) {
+                alert('Search query too long (max 100 characters)');
+                return;
+            }
+            
+            // Reset
+            allProducts = [];
+            sitesCompleted = 0;
+            startTime = Date.now();
+            isSearching = true;
+            
+            initBrowserPanels();
+            updateDateTime();
+            generateBarcode();
+            
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('searchBtn').textContent = 'SEARCHING...';
+            document.getElementById('statusSection').style.display = 'flex';
+            document.getElementById('spinner').classList.add('active');
+            document.getElementById('statusText').innerHTML = 'Connecting to warehouses<span class="loading-dots"></span>';
+            
+            document.getElementById('itemsList').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔍</div>
+                    <div>Scanning warehouses...</div>
+                </div>
+            `;
+            
+            document.getElementById('summaryItems').textContent = '0';
+            document.getElementById('summarySites').textContent = '0 / 8';
+            document.getElementById('summaryTime').textContent = '0.0 SEC';
+            document.getElementById('summaryAvgSavings').textContent = '--';
+            document.getElementById('summarySavings').textContent = '--';
+            document.getElementById('txnSites').textContent = '0 SITES QUERIED';
+            
+            timerInterval = setInterval(updateTimer, 100);
+            
+            let url = `/api/search/live?q=${encodeURIComponent(query)}`;
+            if (maxPrice) url += `&max_price=${maxPrice}`;
+            
+            try {
+                const response = await fetch(url);
+                
+                // Handle rate limiting
+                if (response.status === 429) {
+                    const error = await response.json();
+                    alert(error.error || 'Too many requests. Please wait a moment.');
+                    finishSearch();
+                    return;
+                }
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                // Buffer for incomplete lines (critical fix for SSE parsing)
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    // Append to buffer with stream mode
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Split into lines
+                    const lines = buffer.split('\n');
+                    
+                    // Keep the last (possibly incomplete) line in buffer
+                    buffer = lines.pop() || '';
+                    
+                    // Process complete lines
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const event = JSON.parse(line.slice(6));
+                                handleEvent(event);
+                            } catch (e) {
+                                console.warn('Failed to parse SSE:', e);
+                            }
+                        }
+                    }
+                }
+                
+                // Process any remaining buffer
+                if (buffer.startsWith('data: ')) {
+                    try {
+                        const event = JSON.parse(buffer.slice(6));
+                        handleEvent(event);
+                    } catch (e) {}
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                document.getElementById('statusText').textContent = `ERROR: ${error.message}`;
+            }
+            
+            finishSearch();
+        }
+        
+        function finishSearch() {
+            isSearching = false;
+            clearInterval(timerInterval);
+            document.getElementById('spinner').classList.remove('active');
+            document.getElementById('searchBtn').disabled = false;
+            document.getElementById('searchBtn').textContent = 'SEARCH';
+        }
+        
+        function handleEvent(event) {
+            console.log('Event received:', event);  // Debug logging
+            
+            // Handle timeout event
+            if (event.type === 'timeout') {
+                document.getElementById('statusText').textContent = event.message || 'Search timed out';
+                finishSearch();
+                return;
+            }
+            
+            switch (event.type) {
+                case 'search_start':
+                    document.getElementById('statusText').innerHTML = 
+                        `Scanning <span class="highlight">${event.sites.length} warehouses</span><span class="loading-dots"></span>`;
+                    break;
+                
+                case 'session_status':
+                    // Initial connection status
+                    const statusEl = document.getElementById(`status-${event.site}`);
+                    if (statusEl) {
+                        statusEl.textContent = '● CONNECTING';
+                        statusEl.className = 'browser-box-status active';
+                    }
+                    break;
+                    
+                case 'session_start':
+                    const content = document.getElementById(`content-${event.site}`);
+                    const status = document.getElementById(`status-${event.site}`);
+                    
+                    if (content && event.streamingUrl) {
+                        content.innerHTML = `<iframe src="${event.streamingUrl}" allow="autoplay"></iframe>`;
+                    }
+                    
+                    if (status) {
+                        status.textContent = '● SCANNING';
+                        status.className = 'browser-box-status active';
+                    }
+                    
+                    document.getElementById('statusText').innerHTML = 
+                        `Scanning <span class="highlight">${event.site_name}</span><span class="loading-dots"></span>`;
+                    break;
+                    
+                case 'session_result':
+                    sitesCompleted++;
+                    
+                    const resultStatus = document.getElementById(`status-${event.site}`);
+                    if (resultStatus) {
+                        resultStatus.textContent = `✓ ${event.count} FOUND`;
+                        resultStatus.className = 'browser-box-status done';
+                    }
+                    
+                    // Add products with savings calculation
+                    if (event.products && Array.isArray(event.products)) {
+                        event.products.forEach(p => {
+                            p._site = event.site;
+                            p._site_name = event.site_name;
+                            
+                            // Calculate savings
+                            const original = parsePrice(p.original_price);
+                            const sale = parsePrice(p.sale_price || p.price);
+                            
+                            if (original && sale && original > sale) {
+                                p._savings_amount = original - sale;
+                                p._savings_percent = Math.round((p._savings_amount / original) * 100);
+                            }
+                            
+                            allProducts.push(p);
+                        });
+                    }
+                    
+                    updateItemsList();
+                    updateSummary();
+                    
+                    document.getElementById('statusText').innerHTML = 
+                        `<span class="highlight">${event.site_name}</span>: ${event.count} items found`;
+                    break;
+                    
+                case 'session_error':
+                    sitesCompleted++;
+                    
+                    const errorStatus = document.getElementById(`status-${event.site}`);
+                    if (errorStatus) {
+                        errorStatus.textContent = `✗ ${(event.error || 'ERROR').toUpperCase().slice(0, 8)}`;
+                        errorStatus.className = 'browser-box-status error';
+                    }
+                    
+                    const errorContent = document.getElementById(`content-${event.site}`);
+                    if (errorContent && !errorContent.querySelector('iframe')) {
+                        errorContent.innerHTML = `
+                            <div class="placeholder">
+                                <div class="placeholder-icon">⚠️</div>
+                                <div>${event.error || 'Error'}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    updateSummary();
+                    break;
+                    
+                case 'heartbeat':
+                    // Keep connection alive - update timer
+                    break;
+                    
+                case 'complete':
+                    document.getElementById('statusText').textContent = 
+                        `SEARCH COMPLETE — ${allProducts.length} ITEMS FOUND`;
+                    setTimeout(() => {
+                        document.getElementById('statusSection').style.display = 'none';
+                    }, 2000);
+                    break;
+                    
+                default:
+                    console.log('Unknown event type:', event.type);
+            }
+        }
+        
+        function parsePrice(priceStr) {
+            if (!priceStr) return null;
+            const cleaned = String(priceStr).replace(/[^0-9.]/g, '');
+            const price = parseFloat(cleaned);
+            return isNaN(price) ? null : price;
+        }
+        
+        function formatPrice(price) {
+            return '$' + price.toFixed(2);
+        }
+        
+        // Normalize price to always have $ symbol and consistent format
+        function normalizePrice(price) {
+            if (!price || price === 'N/A' || price === 'None' || price === null) return null;
+            
+            // Convert to string
+            let priceStr = String(price).trim();
+            
+            // Remove any existing $ symbol and commas
+            priceStr = priceStr.replace(/[$,]/g, '');
+            
+            // Parse as float
+            const num = parseFloat(priceStr);
+            if (isNaN(num)) return null;
+            
+            // Return formatted with $
+            return '$' + num.toFixed(2);
+        }
+        
+        function updateItemsList() {
+            const list = document.getElementById('itemsList');
+            
+            if (allProducts.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📦</div>
+                        <div>No items found</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort by savings percentage (best deals first)
+            const sorted = [...allProducts].sort((a, b) => {
+                return (b._savings_percent || 0) - (a._savings_percent || 0);
+            });
+            
+            list.innerHTML = sorted.map(p => {
+                const name = p.name || p.title || 'Unknown Product';
+                const salePrice = normalizePrice(p.sale_price || p.price) || 'N/A';
+                const originalPrice = normalizePrice(p.original_price);
+                const condition = p.condition || '';
+                
+                // XSS Protection: Validate URL scheme
+                let url = p.product_url || p.url || '#';
+                try {
+                    const urlObj = new URL(url);
+                    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+                        url = '#';  // Invalid protocol, disable link
+                    }
+                } catch {
+                    if (url !== '#') url = '#';  // Invalid URL
+                }
+                
+                // Stamp type
+                let stampClass = '';
+                let stampText = 'OPEN BOX';
+                const condLower = condition.toLowerCase();
+                if (condLower.includes('refurb')) {
+                    stampClass = 'refurb';
+                    stampText = 'REFURBISHED';
+                } else if (condLower.includes('certif')) {
+                    stampClass = 'certified';
+                    stampText = 'CERTIFIED';
+                } else if (condLower.includes('excellent')) {
+                    stampClass = 'certified';
+                    stampText = 'EXCELLENT';
+                } else if (condLower.includes('like new')) {
+                    stampClass = 'certified';
+                    stampText = 'LIKE NEW';
+                }
+                
+                return `
+                    <div class="item">
+                        <div class="item-info">
+                            <div class="item-name">
+                                <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>
+                            </div>
+                            <div class="item-meta">
+                                ${condition ? `<span class="item-condition">Condition: ${escapeHtml(condition.toUpperCase())}</span>` : ''}
+                                <span class="item-site">VIA ${escapeHtml(p._site_name || p._site || 'UNKNOWN')}</span>
+                            </div>
+                            <span class="stamp ${stampClass}">${stampText}</span>
+                        </div>
+                        <div class="item-original ${originalPrice ? '' : 'empty'}">
+                            ${originalPrice ? `~~${originalPrice}~~` : '—'}
+                        </div>
+                        <div class="item-pricing">
+                            <div class="item-price">${salePrice}</div>
+                            ${p._savings_amount ? `<div class="item-savings">SAVE ${formatPrice(p._savings_amount)}</div>` : ''}
+                            ${p._savings_percent ? `<div class="item-percent">(${p._savings_percent}% OFF)</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function updateSummary() {
+            document.getElementById('summaryItems').textContent = allProducts.length;
+            document.getElementById('summarySites').textContent = `${sitesCompleted} / 8`;
+            document.getElementById('txnSites').textContent = `${sitesCompleted} SITES QUERIED`;
+            
+            // Calculate aggregate savings
+            const withSavings = allProducts.filter(p => p._savings_percent);
+            
+            if (withSavings.length > 0) {
+                const maxPercent = Math.max(...withSavings.map(p => p._savings_percent));
+                const avgPercent = Math.round(
+                    withSavings.reduce((sum, p) => sum + p._savings_percent, 0) / withSavings.length
+                );
+                const totalSavings = withSavings.reduce((sum, p) => sum + (p._savings_amount || 0), 0);
+                
+                document.getElementById('summaryAvgSavings').textContent = `${avgPercent}% OFF`;
+                document.getElementById('summarySavings').textContent = `UP TO ${maxPercent}% OFF`;
+            }
+        }
+        
+        function updateTimer() {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            document.getElementById('summaryTime').textContent = `${elapsed} SEC`;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

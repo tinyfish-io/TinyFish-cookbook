@@ -1,8 +1,13 @@
 # Open-Box Deals Aggregator
 
 Real-time open-box and refurbished deal aggregator with live browser streaming. Scrapes 8 major retailers simultaneously using TinyFish Agent API.
+## Demo
+![Open-Box Deals Demo]
+https://github.com/user-attachments/assets/57def077-74e7-416b-967c-ed72e1dc0da0
 
-![Open-Box Deals Screenshot](screenshot.png)
+
+
+
 
 ## 🎯 What It Does
 

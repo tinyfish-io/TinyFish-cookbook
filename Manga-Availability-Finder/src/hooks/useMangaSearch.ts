@@ -24,84 +24,106 @@ export function useMangaSearch() {
 
   const searchSite = useCallback(
     async (agent: SiteAgent, title: string) => {
-      updateAgent(agent.id, { status: "searching", statusMessage: "Connecting to agent..." });
+      updateAgent(agent.id, {
+        status: "searching",
+        statusMessage: "Connecting to agent...",
+      });
 
       try {
-        // Use fetch directly to handle SSE stream
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        
-        const response = await fetch(`${supabaseUrl}/functions/v1/search-manga`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseKey}`,
-            "apikey": supabaseKey,
-          },
-          body: JSON.stringify({ url: agent.siteUrl, mangaTitle: title }),
-        });
+
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/search-manga`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${supabaseKey}`,
+              apikey: supabaseKey,
+            },
+            body: JSON.stringify({ url: agent.siteUrl, mangaTitle: title }),
+          }
+        );
 
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
 
         const contentType = response.headers.get("content-type");
-        
-        // Handle SSE stream
+
         if (contentType?.includes("text/event-stream")) {
           const reader = response.body?.getReader();
           if (!reader) throw new Error("No response body");
-          
+
           const decoder = new TextDecoder();
-          
+
+          let buffer = ""; 
+          let receivedTerminalEvent = false; 
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
-            const chunk = decoder.decode(value);
-            const lines = chunk.split("\n");
-            
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
             for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  
-                  if (data.type === "stream" && data.streamingUrl) {
-                    updateAgent(agent.id, { 
-                      streamingUrl: data.streamingUrl,
-                      statusMessage: "Agent browsing..." 
-                    });
-                  }
-                  
-                  if (data.type === "complete") {
-                    updateAgent(agent.id, {
-                      status: data.found ? "found" : "not_found",
-                      statusMessage: data.found ? "Manga found on this site!" : "Not available on this site",
-                      streamingUrl: undefined,
-                    });
-                  }
-                  
-                  if (data.type === "error") {
-                    updateAgent(agent.id, {
-                      status: "error",
-                      statusMessage: data.error || "Search failed",
-                      streamingUrl: undefined,
-                    });
-                  }
-                } catch {
-                  // Ignore parse errors
+              if (!line.startsWith("data: ")) continue;
+
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.type === "stream" && data.streamingUrl) {
+                  updateAgent(agent.id, {
+                    streamingUrl: data.streamingUrl,
+                    statusMessage: "Agent browsing...",
+                  });
                 }
+
+                if (data.type === "complete") {
+                  receivedTerminalEvent = true; 
+                  updateAgent(agent.id, {
+                    status: data.found ? "found" : "not_found",
+                    statusMessage: data.found
+                      ? "Manga found on this site!"
+                      : "Not available on this site",
+                    streamingUrl: undefined,
+                  });
+                }
+
+                if (data.type === "error") {
+                  receivedTerminalEvent = true; 
+                  updateAgent(agent.id, {
+                    status: "error",
+                    statusMessage: data.error || "Search failed",
+                    streamingUrl: undefined,
+                  });
+                }
+              } catch {
+                // Ignore parse errors (partial JSON handled by buffering)
               }
             }
           }
+
+          if (!receivedTerminalEvent) {
+            updateAgent(agent.id, {
+              status: "error",
+              statusMessage: "Stream ended without completion signal",
+              streamingUrl: undefined,
+            });
+          }
         } else {
-          // Handle JSON response (fallback)
           const data = await response.json();
-          
+
           if (data?.found !== undefined) {
             updateAgent(agent.id, {
               status: data.found ? "found" : "not_found",
-              statusMessage: data.found ? "Manga found on this site!" : "Not available on this site",
+              statusMessage: data.found
+                ? "Manga found on this site!"
+                : "Not available on this site",
             });
           } else if (data?.error) {
             updateAgent(agent.id, {
@@ -114,7 +136,8 @@ export function useMangaSearch() {
         console.error(`Error searching ${agent.siteName}:`, error);
         updateAgent(agent.id, {
           status: "error",
-          statusMessage: error instanceof Error ? error.message : "Search failed",
+          statusMessage:
+            error instanceof Error ? error.message : "Search failed",
           streamingUrl: undefined,
         });
       }
@@ -129,24 +152,23 @@ export function useMangaSearch() {
       setAgents([]);
 
       try {
-        // Step 1: Get manga site URLs from Gemini
-        const { data: urlsData, error: urlsError } = await supabase.functions.invoke(
-          "discover-manga-sites",
-          { body: { mangaTitle: title } }
-        );
+        const { data: urlsData, error: urlsError } =
+          await supabase.functions.invoke("discover-manga-sites", {
+            body: { mangaTitle: title },
+          });
 
         if (urlsError) {
           throw new Error(urlsError.message);
         }
 
-        const sites: Array<{ name: string; url: string }> = urlsData?.sites || [];
+        const sites: Array<{ name: string; url: string }> =
+          urlsData?.sites || [];
 
         if (sites.length === 0) {
           setIsSearching(false);
           return;
         }
 
-        // Initialize agents
         const initialAgents: SiteAgent[] = sites.map((site, index) => ({
           id: `agent-${index}`,
           siteName: site.name,
@@ -156,7 +178,6 @@ export function useMangaSearch() {
 
         setAgents(initialAgents);
 
-        // Step 2: Start searching each site in parallel
         await Promise.all(
           initialAgents.map((agent) => searchSite(agent, title))
         );

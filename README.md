@@ -144,6 +144,15 @@ Got something cool you built with TinyFish? We want it in here! Check out our [C
 - [Join us on Discord](https://discord.gg/cv3JS4t4) — ask questions, share what you're building, hang out
 - Learn more at [tinyfish.ai](https://tinyfish.ai)
 
+## Legal Disclaimer
+
+This repository is a community-driven space for sharing derivatives, code samples, and best practices related to Tiny Fish products. By using the materials in this repository, you acknowledge and agree to the following:
+- **"As-Is" Basis**: All code, scripts, and documentation shared here are provided "AS IS" and "AS AVAILABLE." TinyFish makes no warranties of any kind, whether express or implied, regarding the accuracy, reliability, or security of community-contributed content.
+- **No Obligation to Maintain**: Tiny Fish is under no obligation to monitor, update, or fix bugs, errors, or security vulnerabilities found in community-contributed derivatives.
+- **User Responsibility**: You are solely responsible for vetting and testing any code before implementing it in a production environment. Use of these derivatives is at your own risk.
+- **Limitation of Liability**: In no event shall Tiny Fish be held liable for any claim, damages, or other liability—including but not limited to system failures, data loss, or security breaches—arising from the use of or inability to use the contents of this repository.
+
+> Note: Contributions from the community do not represent the official views or supported products of Tiny Fish.
 ---
 
 <img src="https://github.com/user-attachments/assets/2cf004f0-0065-4f21-9835-12ac693964f1" width="100%" />

@@ -28,7 +28,7 @@ The application employs a two-stage process. After getting search URLs from Gemi
 
 ```typescript
 
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
 
      method: "POST",
 

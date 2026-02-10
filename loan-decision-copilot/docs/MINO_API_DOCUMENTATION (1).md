@@ -74,7 +74,7 @@ LoanLens is a loan comparison application that automates the extraction of loan 
 │   │                                                                        │ │
 │   │   ┌─────────────────────────────────────────────────────────────────┐ │ │
 │   │   │                    MINO API (SSE Stream)                        │ │ │
-│   │   │   - Endpoint: https://mino.ai/v1/automation/run-sse             │ │ │
+│   │   │   - Endpoint: https://agent.tinyfish.ai/v1/automation/run-sse             │ │ │
 │   │   │   - Browser agent navigates to URL                              │ │ │
 │   │   │   - Extracts loan details (rates, terms, eligibility)           │ │ │
 │   │   │   - Streams live preview URL + status updates                   │ │ │
@@ -237,9 +237,9 @@ serve(async (req) => {
       );
     }
 
-    const MINO_API_KEY = Deno.env.get("MINO_API_KEY");
-    if (!MINO_API_KEY) {
-      throw new Error("MINO_API_KEY is not configured");
+    const TINYFISH_API_KEY = Deno.env.get("TINYFISH_API_KEY");
+    if (!TINYFISH_API_KEY) {
+      throw new Error("TINYFISH_API_KEY is not configured");
     }
 
     // Dynamic goal based on loan type
@@ -257,11 +257,11 @@ serve(async (req) => {
           send({ type: "STATUS", message: "Connecting to browser agent..." });
 
           // Call Mino API with SSE streaming
-          const minoResponse = await fetch("https://mino.ai/v1/automation/run-sse", {
+          const minoResponse = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "X-API-Key": MINO_API_KEY,
+              "X-API-Key": TINYFISH_API_KEY,
             },
             body: JSON.stringify({ 
               url, 
@@ -571,7 +571,7 @@ interface LoanAnalysisResult {
 
 | Error | Cause | Resolution |
 |-------|-------|------------|
-| `MINO_API_KEY is not configured` | Missing API key in environment | Add secret via Lovable dashboard |
+| `TINYFISH_API_KEY is not configured` | Missing API key in environment | Add secret via Lovable dashboard |
 | `Mino API error: 429` | Rate limiting | Implement exponential backoff |
 | `timeout` | Page took too long | Increase timeout (currently 5 min) |
 | `Invalid response from bank discovery` | AI returned malformed JSON | Retry or adjust prompt |
@@ -590,7 +590,7 @@ data: {"type":"ERROR","message":"Failed to load page: Connection timeout"}
 
 | Variable | Description |
 |----------|-------------|
-| `MINO_API_KEY` | API key for Mino browser automation |
+| `TINYFISH_API_KEY` | API key for Mino browser automation |
 | `LOVABLE_API_KEY` | Auto-configured for Lovable AI Gateway |
 
 ### Timeout Configuration

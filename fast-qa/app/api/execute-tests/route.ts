@@ -69,13 +69,13 @@ export async function POST(request: NextRequest) {
         return;
       }
 
-      const apiKey = process.env.MINO_API_KEY;
+      const apiKey = process.env.TINYFISH_API_KEY;
       if (!apiKey) {
         await sendEvent({
           type: 'test_error',
           testCaseId: 'system',
           timestamp: Date.now(),
-          data: { error: 'MINO_API_KEY not configured' },
+          data: { error: 'TINYFISH_API_KEY not configured' },
         });
         await closeWriter();
         return;

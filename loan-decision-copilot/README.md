@@ -40,11 +40,11 @@ For each discovered bank:
 
 ```typescript
 
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "X-API-Key": MINO_API_KEY,
+    "X-API-Key": TINYFISH_API_KEY,
   },
   body: JSON.stringify({
     url: bankUrl,
@@ -79,7 +79,7 @@ Return structured JSON with your findings.
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `MINO_API_KEY` | TinyFish Web Agent [API key](https://mino.ai) | ✅ |
+| `TINYFISH_API_KEY` | TinyFish Web Agent [API key](https://mino.ai) | ✅ |
 | `LOVABLE_API_KEY` | Lovable AI Gateway key | ✅ |
 
 ### Setup

@@ -96,7 +96,7 @@ User Request
 | API | Endpoint | Auth | Rate Limits |
 |-----|----------|------|-------------|
 | Gemini | `generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent` | API Key | Standard Gemini limits |
-| Mino | `mino.ai/v1/automation/run-sse` | X-API-Key header | Per-account limits |
+| Mino | `agent.tinyfish.ai/v1/automation/run-sse` | X-API-Key header | Per-account limits |
 
 ---
 
@@ -370,8 +370,8 @@ async function searchHotelAreas(city: string, purpose: string) {
 import requests
 import json
 
-MINO_API_URL = "https://mino.ai/v1/automation/run-sse"
-MINO_API_KEY = "your-mino-api-key"
+MINO_API_URL = "https://agent.tinyfish.ai/v1/automation/run-sse"
+TINYFISH_API_KEY = "your-mino-api-key"
 
 def research_area_with_mino(area_name: str, city: str, purpose: str):
     """
@@ -416,7 +416,7 @@ RETURN JSON ONLY:
     response = requests.post(
         MINO_API_URL,
         headers={
-            "X-API-Key": MINO_API_KEY,
+            "X-API-Key": TINYFISH_API_KEY,
             "Content-Type": "application/json",
         },
         json={
@@ -622,13 +622,13 @@ Both edge functions provide fallback data if the primary API fails:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GEMINI_API_KEY` | Yes | Google AI API key for area discovery |
-| `MINO_API_KEY` | Yes | Mino API key for browser automation |
+| `TINYFISH_API_KEY` | Yes | Mino API key for browser automation |
 
 ---
 
 ## Quick Start Checklist
 
-1. ✅ Set `GEMINI_API_KEY` and `MINO_API_KEY` in your environment
+1. ✅ Set `GEMINI_API_KEY` and `TINYFISH_API_KEY` in your environment
 2. ✅ Deploy `discover-areas` and `research-area` edge functions
 3. ✅ Implement SSE parsing in your frontend
 4. ✅ Handle the 180-second timeout gracefully

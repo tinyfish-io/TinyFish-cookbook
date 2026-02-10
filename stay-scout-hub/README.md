@@ -30,7 +30,7 @@ For every suggested area, a Mino agent:
 ### Example Mino API Call
 
 ```ts
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
     "X-API-Key": process.env.MINO_API_KEY,

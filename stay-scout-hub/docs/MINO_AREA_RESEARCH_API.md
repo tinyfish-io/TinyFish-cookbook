@@ -96,7 +96,7 @@ User Request
 | API | Endpoint | Auth | Rate Limits |
 |-----|----------|------|-------------|
 | Gemini | `generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent` | API Key | Standard Gemini limits |
-| Mino | `mino.ai/v1/automation/run-sse` | X-API-Key header | Per-account limits |
+| Mino | `agent.tinyfish.ai/v1/automation/run-sse` | X-API-Key header | Per-account limits |
 
 ---
 
@@ -370,7 +370,7 @@ async function searchHotelAreas(city: string, purpose: string) {
 import requests
 import json
 
-MINO_API_URL = "https://mino.ai/v1/automation/run-sse"
+MINO_API_URL = "https://agent.tinyfish.ai/v1/automation/run-sse"
 MINO_API_KEY = "your-mino-api-key"
 
 def research_area_with_mino(area_name: str, city: str, purpose: str):

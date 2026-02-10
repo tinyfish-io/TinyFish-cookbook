@@ -77,7 +77,7 @@ Be objective and factual. If information is not available, indicate "Not specifi
         try {
           send({ type: "STATUS", message: "Connecting to browser agent..." });
 
-          const minoResponse = await fetch("https://mino.ai/v1/automation/run-sse", {
+          const minoResponse = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

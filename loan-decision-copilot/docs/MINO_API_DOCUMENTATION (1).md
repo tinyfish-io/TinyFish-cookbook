@@ -74,7 +74,7 @@ LoanLens is a loan comparison application that automates the extraction of loan 
 │   │                                                                        │ │
 │   │   ┌─────────────────────────────────────────────────────────────────┐ │ │
 │   │   │                    MINO API (SSE Stream)                        │ │ │
-│   │   │   - Endpoint: https://mino.ai/v1/automation/run-sse             │ │ │
+│   │   │   - Endpoint: https://agent.tinyfish.ai/v1/automation/run-sse             │ │ │
 │   │   │   - Browser agent navigates to URL                              │ │ │
 │   │   │   - Extracts loan details (rates, terms, eligibility)           │ │ │
 │   │   │   - Streams live preview URL + status updates                   │ │ │
@@ -257,7 +257,7 @@ serve(async (req) => {
           send({ type: "STATUS", message: "Connecting to browser agent..." });
 
           // Call Mino API with SSE streaming
-          const minoResponse = await fetch("https://mino.ai/v1/automation/run-sse", {
+          const minoResponse = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

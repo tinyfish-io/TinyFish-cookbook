@@ -1,4 +1,4 @@
-const ENDPOINT = "https://mino.ai/v1/automation/run-sse";
+const ENDPOINT = "https://agent.tinyfish.ai/v1/automation/run-sse";
 
 export type MinoSSECallbacks = {
   onStreamingUrl?: (url: string) => void;

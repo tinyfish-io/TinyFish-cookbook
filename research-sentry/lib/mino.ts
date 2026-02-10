@@ -1,5 +1,5 @@
 // TinyFish Web Agent Client
-// Endpoint: https://mino.ai/v1/automation/run-sse
+// Endpoint: https://agent.tinyfish.ai/v1/automation/run-sse
 
 export async function runMinoAutomation(
     url: string,
@@ -23,7 +23,7 @@ export async function runMinoAutomation(
     const timeout = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
     try {
-        const res = await fetch('https://mino.ai/v1/automation/run-sse', {
+        const res = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
             method: 'POST',
             headers: {
                 'X-API-Key': apiKey,

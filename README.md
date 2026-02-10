@@ -57,7 +57,7 @@ Here is how to run a simple automation agent:
 #### cURL
 
 ```bash
-curl -N -X POST https://mino.ai/v1/automation/run-sse \
+curl -N -X POST https://agent.tinyfish.ai/v1/automation/run-sse \
   -H "X-API-Key: $MINO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -74,7 +74,7 @@ import os
 import requests
 
 response = requests.post(
-    "https://mino.ai/v1/automation/run-sse",
+    "https://agent.tinyfish.ai/v1/automation/run-sse",
     headers={
         "X-API-Key": os.getenv("MINO_API_KEY"),
         "Content-Type": "application/json",
@@ -97,7 +97,7 @@ for line in response.iter_lines():
 #### TypeScript
 
 ```typescript
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
     "X-API-Key": process.env.MINO_API_KEY,

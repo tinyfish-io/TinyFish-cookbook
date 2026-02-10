@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const MINO_API_KEY = Deno.env.get('MINO_API_KEY');
-const MINO_API_URL = 'https://mino.ai/v1/automation/run-sse';
+const MINO_API_URL = 'https://agent.tinyfish.ai/v1/automation/run-sse';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

@@ -14,7 +14,7 @@ The app calls the TinyFish SSE endpoint to run a web agent on each selected spor
 
 ```typescript
 
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
     "X-API-Key": process.env.NEXT_PUBLIC_MINO_API_KEY,

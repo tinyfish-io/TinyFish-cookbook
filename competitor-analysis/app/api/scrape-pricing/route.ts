@@ -350,7 +350,7 @@ async function scrapePricingPage(
     const goal = SCRAPING_GOALS[detailLevel];
     console.log(`[Scrape] Using ${detailLevel} detail level for ${competitor.name}`);
 
-    const minoResponse = await fetch('https://mino.ai/v1/automation/run-sse', {
+    const minoResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
       method: 'POST',
       headers: {
         'X-API-Key': apiKey,

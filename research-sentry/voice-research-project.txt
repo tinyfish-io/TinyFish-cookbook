@@ -241,7 +241,7 @@ export async function transcribeAudio(buffer: Buffer, filename = 'audio.webm') {
 FILE: lib/mino.ts
 ------------------------------------------------------------
 export async function runMinoAutomation(url: string, goal: string, stealth = false) {
-  const res = await fetch('https://mino.ai/v1/automation/run-sse', {
+  const res = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
     method: 'POST',
     headers: {
       'X-API-Key': process.env.MINO_API_KEY!,

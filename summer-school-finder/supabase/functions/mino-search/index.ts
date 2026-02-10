@@ -13,9 +13,9 @@ serve(async (req) => {
   try {
     const { url, goal } = await req.json();
 
-    const MINO_API_KEY = Deno.env.get("MINO_API_KEY");
-    if (!MINO_API_KEY) {
-      throw new Error("MINO_API_KEY is not configured");
+    const TINYFISH_API_KEY = Deno.env.get("TINYFISH_API_KEY");
+    if (!TINYFISH_API_KEY) {
+      throw new Error("TINYFISH_API_KEY is not configured");
     }
 
     console.log(`Starting Mino agent for URL: ${url}`);
@@ -25,7 +25,7 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": MINO_API_KEY,
+        "X-API-Key": TINYFISH_API_KEY,
       },
       body: JSON.stringify({ url, goal }),
     });

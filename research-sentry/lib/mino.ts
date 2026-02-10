@@ -7,10 +7,10 @@ export async function runMinoAutomation(
     stealth = false,
     options?: { timeoutMs?: number }
 ): Promise<any> {
-    const apiKey = process.env.MINO_API_KEY;
+    const apiKey = process.env.TINYFISH_API_KEY;
 
     if (!apiKey) {
-        console.error('[Mino] MINO_API_KEY not set in environment');
+        console.error('[Mino] TINYFISH_API_KEY not set in environment');
         return null;
     }
 

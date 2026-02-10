@@ -39,10 +39,10 @@ export async function runMinoAutomation(
   apiKey?: string,
   callbacks?: MinoStreamCallbacks
 ): Promise<MinoResponse> {
-  const key = apiKey || process.env.MINO_API_KEY;
+  const key = apiKey || process.env.TINYFISH_API_KEY;
 
   if (!key) {
-    throw new Error("MINO_API_KEY is required. Set it in .env or pass as parameter.");
+    throw new Error("TINYFISH_API_KEY is required. Set it in .env or pass as parameter.");
   }
 
   const events: MinoEvent[] = [];

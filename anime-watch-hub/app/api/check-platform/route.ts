@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.MINO_API_KEY
+    const apiKey = process.env.TINYFISH_API_KEY
     if (!apiKey) {
       return new Response(
         encoder.encode(`data: ${JSON.stringify({ type: 'ERROR', message: 'Mino API key not configured' })}\n\n`),

@@ -27,7 +27,7 @@ export interface MinoResponse {
 /**
  * Execute a Mino automation task and return the parsed result
  * @param config - Automation configuration
- * @param apiKey - Mino API key (defaults to process.env.MINO_API_KEY)
+ * @param apiKey - Mino API key (defaults to process.env.TINYFISH_API_KEY)
  * @param verbose - Log step-by-step progress (default: true)
  * @returns Promise with the automation result
  */
@@ -36,10 +36,10 @@ export async function runMinoAutomation(
   apiKey?: string,
   verbose: boolean = true
 ): Promise<MinoResponse> {
-  const key = apiKey || process.env.MINO_API_KEY;
+  const key = apiKey || process.env.TINYFISH_API_KEY;
 
   if (!key) {
-    throw new Error("MINO_API_KEY is required. Set it in .env or pass as parameter.");
+    throw new Error("TINYFISH_API_KEY is required. Set it in .env or pass as parameter.");
   }
 
   const events: MinoEvent[] = [];

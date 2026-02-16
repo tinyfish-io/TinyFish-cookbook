@@ -114,9 +114,21 @@ export class TinyFishWebAgentClient {
     const decoder = new TextDecoder();
     let buffer = "";
     let lastComplete = null;
+    const streamDeadline = Date.now() + this.sseTimeoutMs;
 
     while (true) {
-      const { value, done } = await reader.read();
+      if (Date.now() > streamDeadline) {
+        reader.cancel().catch(() => {});
+        throw new Error(`TinyFish SSE stream timed out after ${this.sseTimeoutMs}ms`);
+      }
+      const { value, done } = await Promise.race([
+        reader.read(),
+        new Promise((_, rej) => {
+          const remaining = streamDeadline - Date.now();
+          if (remaining <= 0) rej(new Error(`TinyFish SSE stream timed out after ${this.sseTimeoutMs}ms`));
+          else setTimeout(() => rej(new Error(`TinyFish SSE stream timed out after ${this.sseTimeoutMs}ms`)), remaining);
+        }),
+      ]);
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });

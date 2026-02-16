@@ -40,7 +40,7 @@ export function LandingView({ url, setUrl, runScan, scanning, scanError, onClear
               color: colors.text,
               outline: "none",
             }}
-            onKeyDown={(e) => e.key === "Enter" && runScan()}
+            onKeyDown={(e) => e.key === "Enter" && !scanning && url.trim() && runScan()}
           />
         </div>
         <button

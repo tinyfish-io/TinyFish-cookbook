@@ -5,7 +5,7 @@ import { colors, space, type } from "../styles/tokens";
 export function NegotiationPlaybook({ negotiation }) {
   if (!negotiation) return null;
 
-  const { leverageFactors, talkingPoints, counterOffers, riskWarnings } = negotiation;
+  const { leverageFactors = [], talkingPoints = [], counterOffers = [], riskWarnings = [] } = negotiation;
   const hasContent = leverageFactors.length > 0 || talkingPoints.length > 0 || counterOffers.length > 0;
   if (!hasContent) return null;
 

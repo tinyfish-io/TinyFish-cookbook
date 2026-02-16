@@ -347,17 +347,19 @@ async function runInvestigation({ targetUrl, domain, onProgress }) {
 
   emit({ step: "ai_extra", message: "Generating executive summary and risk analysis...", progress: 92 });
 
-  // Run executive summary, negotiation playbook, and risk analysis in parallel
+  // Run executive summary, negotiation playbook, risk analysis, and competitor analysis in parallel
   const targetInfo = { name, url: domain };
-  const [execSummaryRes, negotiationRes, riskProfileRes] = await Promise.allSettled([
+  const [execSummaryRes, negotiationRes, riskProfileRes, competitorAnalysisRes] = await Promise.allSettled([
     modeler.generateExecutiveSummary(report.infraCost, report.buildCost, report.buyerCost, targetInfo),
     modeler.generateNegotiationPlaybook(report.infraCost, report.buyerCost, targetInfo),
     modeler.analyzeRiskProfile(riskRaw, targetInfo),
+    modeler.generateCompetitorAnalysis(null, report.buyerCost, targetInfo),
   ]);
 
   const executiveSummary = execSummaryRes.status === "fulfilled" ? execSummaryRes.value : null;
   const negotiation = negotiationRes.status === "fulfilled" ? negotiationRes.value : null;
   const riskProfile = riskProfileRes.status === "fulfilled" ? riskProfileRes.value : modeler.getDefaultRiskProfile();
+  const competitorAnalysis = competitorAnalysisRes.status === "fulfilled" ? competitorAnalysisRes.value : null;
 
   emit({ step: "complete", message: "Investigation complete", progress: 100 });
   const failedPillars = Object.entries(scannerErrors).filter(([, v]) => Boolean(v)).map(([k]) => k);
@@ -397,6 +399,7 @@ async function runInvestigation({ targetUrl, domain, onProgress }) {
     executiveSummary: executiveSummary || null,
     negotiation: negotiation || null,
     riskProfile: riskProfile || modeler.getDefaultRiskProfile(),
+    competitorAnalysis: competitorAnalysis || null,
     infraCost: {
       ...report.infraCost,
       confidence: {

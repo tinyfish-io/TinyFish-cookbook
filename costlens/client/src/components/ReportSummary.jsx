@@ -4,10 +4,10 @@ import { fmt, hasValue, hasRange } from "../utils/formatting";
 import { colors, space, type } from "../styles/tokens";
 
 export function ReportSummary({ report, activePillar = "infra" }) {
-  const pillar = ["infra", "build", "buyer", "risk"].includes(activePillar) ? activePillar : "infra";
-  const checklistPillars = ["infra", "build", "buyer", "risk"];
-  const visiblePillars = [pillar];
-  const pillarLabel = pillar === "infra" ? "Their Cost" : pillar === "build" ? "Build Cost" : pillar === "buyer" ? "Your Cost" : "Risk";
+  const pillar = ["infra", "build", "buyer", "risk", "competitors"].includes(activePillar) ? activePillar : "infra";
+  const checklistPillars = ["infra", "build", "buyer", "risk", "competitors"];
+  const visiblePillars = checklistPillars;
+  const pillarLabel = pillar === "infra" ? "Their Cost" : pillar === "build" ? "Build Cost" : pillar === "buyer" ? "Your Cost" : pillar === "risk" ? "Risk" : "Competitors";
   const degradedCount = report.quality.degradedPillars.length;
   const legacyScore = report.quality.completenessScore;
   const weightedScore = report.quality.qualityMeta?.confidenceScore?.global || legacyScore;
@@ -20,16 +20,16 @@ export function ReportSummary({ report, activePillar = "infra" }) {
       : trustLevel === "Medium"
         ? "Some inputs were incomplete. Validate critical numbers before decisions."
         : "Signal coverage is healthy, but outputs are still model-based estimates.";
-  const checklist = checklistPillars.map((pillar) => {
-    const tasks = report.quality.qualityMeta?.pillarCoverage?.[pillar] || { tasksSucceeded: 0, tasksExpected: 0 };
-    const sources = report.quality.qualityMeta?.sourceCoverage?.[pillar] || { sourceCount: 0, expectedSources: 0 };
-    const hasError = Boolean(report.quality.scannerErrors?.[pillar] || report.quality.modelErrors?.[pillar]);
+  const checklist = checklistPillars.map((p) => {
+    const tasks = report.quality.qualityMeta?.pillarCoverage?.[p] || { tasksSucceeded: 0, tasksExpected: 0 };
+    const sources = report.quality.qualityMeta?.sourceCoverage?.[p] || { sourceCount: 0, expectedSources: 0 };
+    const hasError = Boolean(report.quality.scannerErrors?.[p] || report.quality.modelErrors?.[p]);
     const hasAnyData = tasks.tasksExpected > 0 || sources.expectedSources > 0;
     const isComplete = !hasError && tasks.tasksExpected > 0 && tasks.tasksSucceeded === tasks.tasksExpected && sources.sourceCount >= Math.max(1, Math.floor(sources.expectedSources * 0.7));
     const isMissing = hasError || (hasAnyData && (tasks.tasksSucceeded === 0 || sources.sourceCount === 0));
     return {
-      pillar,
-      label: pillar === "infra" ? "Their Cost" : pillar === "build" ? "Build Cost" : pillar === "buyer" ? "Your Cost" : "Risk",
+      pillar: p,
+      label: p === "infra" ? "Their Cost" : p === "build" ? "Build Cost" : p === "buyer" ? "Your Cost" : p === "risk" ? "Risk" : "Competitors",
       status: hasAnyData ? (isComplete ? "complete" : isMissing ? "missing" : "partial") : "unavailable",
       details: hasAnyData
         ? `${tasks.tasksSucceeded}/${tasks.tasksExpected} tasks, ${sources.sourceCount}/${sources.expectedSources} sources`
@@ -147,22 +147,22 @@ export function ReportSummary({ report, activePillar = "infra" }) {
       <Panel>
         <SectionLabel style={{ marginBottom: 10 }}>Trust Score Breakdown</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: space.sm }}>
-          {visiblePillars.map((pillar) => {
-            const score = report.quality.qualityMeta?.confidenceScore?.[pillar] || 0;
-            const warnings = report.quality.modelWarnings?.[pillar] || [];
-            const sources = report.quality.qualityMeta?.sourceCoverage?.[pillar];
-            const components = report.quality.qualityMeta?.perPillar?.[pillar]?.scoreComponents || {};
-            const scannerErr = report.quality.scannerErrors?.[pillar];
-            const modelErr = report.quality.modelErrors?.[pillar];
+          {visiblePillars.map((p) => {
+            const score = report.quality.qualityMeta?.confidenceScore?.[p] || 0;
+            const warnings = report.quality.modelWarnings?.[p] || [];
+            const sources = report.quality.qualityMeta?.sourceCoverage?.[p];
+            const components = report.quality.qualityMeta?.perPillar?.[p]?.scoreComponents || {};
+            const scannerErr = report.quality.scannerErrors?.[p];
+            const modelErr = report.quality.modelErrors?.[p];
             const hasTrustData = (sources?.expectedSources || 0) > 0 || (warnings?.length || 0) > 0 || scannerErr || modelErr;
             const reasons = [];
             if (scannerErr) reasons.push(`Scanner issue: ${scannerErr}`);
             if (modelErr) reasons.push(`Model issue: ${modelErr}`);
             if (!scannerErr && !modelErr && warnings.length === 0 && score >= 80) reasons.push("Healthy coverage and reliability signals.");
             return (
-              <div key={pillar} style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 4, padding: 10 }}>
+              <div key={p} style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 4, padding: 10 }}>
                 <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: type.sizeXs, color: colors.textMuted, textTransform: "uppercase", marginBottom: 3 }}>
-                  {pillar}
+                  {p}
                 </div>
                 {hasTrustData ? (
                   <>

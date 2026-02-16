@@ -18,7 +18,7 @@ const verdictColors = {
 export function ExecutiveSummary({ executiveSummary }) {
   if (!executiveSummary || !executiveSummary.summary) return null;
 
-  const { summary, keyFindings, recommendations, verdictLabel } = executiveSummary;
+  const { summary, keyFindings = [], recommendations = [], verdictLabel } = executiveSummary;
   const verdictColor = verdictColors[verdictLabel] || verdictColors["Insufficient Data"];
 
   return (

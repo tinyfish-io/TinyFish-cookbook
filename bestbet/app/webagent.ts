@@ -1,4 +1,4 @@
-const ENDPOINT = "https://mino.ai/v1/automation/run-sse";
+const ENDPOINT = "https://agent.tinyfish.ai/v1/automation/run-sse";
 
 export type MinoSSECallbacks = {
   onStreamingUrl?: (url: string) => void;
@@ -13,7 +13,7 @@ export async function runMinoSSE(
   const response = await fetch(ENDPOINT, {
     method: "POST",
     headers: {
-      "X-API-Key": process.env.NEXT_PUBLIC_MINO_API_KEY!,
+      "X-API-Key": process.env.NEXT_PUBLIC_TINYFISH_API_KEY!,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ url, goal }),

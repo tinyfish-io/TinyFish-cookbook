@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 45 30% 98%;
+    --foreground: 45 10% 15%;
+    --card: 45 30% 98%;
+    --card-foreground: 45 10% 15%;
+    --popover: 45 30% 98%;
+    --popover-foreground: 45 10% 15%;
+    --primary: 48 96% 51%;
+    --primary-foreground: 45 10% 15%;
+    --secondary: 45 20% 94%;
+    --secondary-foreground: 45 10% 15%;
+    --muted: 45 10% 90%;
+    --muted-foreground: 45 5% 40%;
+    --accent: 48 96% 90%;
+    --accent-foreground: 45 10% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 45 10% 88%;
+    --input: 45 10% 88%;
+    --ring: 48 96% 51%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.bg-grid-pattern {
+  background-image: radial-gradient(circle, #d1d1d1 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.text-success {
+  color: #10b981;
+}
+
+.bg-success\/5 {
+  background-color: rgba(16, 185, 129, 0.05);
+}
+
+.bg-success\/15 {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+
+.border-success\/20 {
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.border-success\/30 {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.text-warning {
+  color: #f59e0b;
+}
+
+.bg-warning\/5 {
+  background-color: rgba(245, 158, 11, 0.05);
+}
+
+.bg-warning\/15 {
+  background-color: rgba(245, 158, 11, 0.15);
+}
+
+.border-warning\/20 {
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.text-info {
+  color: #3b82f6;
+}
+
+.bg-info\/10 {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.text-destructive {
+  color: #ef4444;
+}
+
+.bg-destructive\/10 {
+  background-color: rgba(239, 68, 68, 0.1);
+}

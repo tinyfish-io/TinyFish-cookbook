@@ -155,7 +155,7 @@ import { NextRequest } from 'next/server';
 
 export async function POST(request: NextRequest) {
   const { animeTitle, platformName, searchUrl } = await request.json();
-  const apiKey = process.env.MINO_API_KEY;
+  const apiKey = process.env.TINYFISH_API_KEY;
 
   const goal = `You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
 
@@ -184,7 +184,7 @@ Return a JSON object with these fields:
 If the anime is NOT found or not available, set available to false and explain why in the message.`;
 
   // Call Mino API with SSE
-  const minoResponse = await fetch('https://mino.ai/v1/automation/run-sse', {
+  const minoResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -294,9 +294,9 @@ curl -X POST https://your-app.vercel.app/api/check-platform \
 #### 3. Direct Mino API Call
 
 ```bash
-curl -X POST https://mino.ai/v1/automation/run-sse \
+curl -X POST https://agent.tinyfish.ai/v1/automation/run-sse \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: YOUR_MINO_API_KEY" \
+  -H "X-API-Key: YOUR_TINYFISH_API_KEY" \
   -d '{
     "url": "https://www.crunchyroll.com/search?q=attack+on+titan",
     "goal": "Check if Attack on Titan is available on this platform..."
@@ -441,7 +441,7 @@ data: {"type":"COMPLETE","resultJson":"{\"available\":false,\"message\":\"Attack
 | Variable | Description |
 |----------|-------------|
 | `GEMINI_API_KEY` | Google Gemini API key for platform URL discovery |
-| `MINO_API_KEY` | Mino API key for browser automation |
+| `TINYFISH_API_KEY` | Mino API key for browser automation |
 
 ---
 

@@ -37,6 +37,7 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | [bestbet](./bestbet) | Sports betting odds comparison tool |
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
 | [competitor-analysis](./competitor-analysis) | a Live Competitive Pricing Intelligence Dashboard |
+| [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when travel for conventions or events |
 | [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world |
 

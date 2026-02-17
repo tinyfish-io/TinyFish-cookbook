@@ -1,0 +1,149 @@
+{
+  "STFM4567": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-20",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Limited"
+      }
+    ]
+  },
+  "STM3467FT": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-20",
+        "lifecycle_status": "Unknown",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      }
+    ]
+  },
+  "STM32F103C8T6": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-20",
+        "lifecycle_status": "NRND",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Limited",
+        "risk_score": 15
+      },
+      {
+        "timestamp": "2026-01-29",
+        "lifecycle_status": "Unknown",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      },
+      {
+        "timestamp": "2026-01-30",
+        "lifecycle_status": "Unknown",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      }
+    ]
+  },
+  "PIC16F877A-I/P": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-20",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Limited",
+        "risk_score": 40
+      }
+    ]
+  },
+  "STM32F103C87": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-29",
+        "lifecycle_status": "NRND",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Limited",
+        "risk_score": 85
+      }
+    ]
+  },
+  "ATmega328P": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-29",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      },
+      {
+        "timestamp": "2026-01-30",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      }
+    ]
+  },
+  "NE555": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-29",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      },
+      {
+        "timestamp": "2026-01-30",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      }
+    ]
+  },
+  "ESP32-WROOM-32": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-29",
+        "lifecycle_status": "Unknown",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      },
+      {
+        "timestamp": "2026-01-30",
+        "lifecycle_status": "Unknown",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      }
+    ]
+  },
+  "LM358": {
+    "snapshots": [
+      {
+        "timestamp": "2026-01-30",
+        "lifecycle_status": "Unknown",
+        "lead_time_weeks": 0,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 50
+      }
+    ]
+  }
+}

@@ -2,7 +2,7 @@
 
 <img width="1034" height="407" alt="CKBOOK" src="https://github.com/user-attachments/assets/ce4fccb9-70b8-4023-8022-4e8e3b244fbe" />
 
-[Website](https://tinyfish.ai/) | [Docs](https://docs.mino.ai/) | [Discord](https://discord.gg/cv3JS4t4) | [License](LICENSE) | [X](https://x.com/Tiny_Fish) | [LinkedIn](https://www.linkedin.com/company/tinyfish-ai/) | [Threads](https://www.threads.com/@tinyfish_ai) | [Instagram](https://www.instagram.com/tinyfish_ai/)
+[Website](https://tinyfish.ai/) | [Docs](https://docs.mino.ai/) | [Discord](https://discord.gg/tinyfish) | [License](LICENSE) | [X](https://x.com/Tiny_Fish) | [LinkedIn](https://www.linkedin.com/company/tinyfish-ai/) | [Threads](https://www.threads.com/@tinyfish_ai) | [Instagram](https://www.instagram.com/tinyfish_ai/)
 
 ---
 
@@ -141,7 +141,7 @@ Got something cool you built with TinyFish? We want it in here! Check out our [C
 
 ## Community & Support
 
-- [Join us on Discord](https://discord.gg/cv3JS4t4) — ask questions, share what you're building, hang out
+- [Join us on Discord](https://discord.gg/tinyfish) — ask questions, share what you're building, hang out
 - Learn more at [tinyfish.ai](https://tinyfish.ai)
 
 ## Legal Disclaimer

@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "client/dist",
+  "framework": null,
+  "functions": {
+    "api/health.js": { "maxDuration": 120 },
+    "api/investigate.js": { "maxDuration": 120 },
+    "api/investigate/stream.js": { "maxDuration": 120 },
+    "api/investigate/async.js": { "maxDuration": 60 },
+    "api/investigate/async/poll.js": { "maxDuration": 60 }
+  }
+}

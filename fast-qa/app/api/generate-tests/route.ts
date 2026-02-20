@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     const openrouter = createOpenRouterProvider();
-    const model = openrouter.chatModel('openai/gpt-5-nano');
+    const model = openrouter.chatModel('openai/gpt-4.1-nano');
 
     const system = `You are a QA test automation expert. Your job is to analyze raw text (which may include feature descriptions, user stories, requirements, or test scenarios) and generate a comprehensive list of test cases. Return your response as JSON.
 

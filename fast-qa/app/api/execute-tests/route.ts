@@ -1,3 +1,8 @@
+/**
+ * @deprecated Use /api/execute-test (singular) instead.
+ * This endpoint blocks until all tests complete, which causes 504 timeouts
+ * on Vercel's free tier. The new endpoint uses SSE streaming.
+ */
 import { NextRequest } from 'next/server';
 import { runMinoAutomation } from '@/lib/mino-client';
 import { generateTestResultSummary } from '@/lib/ai-client';

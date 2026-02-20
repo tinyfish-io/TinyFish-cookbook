@@ -1,0 +1,71 @@
+services:
+  # ====== Main Web App ======
+  - type: web
+    name: wing-scout
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AGENTQL_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+  # ====== Cache Warmer — Tier 1 (SB host + top party cities) ======
+  # Runs every 3 hours — keeps high-demand ZIPs hot in Redis/Supabase
+  - type: cron
+    name: wing-scout-warmer
+    runtime: node
+    buildCommand: npm install
+    schedule: "0 */3 * * *"
+    startCommand: npx tsx scripts/cache-warmer.ts --tier=1 --concurrency=2
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AGENTQL_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+  # ====== Game Day Warmer — Tier 2 (all metros) ======
+  # Enable this on Super Bowl weekend for full coverage
+  # Runs every 2 hours to keep all 49 metro ZIPs warm
+  # - type: cron
+  #   name: wing-scout-warmer-gameday
+  #   runtime: node
+  #   buildCommand: npm install
+  #   schedule: "0 */2 * * *"
+  #   startCommand: npx tsx scripts/cache-warmer.ts --tier=2 --concurrency=3
+  #   envVars:
+  #     - key: NODE_ENV
+  #       value: production
+  #     - key: NEXT_PUBLIC_SUPABASE_URL
+  #       sync: false
+  #     - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+  #       sync: false
+  #     - key: SUPABASE_SERVICE_ROLE_KEY
+  #       sync: false
+  #     - key: AGENTQL_API_KEY
+  #       sync: false
+  #     - key: UPSTASH_REDIS_REST_URL
+  #       sync: false
+  #     - key: UPSTASH_REDIS_REST_TOKEN
+  #       sync: false

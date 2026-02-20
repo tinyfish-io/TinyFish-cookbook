@@ -1,0 +1,546 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== CSS Variables — Locker Room Light Theme ===== */
+:root {
+  --bg-primary: #F3F4F6;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F9FAFB;
+  --border-color: #E5E7EB;
+  --border-light: #D1D5DB;
+  --text-primary: #1F2937;
+  --text-secondary: #4B5563;
+  --text-muted: #9CA3AF;
+  --stadium-green: #16A34A;
+  --stadium-green-light: #22C55E;
+  --whistle-orange: #F97316;
+  --wing-green: #22c55e;
+  --wing-yellow: #fbbf24;
+  --wing-red: #ef4444;
+  --manila: #FEF3C7;
+}
+
+/* ===== Base Styles — Light Mode ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* ===== Scrollbar — Clean Light ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* ===== Locker Room Background — solid (AnimatedFieldBackground handles visuals) ===== */
+.locker-room-bg {
+  background-color: var(--bg-primary);
+}
+
+/* ===== Whiteboard Panel ===== */
+.whiteboard-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  position: relative;
+}
+
+.whiteboard-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image:
+    linear-gradient(rgba(22,163,74,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22,163,74,0.02) 1px, transparent 1px);
+  background-size: 30px 30px;
+  pointer-events: none;
+}
+
+/* ===== Clipboard Card ===== */
+.clipboard-card {
+  background: var(--bg-surface);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  position: relative;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.clipboard-card::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 12px;
+  background: #9CA3AF;
+  border-radius: 0 0 6px 6px;
+  z-index: 2;
+}
+
+.clipboard-card:hover {
+  border-color: var(--stadium-green);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.1);
+  transform: translateY(-4px);
+}
+
+.clipboard-card.selected {
+  border-color: var(--stadium-green);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12), 0 4px 12px rgba(22, 163, 74, 0.1);
+}
+
+/* ===== Manila Folder Card ===== */
+.manila-folder {
+  background: linear-gradient(165deg, #FFFBEB 0%, #FEF3C7 40%, #FFFFFF 100%);
+  border: 1px solid #FDE68A;
+  border-left: 4px solid #FDE68A;
+  border-radius: 2px 12px 12px 2px;
+  position: relative;
+  overflow: visible;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.manila-folder:hover {
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.12), 0 2px 6px rgba(0,0,0,0.06);
+  transform: translateY(-3px);
+}
+
+/* Manila folder tab */
+.manila-tab {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  border-radius: 4px 4px 0 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 14px;
+}
+
+/* ===== Notebook line for stats ===== */
+.notebook-line {
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(22, 163, 74, 0.06);
+}
+
+/* ===== Jumbotron Digit ===== */
+.jumbotron-digit {
+  background: linear-gradient(180deg, #1F2937 0%, #374151 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+}
+
+/* ===== Scouting Sheet (legacy compat) ===== */
+.scouting-sheet {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.scouting-sheet::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 12px 0 0 12px;
+}
+
+.scouting-sheet.status-green::after {
+  background: var(--wing-green);
+}
+
+.scouting-sheet.status-yellow::after {
+  background: var(--wing-yellow);
+}
+
+.scouting-sheet.status-red::after {
+  background: var(--wing-red);
+}
+
+.scouting-sheet:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+/* ===== Glass (Light version) ===== */
+.glass {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* ===== Neon Text (green accent on light) ===== */
+.neon-text {
+  color: var(--stadium-green);
+}
+
+.neon-text-subtle {
+  color: var(--stadium-green);
+}
+
+.sauce-text {
+  color: #DC2626;
+}
+
+/* ===== Skeleton Loading — Light ===== */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #E5E7EB 25%,
+    #F3F4F6 50%,
+    #E5E7EB 75%
+  );
+  background-size: 936px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% { background-position: -468px 0; }
+  100% { background-position: 468px 0; }
+}
+
+/* ===== Status Colors ===== */
+.status-green {
+  color: var(--wing-green);
+  background: rgba(34, 197, 94, 0.1);
+  border-color: var(--wing-green);
+}
+
+.status-yellow {
+  color: var(--wing-yellow);
+  background: rgba(251, 191, 36, 0.1);
+  border-color: var(--wing-yellow);
+}
+
+.status-red {
+  color: var(--wing-red);
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--wing-red);
+}
+
+/* ===== Ticker Bar — Light Theme ===== */
+.ticker-bar {
+  background: linear-gradient(90deg, var(--stadium-green) 0%, #15803D 50%, var(--stadium-green) 100%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ticker-content {
+  display: inline-block;
+  animation: ticker-scroll 14s linear infinite;
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* ===== Coin Flip 3D ===== */
+.coin-3d {
+  transform-style: preserve-3d;
+  perspective: 600px;
+}
+
+.coin-flipping {
+  animation: coin-flip 1.2s ease-in-out;
+}
+
+@keyframes coin-flip {
+  0% { transform: rotateY(0deg) scale(1); }
+  50% { transform: rotateY(900deg) scale(1.3); }
+  100% { transform: rotateY(1800deg) scale(1); }
+}
+
+/* ===== Siren animation for LIVE badge ===== */
+@keyframes siren {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.animate-siren {
+  animation: siren 1s ease-in-out infinite;
+}
+
+/* ===== Selection Color ===== */
+::selection {
+  background: rgba(22, 163, 74, 0.2);
+  color: #1F2937;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-only {
+    display: none;
+  }
+}
+
+/* ===== Handwritten Note Style ===== */
+.handwritten-note {
+  font-family: var(--font-marker), cursive;
+  color: var(--stadium-green);
+  transform: rotate(-2deg);
+}
+
+/* ===== Paper Texture ===== */
+.paper-texture {
+  background-color: #FFFEF7;
+  background-image:
+    repeating-linear-gradient(
+      transparent,
+      transparent 31px,
+      rgba(22, 163, 74, 0.06) 31px,
+      rgba(22, 163, 74, 0.06) 32px
+    );
+}
+
+/* ===== Tape Strip Decoration ===== */
+.tape-strip {
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: 2px;
+}
+
+/* ===== Coach Wing Speech Bubble ===== */
+.speech-bubble {
+  position: relative;
+  background: white;
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid white;
+  filter: drop-shadow(0 2px 1px rgba(0,0,0,0.04));
+}
+
+/* ===== Animated background for mascot side ===== */
+.mascot-bg {
+  background: linear-gradient(
+    160deg,
+    rgba(22, 163, 74, 0.04) 0%,
+    rgba(249, 115, 22, 0.02) 50%,
+    rgba(22, 163, 74, 0.04) 100%
+  );
+}
+
+/* ===== Playbook grid overlay ===== */
+.playbook-grid {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='20' font-size='12' fill='%2316A34A' opacity='0.05'%3EX%3C/text%3E%3Ccircle cx='45' cy='40' r='6' stroke='%2316A34A' fill='none' stroke-width='1' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* ===== Scouting Report Card — Manila Folder v2 ===== */
+.report-card {
+  background-color: #F3E5AB;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  border: 2px solid #D4C395;
+  border-radius: 4px 14px 14px 4px;
+  box-shadow: 8px 8px 0px 0px #1E3A8A;
+  position: relative;
+  overflow: visible;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.report-card:hover {
+  box-shadow: 10px 10px 0px 0px #1E3A8A;
+  transform: translateY(-5px) scale(1.02);
+}
+
+/* Report card folder tab — clip-path trapezoid */
+.report-tab {
+  position: absolute;
+  top: -14px;
+  left: 16px;
+  height: 16px;
+  min-width: 90px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
+  z-index: 5;
+}
+
+/* Polaroid photo frame */
+.polaroid {
+  background: white;
+  padding: 8px 8px 28px 8px;
+  border: 2px solid #E5E7EB;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transform: rotate(-2deg);
+  transition: transform 0.3s ease;
+}
+
+.report-card:hover .polaroid {
+  transform: rotate(-1deg) scale(1.02);
+}
+
+/* Draft grade circle */
+.draft-grade {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-marker), cursive;
+  font-size: 20px;
+  font-weight: bold;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transform: rotate(6deg);
+}
+
+/* Red marker circle SVG annotation — shaky hand-drawn */
+.red-circle-annotation {
+  stroke: #DC2626;
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+}
+
+.red-circle-annotation.animate {
+  animation: draw-in 0.8s ease-out forwards;
+}
+
+@keyframes draw-in {
+  0% { stroke-dashoffset: 300; opacity: 0; }
+  10% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+/* Strikethrough marker line for flavor cards */
+.marker-strike {
+  position: absolute;
+  top: 50%;
+  left: -5%;
+  height: 4px;
+  background: #DC2626;
+  border-radius: 2px;
+  transform: rotate(-3deg) translateY(-50%);
+  opacity: 0;
+  width: 0;
+}
+
+.marker-strike.active {
+  animation: strike-through 0.4s ease-out forwards;
+}
+
+@keyframes strike-through {
+  0% { width: 0; opacity: 0; }
+  100% { width: 110%; opacity: 0.6; }
+}
+
+/* Fumble overlay */
+.fumble-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: inherit;
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* Perfect Play glow */
+.perfect-play-glow {
+  box-shadow:
+    0 0 20px rgba(22, 163, 74, 0.25),
+    0 0 40px rgba(22, 163, 74, 0.15),
+    8px 8px 0px 0px #1E3A8A;
+  border-color: #16A34A !important;
+}
+
+/* Tactical canvas X's and O's mark */
+.xo-mark {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  font-family: var(--font-marker), cursive;
+  animation: xo-fade 1.2s ease-out forwards;
+}
+
+@keyframes xo-fade {
+  0% { opacity: 0.45; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.5); }
+}
+
+/* SVG play diagram draw animation */
+.play-diagram-path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: play-draw 2.5s ease-in-out infinite;
+}
+
+@keyframes play-draw {
+  0% { stroke-dashoffset: 200; }
+  50% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 200; }
+}
+
+/* Play diagram pulse when search focused */
+.play-diagram-active .play-diagram-path {
+  animation-duration: 1.5s;
+  stroke-width: 2.5;
+}

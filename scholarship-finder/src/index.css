@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scholarship Finder Design System - Orange and White theme */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 24 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 10%;
+
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 30% 96%;
+    --secondary-foreground: 24 10% 20%;
+
+    --muted: 30 20% 96%;
+    --muted-foreground: 24 10% 45%;
+
+    --accent: 24 95% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 20% 90%;
+    --input: 30 20% 90%;
+    --ring: 24 95% 53%;
+
+    --radius: 0.75rem;
+
+    /* Custom semantic colors */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 200 80% 50%;
+    --info-foreground: 0 0% 100%;
+
+    --sidebar-background: 24 95% 53%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 24 95% 53%;
+    --sidebar-accent: 24 85% 45%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 24 85% 45%;
+    --sidebar-ring: 0 0% 100%;
+  }
+
+  .dark {
+    --background: 24 10% 8%;
+    --foreground: 0 0% 98%;
+
+    --card: 24 10% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 24 10% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 24 95% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 24 15% 18%;
+    --secondary-foreground: 0 0% 90%;
+
+    --muted: 24 15% 15%;
+    --muted-foreground: 24 10% 60%;
+
+    --accent: 24 95% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 24 15% 20%;
+    --input: 24 15% 20%;
+    --ring: 24 95% 55%;
+
+    --success: 142 60% 50%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 80% 55%;
+    --warning-foreground: 0 0% 100%;
+    --info: 200 70% 55%;
+    --info-foreground: 0 0% 100%;
+
+    --sidebar-background: 24 10% 6%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 24 95% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 15% 15%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 24 15% 15%;
+    --sidebar-ring: 24 95% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(24 95% 53%) 0%, hsl(24 95% 60%) 100%);
+  }
+
+  .gradient-hero {
+    background: linear-gradient(135deg, hsl(24 95% 53%) 0%, hsl(24 95% 45%) 50%, hsl(24 95% 53%) 100%);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(24 95% 60%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .glass-effect {
+    backdrop-filter: blur(12px);
+    background: hsl(var(--card) / 0.8);
+  }
+}

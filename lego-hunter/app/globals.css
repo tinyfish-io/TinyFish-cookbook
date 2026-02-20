@@ -1,0 +1,912 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Lego Color Palette - Refined */
+:root {
+  /* Core Lego colors */
+  --lego-yellow: #FFCF00;
+  --lego-yellow-light: #FFE566;
+  --lego-yellow-dark: #D4AC00;
+  --lego-red: #E4002B;
+  --lego-red-dark: #B8001F;
+  --lego-blue: #0055BF;
+  --lego-blue-light: #1A6FCF;
+  --lego-blue-dark: #003D8F;
+  --lego-green: #00852B;
+  --lego-orange: #FE5000;
+
+  /* Neutrals */
+  --lego-black: #0D0D0D;
+  --lego-white: #FFFFFF;
+  --lego-cream: #FAFAF8;
+  --lego-gray-100: #F5F5F4;
+  --lego-gray-200: #E8E8E6;
+  --lego-gray-300: #D4D4D2;
+  --lego-gray-400: #A3A3A1;
+  --lego-gray-500: #737371;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: var(--lego-cream);
+  --foreground: var(--lego-black);
+  --card: var(--lego-white);
+  --card-foreground: var(--lego-black);
+  --popover: var(--lego-white);
+  --popover-foreground: var(--lego-black);
+  --primary: var(--lego-blue);
+  --primary-foreground: var(--lego-white);
+  --secondary: var(--lego-gray-100);
+  --secondary-foreground: var(--lego-black);
+  --muted: var(--lego-gray-100);
+  --muted-foreground: var(--lego-gray-500);
+  --accent: var(--lego-yellow);
+  --accent-foreground: var(--lego-black);
+  --destructive: var(--lego-red);
+  --border: var(--lego-gray-200);
+  --input: var(--lego-gray-200);
+  --ring: var(--lego-blue);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+/* ============================================
+   LEGO 3D BRICK EFFECTS
+   ============================================ */
+
+/* Primary CTA Button - Yellow Brick */
+.brick-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 2rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.9375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lego-black);
+  background: linear-gradient(180deg, var(--lego-yellow-light) 0%, var(--lego-yellow) 50%, var(--lego-yellow-dark) 100%);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 4px 0 0 #B89B00,
+    0 6px 8px -2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+.brick-button:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 0 0 #B89B00,
+    0 10px 16px -4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+.brick-button:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 2px 0 0 #B89B00,
+    0 3px 4px -1px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+.brick-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Red Brick Button */
+.brick-button-red {
+  color: white;
+  background: linear-gradient(180deg, #FF1A40 0%, var(--lego-red) 50%, var(--lego-red-dark) 100%);
+  box-shadow:
+    0 4px 0 0 #8C0015,
+    0 6px 8px -2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+}
+
+.brick-button-red:hover {
+  box-shadow:
+    0 6px 0 0 #8C0015,
+    0 10px 16px -4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Blue Brick Button */
+.brick-button-blue {
+  color: white;
+  background: linear-gradient(180deg, var(--lego-blue-light) 0%, var(--lego-blue) 50%, var(--lego-blue-dark) 100%);
+  box-shadow:
+    0 4px 0 0 #002D66,
+    0 6px 8px -2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+}
+
+.brick-button-blue:hover {
+  box-shadow:
+    0 6px 0 0 #002D66,
+    0 10px 16px -4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+}
+
+/* ============================================
+   CARD STYLES - LEGO BOX AESTHETIC
+   ============================================ */
+
+.brick-card {
+  position: relative;
+  background: var(--lego-white);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.brick-card:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* Card with colored top border */
+.brick-card-accent {
+  border-top: 4px solid var(--lego-blue);
+}
+
+.brick-card-accent-yellow {
+  border-top: 4px solid var(--lego-yellow);
+}
+
+.brick-card-accent-red {
+  border-top: 4px solid var(--lego-red);
+}
+
+.brick-card-accent-green {
+  border-top: 4px solid var(--lego-green);
+}
+
+/* Interactive card */
+.brick-card-interactive {
+  cursor: pointer;
+}
+
+.brick-card-interactive:hover {
+  transform: translateY(-2px);
+}
+
+/* ============================================
+   BRICK STUD DECORATIONS
+   ============================================ */
+
+.brick-stud {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(255,255,255,0.5) 0%, transparent 60%);
+  box-shadow:
+    inset 0 -2px 3px rgba(0, 0, 0, 0.15),
+    0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+.brick-stud-yellow {
+  background: linear-gradient(145deg, var(--lego-yellow-light) 0%, var(--lego-yellow) 100%);
+  box-shadow:
+    inset 0 -2px 3px rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.brick-stud-red {
+  background: linear-gradient(145deg, #FF4D6A 0%, var(--lego-red) 100%);
+}
+
+.brick-stud-blue {
+  background: linear-gradient(145deg, var(--lego-blue-light) 0%, var(--lego-blue) 100%);
+}
+
+/* Stud row decoration */
+.brick-studs-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* ============================================
+   INPUT STYLES
+   ============================================ */
+
+.brick-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--lego-black);
+  background: var(--lego-white);
+  border: 2px solid var(--lego-gray-200);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.brick-input::placeholder {
+  color: var(--lego-gray-400);
+  font-weight: 400;
+}
+
+.brick-input:hover {
+  border-color: var(--lego-gray-300);
+}
+
+.brick-input:focus {
+  outline: none;
+  border-color: var(--lego-blue);
+  box-shadow: 0 0 0 3px rgba(0, 85, 191, 0.15);
+}
+
+.brick-input:disabled {
+  background: var(--lego-gray-100);
+  cursor: not-allowed;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes brick-stack {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-6px); }
+  50% { transform: translateY(-2px); }
+  75% { transform: translateY(-8px); }
+}
+
+@keyframes brick-click {
+  0% { transform: scale(1) translateY(0); }
+  50% { transform: scale(0.95) translateY(2px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+@keyframes glow-yellow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 207, 0, 0.3); }
+  50% { box-shadow: 0 0 35px rgba(255, 207, 0, 0.6); }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Animation utilities */
+.animate-brick-stack {
+  animation: brick-stack 1s ease-in-out infinite;
+}
+
+.animate-brick-click {
+  animation: brick-click 0.3s ease-out;
+}
+
+.animate-glow-yellow {
+  animation: glow-yellow 2s ease-in-out infinite;
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+/* Staggered animations */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* ============================================
+   STATUS INDICATORS
+   ============================================ */
+
+.status-searching {
+  border-left: 4px solid var(--lego-orange);
+}
+
+.status-complete {
+  border-left: 4px solid var(--lego-green);
+}
+
+.status-error {
+  border-left: 4px solid var(--lego-red);
+}
+
+.status-idle {
+  border-left: 4px solid var(--lego-gray-300);
+}
+
+.status-stock-found {
+  border-left: 4px solid var(--lego-yellow);
+  animation: glow-yellow 2s ease-in-out infinite;
+}
+
+/* ============================================
+   PROGRESS BAR
+   ============================================ */
+
+.brick-progress {
+  height: 8px;
+  background: var(--lego-gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.brick-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--lego-yellow) 0%, var(--lego-yellow-light) 50%, var(--lego-yellow) 100%);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.brick-progress-bar.loading {
+  animation: shimmer 1.5s infinite;
+}
+
+/* ============================================
+   DECORATIVE ELEMENTS
+   ============================================ */
+
+/* Subtle brick pattern for backgrounds */
+.brick-pattern-subtle {
+  background-image:
+    radial-gradient(circle at 20px 20px, rgba(0, 0, 0, 0.02) 2px, transparent 2px);
+  background-size: 40px 40px;
+}
+
+/* Colored accent stripe */
+.accent-stripe {
+  position: relative;
+}
+
+.accent-stripe::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg,
+    var(--lego-red) 0%, var(--lego-red) 20%,
+    var(--lego-yellow) 20%, var(--lego-yellow) 40%,
+    var(--lego-blue) 40%, var(--lego-blue) 60%,
+    var(--lego-green) 60%, var(--lego-green) 80%,
+    var(--lego-orange) 80%, var(--lego-orange) 100%
+  );
+}
+
+/* ============================================
+   TABLE STYLES
+   ============================================ */
+
+.brick-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.brick-table th {
+  padding: 0.875rem 1rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lego-gray-500);
+  background: var(--lego-gray-100);
+  border-bottom: 2px solid var(--lego-gray-200);
+  text-align: left;
+}
+
+.brick-table th:first-child {
+  border-top-left-radius: 8px;
+}
+
+.brick-table th:last-child {
+  border-top-right-radius: 8px;
+}
+
+.brick-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--lego-gray-200);
+  font-size: 0.9375rem;
+}
+
+.brick-table tr:last-child td {
+  border-bottom: none;
+}
+
+.brick-table tr:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.brick-table tr:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.brick-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.brick-table tbody tr:hover {
+  background: var(--lego-gray-100);
+}
+
+/* Out of stock row */
+.brick-table tr.out-of-stock {
+  opacity: 0.5;
+}
+
+.brick-table tr.out-of-stock:hover {
+  opacity: 0.7;
+}
+
+/* ============================================
+   TYPOGRAPHY UTILITIES
+   ============================================ */
+
+.text-display {
+  font-family: var(--font-display);
+}
+
+.text-body {
+  font-family: var(--font-body);
+}
+
+/* ============================================
+   BADGE STYLES
+   ============================================ */
+
+.brick-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 4px;
+}
+
+.brick-badge-green {
+  color: #065F46;
+  background: #D1FAE5;
+}
+
+.brick-badge-red {
+  color: #991B1B;
+  background: #FEE2E2;
+}
+
+.brick-badge-yellow {
+  color: #92400E;
+  background: #FEF3C7;
+}
+
+.brick-badge-blue {
+  color: #1E40AF;
+  background: #DBEAFE;
+}
+
+.brick-badge-orange {
+  color: #9A3412;
+  background: #FFEDD5;
+}
+
+/* ============================================
+   LOADING SKELETON
+   ============================================ */
+
+.brick-skeleton {
+  background: linear-gradient(90deg,
+    var(--lego-gray-200) 0%,
+    var(--lego-gray-100) 50%,
+    var(--lego-gray-200) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* ============================================
+   LEGO BRICK RETAILER CARDS
+   ============================================ */
+
+/* Base Lego Brick Structure */
+.lego-brick-blue,
+.lego-brick-red,
+.lego-brick-yellow,
+.lego-brick-green,
+.lego-brick-orange,
+.lego-brick-gray {
+  position: relative;
+  border-radius: 8px;
+  overflow: visible;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lego-brick-blue:hover,
+.lego-brick-red:hover,
+.lego-brick-yellow:hover,
+.lego-brick-green:hover,
+.lego-brick-orange:hover,
+.lego-brick-gray:hover {
+  transform: translateY(-4px);
+}
+
+/* Blue Brick */
+.lego-brick-blue {
+  background: linear-gradient(180deg, var(--lego-blue-light) 0%, var(--lego-blue) 50%, var(--lego-blue-dark) 100%);
+  box-shadow:
+    0 6px 0 0 #002D66,
+    0 8px 16px -4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-blue:hover {
+  box-shadow:
+    0 8px 0 0 #002D66,
+    0 12px 24px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-blue .lego-stud-3d {
+  background: linear-gradient(145deg, #3399FF 0%, var(--lego-blue) 100%);
+  box-shadow:
+    inset 0 -3px 4px rgba(0, 0, 0, 0.3),
+    0 2px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Red Brick */
+.lego-brick-red {
+  background: linear-gradient(180deg, #FF4D6A 0%, var(--lego-red) 50%, var(--lego-red-dark) 100%);
+  box-shadow:
+    0 6px 0 0 #8C0015,
+    0 8px 16px -4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-red:hover {
+  box-shadow:
+    0 8px 0 0 #8C0015,
+    0 12px 24px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-red .lego-stud-3d {
+  background: linear-gradient(145deg, #FF6680 0%, var(--lego-red) 100%);
+  box-shadow:
+    inset 0 -3px 4px rgba(0, 0, 0, 0.3),
+    0 2px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Yellow Brick */
+.lego-brick-yellow {
+  background: linear-gradient(180deg, var(--lego-yellow-light) 0%, var(--lego-yellow) 50%, var(--lego-yellow-dark) 100%);
+  box-shadow:
+    0 6px 0 0 #B89B00,
+    0 8px 16px -4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+  animation: glow-yellow 2s ease-in-out infinite;
+}
+
+.lego-brick-yellow:hover {
+  box-shadow:
+    0 8px 0 0 #B89B00,
+    0 12px 24px -4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+.lego-brick-yellow .lego-stud-3d {
+  background: linear-gradient(145deg, #FFEE99 0%, var(--lego-yellow) 100%);
+  box-shadow:
+    inset 0 -3px 4px rgba(0, 0, 0, 0.2),
+    0 2px 3px rgba(0, 0, 0, 0.15);
+}
+
+.lego-brick-yellow .lego-brick-body {
+  color: var(--lego-black);
+}
+
+.lego-brick-yellow .lego-brick-body span,
+.lego-brick-yellow .lego-brick-body p {
+  color: var(--lego-black);
+}
+
+/* Green Brick */
+.lego-brick-green {
+  background: linear-gradient(180deg, #00A33D 0%, var(--lego-green) 50%, #006B23 100%);
+  box-shadow:
+    0 6px 0 0 #004D16,
+    0 8px 16px -4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-green:hover {
+  box-shadow:
+    0 8px 0 0 #004D16,
+    0 12px 24px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-green .lego-stud-3d {
+  background: linear-gradient(145deg, #00C44A 0%, var(--lego-green) 100%);
+  box-shadow:
+    inset 0 -3px 4px rgba(0, 0, 0, 0.3),
+    0 2px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Orange Brick */
+.lego-brick-orange {
+  background: linear-gradient(180deg, #FF7033 0%, var(--lego-orange) 50%, #CC4000 100%);
+  box-shadow:
+    0 6px 0 0 #993000,
+    0 8px 16px -4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-orange:hover {
+  box-shadow:
+    0 8px 0 0 #993000,
+    0 12px 24px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.lego-brick-orange .lego-stud-3d {
+  background: linear-gradient(145deg, #FF8C5A 0%, var(--lego-orange) 100%);
+  box-shadow:
+    inset 0 -3px 4px rgba(0, 0, 0, 0.3),
+    0 2px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Gray Brick */
+.lego-brick-gray {
+  background: linear-gradient(180deg, var(--lego-gray-300) 0%, var(--lego-gray-400) 50%, var(--lego-gray-500) 100%);
+  box-shadow:
+    0 6px 0 0 #5A5A58,
+    0 8px 16px -4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+}
+
+.lego-brick-gray:hover {
+  box-shadow:
+    0 8px 0 0 #5A5A58,
+    0 12px 24px -4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+}
+
+.lego-brick-gray .lego-stud-3d {
+  background: linear-gradient(145deg, var(--lego-gray-200) 0%, var(--lego-gray-400) 100%);
+  box-shadow:
+    inset 0 -3px 4px rgba(0, 0, 0, 0.2),
+    0 2px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Lego Studs Container */
+.lego-studs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* 3D Stud Effect */
+.lego-stud-3d {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  position: relative;
+}
+
+/* Lego Brick Body */
+.lego-brick-body {
+  padding: 0 16px 16px 16px;
+  color: white;
+}
+
+/* Browser Preview Container */
+.lego-browser-preview {
+  width: 100%;
+  height: 140px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--lego-white);
+  border: 3px solid rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+.lego-browser-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+}
+
+/* Browser preview loading state */
+.lego-browser-preview::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 1.5s infinite;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.lego-brick-orange .lego-browser-preview::before {
+  opacity: 1;
+}
+
+/* Brick Card Entrance Animation */
+.lego-brick-card {
+  animation: brick-entrance 0.4s ease-out forwards;
+  opacity: 1;
+}
+
+@keyframes brick-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  60% {
+    transform: translateY(-4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Success Glow Effect for In-Stock Items */
+.lego-brick-success {
+  animation: success-glow 2s ease-in-out infinite;
+}
+
+@keyframes success-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(0, 133, 43, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgba(0, 133, 43, 0.7));
+  }
+}
+
+/* Yellow brick (celebrating) glow override */
+.lego-brick-yellow.lego-brick-success {
+  animation: yellow-celebrate 1.5s ease-in-out infinite;
+}
+
+@keyframes yellow-celebrate {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px rgba(255, 207, 0, 0.5));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 25px rgba(255, 207, 0, 0.9));
+    transform: scale(1.02);
+  }
+}
+
+/* Green brick (found) enhanced glow */
+.lego-brick-green.lego-brick-success {
+  position: relative;
+}
+
+.lego-brick-green.lego-brick-success::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  pointer-events: none;
+  animation: shine-sweep 3s ease-in-out infinite;
+}
+
+@keyframes shine-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}

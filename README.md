@@ -1,7 +1,8 @@
 # The TinyFish Cookbook
 
-<img width="1920" height="1080" alt="Tinyfish Accelerator banner" src="https://github.com/user-attachments/assets/bc32bf8b-1a9e-41ea-b690-4bacf41ee132" />
-
+<a href="https://yourwebsite.com">
+  <img width="1920" height="1080" alt="Tinyfish Accelerator banner" src="https://github.com/user-attachments/assets/bc32bf8b-1a9e-41ea-b690-4bacf41ee132" />
+</a>
 ---
 
 <div align="center">
@@ -24,7 +25,20 @@
 
 ---
 
-[Website](https://tinyfish.ai/) | [Docs](https://docs.mino.ai/) | [Discord](https://discord.gg/tinyfish) | [License](LICENSE) | [X](https://x.com/Tiny_Fish) | [LinkedIn](https://www.linkedin.com/company/tinyfish-ai/) | [Threads](https://www.threads.com/@tinyfish_ai) | [Instagram](https://www.instagram.com/tinyfish_ai/)
+
+<div align="center">
+
+[![Website](https://img.shields.io/badge/Website-141414?style=for-the-badge&logo=googlechrome&logoColor=white)](https://tinyfish.ai/)
+[![Docs](https://img.shields.io/badge/Docs-526CE5?style=for-the-badge&logo=readthedocs&logoColor=white)](https://docs.tinyfish.ai/)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/tinyfish)
+[![License](https://img.shields.io/badge/License-View-green?style=for-the-badge)](LICENSE)
+[![X](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/Tiny_Fish)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/tinyfish-ai/)
+[![Threads](https://img.shields.io/badge/Threads-000000?style=for-the-badge&logo=threads&logoColor=white)](https://www.threads.com/@tinyfish_ai)
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://www.instagram.com/tinyfish_ai/)
+
+</div>
+
 
 
 
@@ -32,13 +46,13 @@
 
 Welcome to the **TinyFish Cookbook!** This is a growing collection of recipes, demos, and automations built with TinyFish.
 
-**🏆 Were SOTA!** — we just scored 90% on Mind2Web benchmark, outperforming Gemini by 21 points, OpenAI by 29, and Anthropic by 34. We ran all 300 tasks in parallel and published every single run publicly. [Read our benchmark results →](https://tinyfish.ai/blog/mind2web) | [View all runs →](https://docs.google.com/spreadsheets/d/1jgRESVlSYygPO4dKKqzPohGUX5b78Ay59422mM29CsU/edit?gid=436688783#gid=436688783)
+**🏆 We're SOTA!** — we just scored 90% on Mind2Web benchmark, outperforming Gemini by 21 points, OpenAI by 29, and Anthropic by 34. We ran all 300 tasks in parallel and published every single run publicly. [Read our benchmark results →](https://tinyfish.ai/blog/mind2web) | [View all runs →](https://docs.google.com/spreadsheets/d/1jgRESVlSYygPO4dKKqzPohGUX5b78Ay59422mM29CsU/edit?gid=436688783#gid=436688783)
 
 ## What is TinyFish?
 
 **SOTA web agents in an API** that lets you treat real websites like programmable surfaces. Instead of juggling headless browsers, selectors, proxies, and weird edge cases, you call a single API with a goal and some URLs and get back clean JSON. It handles navigation, forms, filters, dynamic content, proxies, and multi-step flows across many sites at once.
 
-The same infrastructure and agents used by big enterpises (like google, doordash and classpass), now for everyone!
+The same infrastructure and agents used by big enterprises (like Google, Doordash and Classpass), now for everyone!
 
 
 ## Why TinyFish?
@@ -149,7 +163,7 @@ while (true) {
 }
 ```
 
-> By the way! if you want to expose your project on localhost to your friends to show them a demo, you can now use the [tinyfi.sh](https://tinyfi.sh) by us! Completly free and easy to use!
+> By the way! If you want to expose your project on localhost to your friends to show them a demo, you can now use the [tinyfi.sh](https://tinyfi.sh) by us! Completely free and easy to use!
 
 
 ## Star History

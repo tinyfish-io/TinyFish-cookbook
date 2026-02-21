@@ -23,8 +23,6 @@
 
 </div>
 
----
-
 
 <div align="center">
 

@@ -8,8 +8,9 @@ Compare motorbike rental prices across Vietnam in seconds, not hours. Vietnam Bi
 
 > _TODO: Add demo video link_
 
-![App searching HCMC shops](screenshot-searching.png)
-![Results for HCMC](screenshot-results.png)
+![Empty state](empty-state.png)
+![Searching HCMC shops](searching-state.png)
+![Results with cached data](result-state.png)
 
 ---
 

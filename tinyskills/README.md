@@ -124,7 +124,7 @@ npm install
 3. Create a `.env.local` file with your API keys:
 
 ```
-MINO_API_KEY=your_tinyfish_api_key_here
+TINYFISH_API_KEY=your_tinyfish_api_key_here
 OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 

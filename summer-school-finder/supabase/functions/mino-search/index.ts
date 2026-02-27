@@ -13,19 +13,19 @@ serve(async (req) => {
   try {
     const { url, goal } = await req.json();
 
-    const MINO_API_KEY = Deno.env.get("MINO_API_KEY");
-    if (!MINO_API_KEY) {
-      throw new Error("MINO_API_KEY is not configured");
+    const TINYFISH_API_KEY = Deno.env.get("TINYFISH_API_KEY");
+    if (!TINYFISH_API_KEY) {
+      throw new Error("TINYFISH_API_KEY is not configured");
     }
 
     console.log(`Starting Mino agent for URL: ${url}`);
 
     // Call Mino API with SSE streaming
-    const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+    const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": MINO_API_KEY,
+        "X-API-Key": TINYFISH_API_KEY,
       },
       body: JSON.stringify({ url, goal }),
     });

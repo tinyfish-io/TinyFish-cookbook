@@ -25,7 +25,7 @@ TinyFish-cookbook/
 └── renovate.json
 ```
 
-> note: if your new to github, some of the steps below might seem a bit intimidating if your new to contributing to open source repos, but don't worry they become second nature after a while. And if this is your first time, we'd love to get one fo our engineers to hop on a call with you and guide you through! Hit us up on the [TinyFish Discord](https://discord.gg/cv3JS4t4). 
+> note: if your new to github, some of the steps below might seem a bit intimidating if your new to contributing to open source repos, but don't worry they become second nature after a while. And if this is your first time, we'd love to get one fo our engineers to hop on a call with you and guide you through! Hit us up on the [TinyFish Discord](https://discord.gg/tinyfish).
 
 ## Getting Started
 
@@ -34,7 +34,7 @@ TinyFish-cookbook/
 3. Create a new feature branch for your work (e.g., `git checkout -b {your-name}/cool-new-app`). **Avoid working directly on the `main` branch** to keep your fork clean.
 4. Create a new folder at the root of the repo for your project and start coding!
 
-> **Note:** If you need any help with the API, making the app, or anything at all, hit the TinyFish team up anytime at the [TinyFish Discord](https://discord.gg/cv3JS4t4) (we'd love to help)
+> **Note:** If you need any help with the API, making the app, or anything at all, hit the TinyFish team up anytime at the [TinyFish Discord](https://discord.gg/tinyfish) (we'd love to help)
 
 ## Documentation!
 
@@ -58,4 +58,4 @@ Each project folder **must** include a `README.md` with the following:
 4. Sit tight! The very best TinyFish engineers will take a look, give you feedback and test your app!
 5. If all's good! Your PR will be merged. Congrats! 🎉
 
-Keep committing often and keep your code safe! And always remember, if you need anything or have any doubts, hit us up at the the [TinyFish Discord](https://discord.gg/cv3JS4t4)
+Keep committing often and keep your code safe! And always remember, if you need anything or have any doubts, hit us up at the the [TinyFish Discord](https://discord.gg/tinyfish)

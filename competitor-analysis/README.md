@@ -22,7 +22,7 @@ The Mino API powers browser automation for this use case. See the code snippet b
 
 ```bash
 npm install
-export MINO_API_KEY=your_key
+export TINYFISH_API_KEY=your_key
 export OPENROUTER_API_KEY=your_key
 npm run dev
 ```
@@ -51,7 +51,7 @@ npm install
 
 3. Create `.env.local` file:
 ```bash
-MINO_API_KEY=xxx          # Browser automation
+TINYFISH_API_KEY=xxx          # Browser automation
 OPENROUTER_API_KEY=xxx    # AI URL generation + pricing analysis
 ```
 

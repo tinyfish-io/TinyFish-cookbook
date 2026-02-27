@@ -271,7 +271,7 @@ When clicking a competitor row, shows:
 ## Environment Variables
 
 ```bash
-MINO_API_KEY=           # Mino API key for scraping
+TINYFISH_API_KEY=           # Mino API key for scraping
 OPENROUTER_API_KEY=     # OpenRouter API key for AI
 ```
 
@@ -314,7 +314,7 @@ npm install
 
 # Set environment variables
 cp .env.example .env.local
-# Add MINO_API_KEY and OPENROUTER_API_KEY
+# Add TINYFISH_API_KEY and OPENROUTER_API_KEY
 
 # Run development server
 npm run dev

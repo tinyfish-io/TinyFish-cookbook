@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const MINO_API_KEY = Deno.env.get('MINO_API_KEY');
-const MINO_API_URL = 'https://mino.ai/v1/automation/run-sse';
+const TINYFISH_API_KEY = Deno.env.get('TINYFISH_API_KEY');
+const MINO_API_URL = 'https://agent.tinyfish.ai/v1/automation/run-sse';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -23,9 +23,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!MINO_API_KEY) {
+    if (!TINYFISH_API_KEY) {
       return new Response(
-        JSON.stringify({ error: 'MINO_API_KEY not configured' }),
+        JSON.stringify({ error: 'TINYFISH_API_KEY not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -102,7 +102,7 @@ RETURN JSON ONLY (no markdown):
         const minoResponse = await fetch(MINO_API_URL, {
           method: 'POST',
           headers: {
-            'X-API-Key': MINO_API_KEY!,
+            'X-API-Key': TINYFISH_API_KEY!,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({

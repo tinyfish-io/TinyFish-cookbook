@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.MINO_API_KEY
+    const apiKey = process.env.TINYFISH_API_KEY
     if (!apiKey) {
       return new Response(
         encoder.encode(`data: ${JSON.stringify({ type: 'ERROR', message: 'Mino API key not configured' })}\n\n`),
@@ -60,7 +60,7 @@ Return a JSON object with these fields:
 If the anime is NOT found or not available, set available to false and explain why in the message.
 If you encounter a geo-restriction or region block, mention that in the message.`
 
-    const minoResponse = await fetch('https://mino.ai/v1/automation/run-sse', {
+    const minoResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

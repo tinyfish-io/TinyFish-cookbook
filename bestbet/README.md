@@ -14,10 +14,10 @@ The app calls the TinyFish SSE endpoint to run a web agent on each selected spor
 
 ```typescript
 
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.NEXT_PUBLIC_MINO_API_KEY,
+    "X-API-Key": process.env.NEXT_PUBLIC_TINYFISH_API_KEY,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -54,7 +54,7 @@ npm install
 2. Create a `.env.local` file with your TinyFish API key:
 
 ```
-NEXT_PUBLIC_MINO_API_KEY=your_tinyfish_api_key_here
+NEXT_PUBLIC_TINYFISH_API_KEY=your_tinyfish_api_key_here
 ```
 
 3. Start the dev server:

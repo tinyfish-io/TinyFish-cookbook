@@ -56,7 +56,7 @@ export function ShopGroup({ shop }: ShopGroupProps) {
       {shop.bikes.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {shop.bikes.map((bike, index) => (
-            <BikeCard key={`${bike.name}-${index}`} bike={bike} />
+            <BikeCard key={`${bike.name}-${index}`} bike={bike} shopWebsite={shop.website} />
           ))}
         </div>
       ) : (

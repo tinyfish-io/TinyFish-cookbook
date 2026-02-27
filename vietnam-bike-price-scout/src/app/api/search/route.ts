@@ -54,6 +54,8 @@ Steps:
    - Monthly rental price in USD (if available)
    - Deposit amount in USD (if available)
    - Whether the bike is currently available (true/false)
+   - URL to this bike's individual detail page (the href on the bike listing link).
+     If all bikes are on the same page with no individual links, set to null.
 
 Return a JSON object with this exact structure:
 {
@@ -70,7 +72,8 @@ Return a JSON object with this exact structure:
       "price_monthly_usd": 120,
       "currency": "USD",
       "deposit_usd": 100,
-      "available": true
+      "available": true,
+      "url": "https://example.com/bikes/honda-wave-110"
     }
   ],
   "notes": "Any relevant notes about the shop (e.g. helmet included, free delivery)"
@@ -78,6 +81,7 @@ Return a JSON object with this exact structure:
 
 type SearchBody = {
   city: string;
+  useCache?: boolean;
 };
 
 type MinoEvent = {
@@ -267,6 +271,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const city = body.city?.toLowerCase();
+  const useCache = body.useCache ?? false;
   const sites = CITY_SITES[city];
 
   if (!sites?.length) {
@@ -283,7 +288,7 @@ export async function POST(request: Request): Promise<Response> {
   const supabase = tryGetSupabase();
   let cached = new Map<string, CacheRow>();
 
-  if (supabase) {
+  if (supabase && useCache) {
     try {
       cached = await getCachedResults(supabase, city);
       console.log(`[CACHE] ${cached.size}/${sites.length} sites cached for ${city}`);
@@ -340,7 +345,7 @@ export async function POST(request: Request): Promise<Response> {
               const event = payload as Record<string, unknown>;
               if (event.type === "SHOP_RESULT") {
                 // Cache FIRST — must persist even if client disconnected
-                if (supabase && event.shop) {
+                if (supabase && useCache && event.shop) {
                   cacheResult(supabase, city, url, event.shop).catch(() => {});
                 }
                 enqueue({ ...event, source: "live" });

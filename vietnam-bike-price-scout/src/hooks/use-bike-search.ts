@@ -12,6 +12,7 @@ export interface Bike {
   currency: string;
   deposit_usd: number | null;
   available: boolean;
+  url: string | null;
 }
 
 export interface BikeShop {
@@ -32,6 +33,32 @@ export interface SearchState {
   elapsed: string | null;
   cachedCount: number;
 }
+
+const normalizeType = (raw: unknown): Bike['type'] => {
+  const t = String(raw || '').toLowerCase().trim();
+  const typeMap: Record<string, Bike['type']> = {
+    scooter: 'scooter',
+    automatic: 'scooter',
+    auto: 'scooter',
+    moped: 'scooter',
+    'step-through': 'scooter',
+    'semi-auto': 'semi-auto',
+    'semi-automatic': 'semi-auto',
+    'semi automatic': 'semi-auto',
+    underbone: 'semi-auto',
+    manual: 'manual',
+    standard: 'manual',
+    sport: 'manual',
+    naked: 'manual',
+    adventure: 'adventure',
+    enduro: 'adventure',
+    'dual-sport': 'adventure',
+    'off-road': 'adventure',
+    touring: 'adventure',
+    trail: 'adventure',
+  };
+  return typeMap[t] ?? 'scooter';
+};
 
 function normalizeShop(raw: unknown): BikeShop {
   const obj = raw as Record<string, unknown>;
@@ -64,13 +91,14 @@ function normalizeShop(raw: unknown): BikeShop {
       return {
         name,
         engine_cc: b.engine_cc ? Number(b.engine_cc) : null,
-        type: (b.type as Bike['type']) || 'scooter',
+        type: normalizeType(b.type),
         price_daily_usd: convertPrice(b.price_daily_usd),
         price_weekly_usd: convertPrice(b.price_weekly_usd),
         price_monthly_usd: convertPrice(b.price_monthly_usd),
         currency: String(b.currency || 'USD'),
         deposit_usd: convertPrice(b.deposit_usd),
         available: Boolean(b.available ?? true),
+        url: b.url ? String(b.url).trim() || null : null,
       };
     })
     .filter((bike): bike is Bike => bike !== null);
@@ -86,7 +114,7 @@ function normalizeShop(raw: unknown): BikeShop {
 
 export function useBikeSearch(): {
   state: SearchState;
-  search: (city: string) => void;
+  search: (city: string, useCache?: boolean) => void;
   abort: () => void;
 } {
   const [state, setState] = useState<SearchState>({
@@ -113,7 +141,7 @@ export function useBikeSearch(): {
   }, []);
 
   const search = useCallback(
-    (city: string) => {
+    (city: string, useCache?: boolean) => {
       // Abort any in-flight request
       abort();
 
@@ -135,7 +163,7 @@ export function useBikeSearch(): {
           const response = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ city }),
+            body: JSON.stringify({ city, useCache: useCache ?? false }),
             signal: controller.signal,
           });
 

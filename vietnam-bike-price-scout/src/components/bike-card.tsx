@@ -1,12 +1,14 @@
 import { Bike } from '@/hooks/use-bike-search';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ExternalLink } from 'lucide-react';
 
 interface BikeCardProps {
   bike: Bike;
+  shopWebsite: string;
 }
 
-export function BikeCard({ bike }: BikeCardProps) {
+export function BikeCard({ bike, shopWebsite }: BikeCardProps) {
   const typeColors = {
     scooter: 'bg-blue-500 hover:bg-blue-600',
     'semi-auto': 'bg-green-500 hover:bg-green-600',
@@ -23,12 +25,17 @@ export function BikeCard({ bike }: BikeCardProps) {
     }).format(price);
   };
 
-  return (
-    <Card className="flex flex-col h-full overflow-hidden hover:shadow-md transition-shadow duration-200">
+  const href = bike.url || shopWebsite || null;
+
+  const card = (
+    <Card className={`flex flex-col h-full overflow-hidden transition-shadow duration-200 ${href ? 'hover:shadow-lg hover:ring-2 hover:ring-zinc-200 cursor-pointer' : 'hover:shadow-md'}`}>
       <CardHeader className="p-4 pb-2 space-y-1">
         <div className="flex justify-between items-start gap-2">
-          <CardTitle className="text-lg font-bold leading-tight line-clamp-2">
+          <CardTitle className="text-lg font-bold leading-tight line-clamp-2 flex items-center gap-1.5">
             {bike.name}
+            {href && (
+              <ExternalLink className={`w-3.5 h-3.5 shrink-0 ${bike.available ? 'text-zinc-400 group-hover:text-zinc-600' : 'text-zinc-300 opacity-50'}`} />
+            )}
           </CardTitle>
           <Badge className={`${typeColors[bike.type] || 'bg-zinc-500'} shrink-0 text-white border-none`}>
             {bike.type}
@@ -88,4 +95,14 @@ export function BikeCard({ bike }: BikeCardProps) {
       </CardFooter>
     </Card>
   );
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="block group">
+        {card}
+      </a>
+    );
+  }
+
+  return card;
 }

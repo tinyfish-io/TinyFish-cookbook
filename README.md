@@ -1,31 +1,66 @@
 # The TinyFish Cookbook
 
-<img width="1034" height="407" alt="CKBOOK" src="https://github.com/user-attachments/assets/ce4fccb9-70b8-4023-8022-4e8e3b244fbe" />
-
-[Website](https://tinyfish.ai/) | [Docs](https://docs.mino.ai/) | [Discord](https://discord.gg/cv3JS4t4) | [License](LICENSE) | [X](https://x.com/Tiny_Fish) | [LinkedIn](https://www.linkedin.com/company/tinyfish-ai/) | [Threads](https://www.threads.com/@tinyfish_ai) | [Instagram](https://www.instagram.com/tinyfish_ai/)
-
+<a href="https://yourwebsite.com">
+  <img width="1920" height="1080" alt="Tinyfish Accelerator banner" src="https://github.com/user-attachments/assets/bc32bf8b-1a9e-41ea-b690-4bacf41ee132" />
+</a>
 ---
+
+<div align="center">
+
+<table>
+<tr>
+<td align="center">
+
+### ⛊ &nbsp;&nbsp; **The TinyFish Accelerator is now accepting applications**  &nbsp;&nbsp;  ⛊
+
+*$2M investment seed pool💰* • *9-week program* • *Free credits* • *Engineering support* • *Business mentorship* 
+
+### **[👉 Apply Now 👈](https://www.tinyfish.ai/accelerator)**
+
+</td>
+</tr>
+</table>
+
+</div>
+
+
+<div align="center">
+
+[![Website](https://img.shields.io/badge/Website-141414?style=for-the-badge&logo=googlechrome&logoColor=white)](https://tinyfish.ai/)
+[![Docs](https://img.shields.io/badge/Docs-526CE5?style=for-the-badge&logo=readthedocs&logoColor=white)](https://docs.tinyfish.ai/)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/tinyfish)
+[![License](https://img.shields.io/badge/License-View-green?style=for-the-badge)](LICENSE)
+[![X](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/Tiny_Fish)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/tinyfish-ai/)
+[![Threads](https://img.shields.io/badge/Threads-000000?style=for-the-badge&logo=threads&logoColor=white)](https://www.threads.com/@tinyfish_ai)
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://www.instagram.com/tinyfish_ai/)
+
+</div>
+
+
+
 
 ## About This Repository
 
 Welcome to the **TinyFish Cookbook!** This is a growing collection of recipes, demos, and automations built with TinyFish.
 
-Think of this like a recipe book for the web. Whether you want to build an automated travel agent, a job application bot, or a market research tool, you can grab a recipe here, tweak the ingredients, and start cooking.
+**🏆 We're SOTA!** — we just scored 90% on Mind2Web benchmark, outperforming Gemini by 21 points, OpenAI by 29, and Anthropic by 34. We ran all 300 tasks in parallel and published every single run publicly. [Read our benchmark results →](https://tinyfish.ai/blog/mind2web) | [View all runs →](https://docs.google.com/spreadsheets/d/1jgRESVlSYygPO4dKKqzPohGUX5b78Ay59422mM29CsU/edit?gid=436688783#gid=436688783)
 
 ## What is TinyFish?
 
-TinyFish is a **web agents API** that lets you treat real websites like programmable surfaces. Instead of juggling headless browsers, selectors, proxies, and weird edge cases, you call a single API with a goal and some URLs and get back clean JSON. It handles navigation, forms, filters, dynamic content, and multi-step flows across many sites at once, so you can focus on product logic instead of browser plumbing.
+**SOTA web agents in an API** that lets you treat real websites like programmable surfaces. Instead of juggling headless browsers, selectors, proxies, and weird edge cases, you call a single API with a goal and some URLs and get back clean JSON. It handles navigation, forms, filters, dynamic content, proxies, and multi-step flows across many sites at once.
 
-The same enterprise-grade infrastructure used in large production environments is now exposed directly to developers.
+The same infrastructure and agents used by big enterprises (like Google, Doordash and Classpass), now for everyone!
 
-## Power Features in one API
 
-- **Any website as an API** — Turn ordinary websites (including ones without official APIs) into programmable surfaces for your apps.
-- **Natural language -> structured JSON** — Send a URL (or many) plus a natural language goal, get back clean JSON in the shape you specify.
-- **Real browser automation** — Navigate real websites in real time. We handle complex flows like multi-step bookings, form filling, filters, calendars, and dynamic JavaScript content.
-- **Built-in Stealth** — Every request runs in a stealth browser profile with rotating proxies to reduce the chance of triggering anti-bot defenses. (No extra charge for proxy data).
-- **Production-grade Logs** — Every run comes with detailed observability so you can debug, monitor, and actually trust what the agents did.
-- **Flexible Integration** — Use it as a direct HTTP API, through our visual Playground, or as an MCP server inside tools like Claude and Cursor.
+## Why TinyFish?
+- 🕸️ **Fully managed browser and agent infra in one API**
+- 🌐 **Any website → API** — Turn sites without APIs into programmable data sources
+- 💬 **Natural language goals** — Send a URL + plain English, get structured JSON back
+- 🤖 **Real browser automation** — Multi-step flows, forms, filters, calendars, dynamic content
+- 🥷 **Built-in stealth mode** — Rotating proxies + stealth profiles included (no extra cost)
+- 📊 **Production-grade logs** — Full observability and debugging for every run
+- 🔌 **Flexible integration** — HTTP API, visual Playground, or MCP server for Claude/Cursor
 
 ## The Recipes
 
@@ -33,12 +68,19 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 
 | Recipe | Description |
 |--------|-------------|
-| [anime-watch-hub](./anime-watch-hub) | Helps you find sites to read/watch your  favorite manga/anime for free |
+| [anime-watch-hub](./anime-watch-hub) | Helps you find sites to read/watch your favorite manga/anime for free |
 | [bestbet](./bestbet) | Sports betting odds comparison tool |
-| [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
-| [competitor-analysis](./competitor-analysis) | a Live Competitive Pricing Intelligence Dashboard |
-| [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when travel for conventions or events |
+| [competitor-analysis](./competitor-analysis) | Live competitive pricing intelligence dashboard |
+| [fast-qa](./fast-qa) | No-code QA testing platform with parallel test execution and live browser previews |
+| [loan-decision-copilot](./loan-decision-copilot) | AI-powered loan comparison tool across banks and regions |
+| [logistics-sentry](./logistics-sentry) | Logistics intelligence platform for port congestion and carrier risk tracking |
+| [Manga-Availability-Finder](./Manga-Availability-Finder) | Searches multiple reading platforms for manga/webtoon availability |
+| [openbox-deals](./openbox-deals) | Real-time open-box and refurbished deal aggregator across 8 retailers |
+| [research-sentry](./research-sentry) | Voice-first academic research co-pilot scanning ArXiv, PubMed, and more |
+| [scholarship-finder](./scholarship-finder) | AI-powered scholarship discovery system pulling live data from official websites |
+| [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when traveling for conventions or events |
 | [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world |
+| [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
 
 > More recipes added weekly!
 
@@ -119,7 +161,7 @@ while (true) {
 }
 ```
 
-> By the way! if you want to expose your project on localhost to your friends to show them a demo, you can now use the [tinyfi.sh](https://tinyfi.sh) by us! Completly free and easy to use!
+> By the way! If you want to expose your project on localhost to your friends to show them a demo, you can now use the [tinyfi.sh](https://tinyfi.sh) by us! Completely free and easy to use!
 
 
 ## Star History
@@ -141,7 +183,7 @@ Got something cool you built with TinyFish? We want it in here! Check out our [C
 
 ## Community & Support
 
-- [Join us on Discord](https://discord.gg/cv3JS4t4) — ask questions, share what you're building, hang out
+- [Join us on Discord](https://discord.gg/tinyfish) — ask questions, share what you're building, hang out
 - Learn more at [tinyfish.ai](https://tinyfish.ai)
 
 ## Legal Disclaimer

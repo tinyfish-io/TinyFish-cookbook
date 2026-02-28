@@ -8,9 +8,11 @@ instrumentation-client.ts
 # Common ignores
 node_modules/
 .next/
+*.tsbuildinfo
 .env*.local
 .DS_Store
 .scout.json
 .scout-runs.json
+.scout-ratelimit.json
 scout-report-*.md
 scout-results-*.json

@@ -2,10 +2,12 @@
 
 import React from "react"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Competitor } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Plus, X, Globe } from "lucide-react";
+
+const MAX_COMPETITORS = 10;
 
 interface CompetitorPanelProps {
   competitors: Competitor[];
@@ -20,10 +22,21 @@ export function CompetitorPanel({
 }: CompetitorPanelProps) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [addLimitMessage, setAddLimitMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (competitors.length < MAX_COMPETITORS) setAddLimitMessage(null);
+  }, [competitors.length]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !url.trim()) return;
+
+    if (competitors.length >= MAX_COMPETITORS) {
+      setAddLimitMessage(`You can only add up to ${MAX_COMPETITORS} competitors. Remove one to add another.`);
+      return;
+    }
+    setAddLimitMessage(null);
 
     let cleanUrl = url.trim();
     if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
@@ -47,7 +60,7 @@ export function CompetitorPanel({
           competitors
         </h2>
         <span className="text-muted-foreground font-mono text-xs">
-          ({competitors.length})
+          ({competitors.length}/{MAX_COMPETITORS})
         </span>
       </div>
 
@@ -109,9 +122,14 @@ export function CompetitorPanel({
             )}
           />
         </div>
+        {addLimitMessage && (
+          <p className="font-mono text-xs text-amber-600 dark:text-amber-400">
+            {addLimitMessage}
+          </p>
+        )}
         <button
           type="submit"
-          disabled={!name.trim() || !url.trim()}
+          disabled={!name.trim() || !url.trim() || competitors.length >= MAX_COMPETITORS}
           className={cn(
             "flex items-center gap-1.5 self-start font-mono text-xs",
             "rounded-md border border-border/50 px-3 py-1.5 mt-1",

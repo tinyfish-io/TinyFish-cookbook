@@ -45,8 +45,19 @@ export default function Home() {
         });
 
         if (!response.ok) {
-          const err = await response.text();
-          setEvents([{ type: "error", message: `Request failed: ${err}` }]);
+          const text = await response.text();
+          let message: string;
+          try {
+            const body = JSON.parse(text) as { error?: string; retryAfter?: number };
+            if (response.status === 429 && body?.retryAfter != null) {
+              message = `Too many requests. Try again in ${body.retryAfter} seconds.`;
+            } else {
+              message = typeof body?.error === "string" ? body.error : text || `Request failed: ${response.status}`;
+            }
+          } catch {
+            message = text || `Request failed: ${response.status}`;
+          }
+          setEvents([{ type: "error", message }]);
           setIsLoading(false);
           return;
         }

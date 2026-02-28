@@ -10,7 +10,69 @@ import { submitRun, waitForCompletion } from "@/lib/tinyfish";
 export const maxDuration = 300;
 export const runtime = "nodejs";
 
+/** Rate limit: max requests per window per IP. */
+const RATE_LIMIT_REQUESTS = 25;
+const RATE_LIMIT_WINDOW_MS = 60_000; // 60 seconds
+
+const rateLimitStore = new Map<
+  string,
+  { count: number; resetAt: number }
+>();
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    "unknown"
+  );
+}
+
+function checkRateLimit(ip: string): { ok: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  if (!entry) {
+    rateLimitStore.set(ip, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+    return { ok: true };
+  }
+  if (now >= entry.resetAt) {
+    rateLimitStore.set(ip, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+    return { ok: true };
+  }
+  if (entry.count >= RATE_LIMIT_REQUESTS) {
+    return {
+      ok: false,
+      retryAfter: Math.ceil((entry.resetAt - now) / 1000),
+    };
+  }
+  entry.count += 1;
+  return { ok: true };
+}
+
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
+  const rate = checkRateLimit(ip);
+  if (!rate.ok) {
+    return new Response(
+      JSON.stringify({
+        error: "Too many requests. Please try again later.",
+        retryAfter: rate.retryAfter,
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(rate.retryAfter ?? 60),
+        },
+      }
+    );
+  }
+
   const { competitors, question } = (await request.json()) as {
     competitors: Competitor[];
     question: string;

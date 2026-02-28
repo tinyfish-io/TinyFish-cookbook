@@ -20,8 +20,16 @@ import path from "path";
 
 const CONFIG_FILE = path.resolve(process.cwd(), ".scout.json");
 const RUNS_FILE = path.resolve(process.cwd(), ".scout-runs.json");
+const RATE_LIMIT_FILE = path.resolve(process.cwd(), ".scout-ratelimit.json");
 const TINYFISH_BASE = "https://agent.tinyfish.ai/v1";
 const ENV_FILE = path.resolve(process.cwd(), ".env.local");
+
+/** Maximum number of competitors per run (API bill protection). */
+const MAX_COMPETITORS = 10;
+
+/** Rate limit: max research runs per window (same as API). */
+const RATE_LIMIT_REQUESTS = 25;
+const RATE_LIMIT_WINDOW_MS = 60_000; // 60 seconds
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -85,6 +93,43 @@ function loadRuns() {
 
 function saveRuns(runs) {
   fs.writeFileSync(RUNS_FILE, JSON.stringify(runs, null, 2));
+}
+
+function loadRateLimitHits() {
+  if (!fs.existsSync(RATE_LIMIT_FILE)) return [];
+  try {
+    const data = JSON.parse(fs.readFileSync(RATE_LIMIT_FILE, "utf-8"));
+    return Array.isArray(data?.hits) ? data.hits : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRateLimitHits(hits) {
+  const windowStart = Date.now() - RATE_LIMIT_WINDOW_MS;
+  const pruned = hits.filter((t) => t >= windowStart);
+  fs.writeFileSync(
+    RATE_LIMIT_FILE,
+    JSON.stringify({ hits: pruned }, null, 2)
+  );
+}
+
+function checkRateLimit() {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const hits = loadRateLimitHits().filter((t) => t >= windowStart);
+  if (hits.length >= RATE_LIMIT_REQUESTS) {
+    const oldestInWindow = Math.min(...hits);
+    const retryAfter = Math.ceil((oldestInWindow + RATE_LIMIT_WINDOW_MS - now) / 1000);
+    return { ok: false, retryAfter: Math.max(1, retryAfter) };
+  }
+  return { ok: true };
+}
+
+function recordRateLimitHit() {
+  const hits = loadRateLimitHits();
+  hits.push(Date.now());
+  saveRateLimitHits(hits);
 }
 
 function loadEnvFile() {
@@ -312,6 +357,12 @@ function cmdAdd(args) {
   if (!url.startsWith("http")) url = `https://${url}`;
 
   const config = loadConfig();
+  if (config.competitors.length >= MAX_COMPETITORS) {
+    error(
+      `Maximum ${MAX_COMPETITORS} competitors allowed. Remove one with 'remove' or 'clear' before adding more.`
+    );
+    process.exit(1);
+  }
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   config.competitors.push({ id, name, url });
   saveConfig(config);
@@ -324,7 +375,9 @@ function cmdList() {
     info("No competitors configured. Use 'add' to add some.");
     return;
   }
-  console.log(`\n${c("bold", "Competitors")} (${config.competitors.length}):\n`);
+  console.log(
+    `\n${c("bold", "Competitors")} (${config.competitors.length}/${MAX_COMPETITORS}):\n`
+  );
   for (const comp of config.competitors) {
     console.log(`  ${c("green", ">")} ${c("bold", comp.name)}`);
     console.log(`    ${c("dim", comp.url)}`);
@@ -364,6 +417,21 @@ async function cmdResearch(args) {
     error("No competitors configured. Add some first.");
     process.exit(1);
   }
+  if (config.competitors.length > MAX_COMPETITORS) {
+    error(
+      `Too many competitors (${config.competitors.length}). Maximum ${MAX_COMPETITORS} per research run. Remove some with 'remove' or 'clear'.`
+    );
+    process.exit(1);
+  }
+
+  const rate = checkRateLimit();
+  if (!rate.ok) {
+    error(
+      `Too many research runs. Limit: ${RATE_LIMIT_REQUESTS} per ${RATE_LIMIT_WINDOW_MS / 1000}s. Try again in ${rate.retryAfter} seconds.`
+    );
+    process.exit(1);
+  }
+  recordRateLimitHit();
 
   console.log();
   console.log(

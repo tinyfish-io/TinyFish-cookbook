@@ -113,7 +113,7 @@ export function checkPlatform(
                     platformName: platform.name,
                     searchUrl: event.data?.searchResultsUrl || platform.searchUrl,
                     status: 'complete',
-                    available: event.data?.available || true,
+                    available: event.data?.available ?? true,
                     hotelsFound: event.data?.hotelsFound || 0,
                     message: event.data?.message,
                   });

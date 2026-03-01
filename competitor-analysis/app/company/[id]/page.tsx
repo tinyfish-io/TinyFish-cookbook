@@ -31,7 +31,7 @@ export default function CompanyDetailPage() {
   const competitorStartingPrices = Object.entries(state.scrapingResults)
     .filter(([, r]) => r.status === "complete" && r.data?.tiers)
     .map(([id, r]) => {
-      const prices = r.data!.tiers
+      const prices = (r.data?.tiers ?? [])
         .map((t) => t.monthlyPrice ?? t.price)
         .filter((p): p is number => typeof p === "number" && p > 0);
       return {

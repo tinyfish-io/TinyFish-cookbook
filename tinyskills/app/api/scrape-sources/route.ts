@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         return;
       }
 
-      const apiKey = process.env.MINO_API_KEY;
+      const apiKey = process.env.TINYFISH_API_KEY;
       if (!apiKey) {
         await sendEvent({ type: "error", error: "Mino API key not configured" });
         await closeWriter();

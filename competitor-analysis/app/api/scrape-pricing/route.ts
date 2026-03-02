@@ -333,13 +333,13 @@ async function scrapePricingPage(
     timestamp: startTime,
   });
 
-  const apiKey = process.env.MINO_API_KEY;
+  const apiKey = process.env.TINYFISH_API_KEY;
   if (!apiKey) {
     await sendEvent({
       type: 'competitor_error',
       competitor: competitor.name,
       id: competitor.id,
-      error: 'MINO_API_KEY not configured',
+      error: 'TINYFISH_API_KEY not configured',
       timestamp: Date.now(),
     });
     return null;
@@ -350,7 +350,7 @@ async function scrapePricingPage(
     const goal = SCRAPING_GOALS[detailLevel];
     console.log(`[Scrape] Using ${detailLevel} detail level for ${competitor.name}`);
 
-    const minoResponse = await fetch('https://mino.ai/v1/automation/run-sse', {
+    const minoResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
       method: 'POST',
       headers: {
         'X-API-Key': apiKey,

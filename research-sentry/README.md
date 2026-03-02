@@ -10,10 +10,10 @@ https://voice-research.vercel.app/
 
 ## TinyFish API usage (snippet)
 ```ts
-const res = await fetch("https://mino.ai/v1/automation/run-sse", {
+const res = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.MINO_API_KEY!,
+    "X-API-Key": process.env.TINYFISH_API_KEY!,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -28,7 +28,7 @@ const res = await fetch("https://mino.ai/v1/automation/run-sse", {
 1. Install deps: `npm install`
 2. Create `.env.local`:
 ```
-MINO_API_KEY=your_tinyfish_key
+TINYFISH_API_KEY=your_tinyfish_key
 OPENAI_API_KEY=your_openai_key
 ```
 3. Start dev server: `npm run dev`

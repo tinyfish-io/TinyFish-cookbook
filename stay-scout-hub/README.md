@@ -30,10 +30,10 @@ For every suggested area, a Mino agent:
 ### Example Mino API Call
 
 ```ts
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
-    "X-API-Key": process.env.MINO_API_KEY,
+    "X-API-Key": process.env.TINYFISH_API_KEY,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -134,7 +134,7 @@ npm install
 2. Create a .env.local file:
 ```bash
 GEMINI_API_KEY=your_gemini_api_key
-MINO_API_KEY=your_mino_api_key
+TINYFISH_API_KEY=your_mino_api_key
 ```
 
 3. Start the dev server:
@@ -147,7 +147,7 @@ npm run dev
 ## Environment Variables
 
 - GEMINI_API_KEY	- Area discovery and neighborhood reasoning 
-- MINO_API_KEY -	Live browser automation for area research	
+- TINYFISH_API_KEY -	Live browser automation for area research	
 
 ## Notes
 

@@ -53,7 +53,7 @@ AI-powered research paper discovery using voice or text.
 2. cp .env.local.example .env.local
 3. Add your API keys
   - OPENAI_API_KEY
-  - MINO_API_KEY
+  - TINYFISH_API_KEY
 4. npm run dev
 
 ## Deploy
@@ -160,7 +160,7 @@ FILE: .env.local.example
 ------------------------------------------------------------
 # Rename to .env.local and add your keys
 OPENAI_API_KEY=sk-your-key-here
-MINO_API_KEY=your-mino-key-here
+TINYFISH_API_KEY=your-mino-key-here
 
 ================================================================================
 
@@ -241,10 +241,10 @@ export async function transcribeAudio(buffer: Buffer, filename = 'audio.webm') {
 FILE: lib/mino.ts
 ------------------------------------------------------------
 export async function runMinoAutomation(url: string, goal: string, stealth = false) {
-  const res = await fetch('https://mino.ai/v1/automation/run-sse', {
+  const res = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
     method: 'POST',
     headers: {
-      'X-API-Key': process.env.MINO_API_KEY!,
+      'X-API-Key': process.env.TINYFISH_API_KEY!,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ url, goal, browser_profile: stealth ? 'stealth' : 'lite' }),

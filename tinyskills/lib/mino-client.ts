@@ -11,7 +11,7 @@ import {
   isSystemEvent,
 } from "./utils";
 
-const MINO_API_URL = "https://mino.ai/v1/automation/run-sse";
+const MINO_API_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
 
 export interface MinoRequestConfig {
   url: string;

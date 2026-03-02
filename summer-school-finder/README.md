@@ -10,7 +10,7 @@ An AI-powered web app that discovers and compares summer school programs from un
 
 ## Code snippet - 
 ```bash
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",

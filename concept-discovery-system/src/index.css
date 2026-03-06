@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/* Hacker/Matrix Theme - Dark cyberpunk aesthetic */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Geometry */
+  --radius: 0.5rem;
+
+  /* Matrix/Cyberpunk dark theme colors (using oklch for perceptual uniformity) */
+  --background: oklch(0.12 0.01 180); /* Very dark with slight teal tint */
+  --foreground: oklch(0.85 0.03 160); /* Bright cyan-green text */
+
+  --card: oklch(0.16 0.015 180);
+  --card-foreground: oklch(0.85 0.03 160);
+
+  --popover: oklch(0.16 0.015 180);
+  --popover-foreground: oklch(0.85 0.03 160);
+
+  --primary: oklch(0.65 0.18 160); /* Neon green/cyan - main accent */
+  --primary-foreground: oklch(0.12 0.01 180);
+
+  --secondary: oklch(0.25 0.02 180);
+  --secondary-foreground: oklch(0.85 0.03 160);
+
+  --muted: oklch(0.25 0.015 180);
+  --muted-foreground: oklch(0.55 0.02 160);
+
+  --accent: oklch(0.6 0.2 280); /* Neon purple/magenta - secondary accent */
+  --accent-foreground: oklch(0.12 0.01 180);
+
+  --destructive: oklch(0.577 0.245 27); /* Red for errors */
+  --destructive-foreground: oklch(0.95 0.01 160);
+
+  --border: oklch(0.3 0.02 160); /* Faint green glow */
+  --input: oklch(0.3 0.02 160);
+  --ring: oklch(0.65 0.18 160);
+
+  /* Grid background color */
+  --grid-color: oklch(0.3 0.05 160 / 10%);
+}
+
+/* Register custom colors for Tailwind */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+/* Base styles */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    /* Matrix grid background */
+    background-image:
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: -1px -1px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-foreground font-semibold;
+  }
+
+  h1 {
+    @apply text-3xl;
+  }
+
+  h2 {
+    @apply text-2xl;
+  }
+
+  h3 {
+    @apply text-xl;
+  }
+}
+
+/* Utility classes for status colors */
+@layer utilities {
+  .text-status-info {
+    color: oklch(0.65 0.18 220); /* Cyan blue */
+  }
+
+  .text-status-success {
+    color: oklch(0.65 0.17 145); /* Green */
+  }
+
+  .text-status-error {
+    color: oklch(0.577 0.245 27); /* Red */
+  }
+
+  .text-status-warning {
+    color: oklch(0.75 0.18 85); /* Amber */
+  }
+
+  /* Glow effects for neon aesthetic */
+  .glow-primary {
+    text-shadow: 0 0 10px oklch(0.65 0.18 160 / 50%);
+  }
+
+  .glow-accent {
+    text-shadow: 0 0 10px oklch(0.6 0.2 280 / 50%);
+  }
+}
+
+/* Custom scrollbar for hacker theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: oklch(0.16 0.015 180);
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.3 0.02 160);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.4 0.05 160);
+}

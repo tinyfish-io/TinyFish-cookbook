@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useSearchContext } from '@/context/SearchContext';
 import type { SearchParams } from '@/types';
 import { buildAgentGoal } from '@/lib/goal-builder';
-import { startMinoAgent } from '@/lib/mino-client';
+import { startTinyFishAgent } from '@/lib/tinyfish-client';
 
 export function useRestaurantSearch() {
   const { state, dispatch } = useSearchContext();
@@ -28,7 +28,7 @@ export function useRestaurantSearch() {
         params.preferences
       );
 
-      const controller = startMinoAgent(
+      const controller = startTinyFishAgent(
         { url, goal },
         {
           onStep: (event) => {

@@ -103,7 +103,7 @@ export interface RestaurantSafetyData {
   analysisTimestamp?: string;
 }
 
-export interface MinoSSEEvent {
+export interface TinyFishSSEEvent {
   type?: string;
   status?: string;
   message?: string;

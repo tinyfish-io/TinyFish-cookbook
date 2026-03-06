@@ -1,42 +1,42 @@
-import type { MinoSSEEvent } from '@/types';
-import { MINO_API_URL } from './constants';
+import type { TinyFishSSEEvent } from '@/types';
+import { TINYFISH_API_URL } from './constants';
 
-export interface MinoRequestConfig {
+export interface TinyFishRequestConfig {
   url: string;
   goal: string;
 }
 
 export type SSECallbacks = {
-  onStep: (event: MinoSSEEvent) => void;
+  onStep: (event: TinyFishSSEEvent) => void;
   onComplete: (resultJson: unknown) => void;
   onError: (error: string) => void;
   onStreamingUrl: (url: string) => void;
 };
 
-function parseSSELine(line: string): MinoSSEEvent | null {
+function parseSSELine(line: string): TinyFishSSEEvent | null {
   if (!line.startsWith('data: ')) return null;
   try {
-    return JSON.parse(line.slice(6)) as MinoSSEEvent;
+    return JSON.parse(line.slice(6)) as TinyFishSSEEvent;
   } catch {
     return null;
   }
 }
 
-export function startMinoAgent(
-  config: MinoRequestConfig,
+export function startTinyFishAgent(
+  config: TinyFishRequestConfig,
   callbacks: SSECallbacks
 ): AbortController {
   const controller = new AbortController();
-  const apiKey = import.meta.env.VITE_MINO_API_KEY;
+  const apiKey = import.meta.env.VITE_TINYFISH_API_KEY;
 
   if (!apiKey) {
-    callbacks.onError('VITE_MINO_API_KEY is not configured. Add it to your .env file.');
+    callbacks.onError('VITE_TINYFISH_API_KEY is not configured. Add it to your .env file.');
     return controller;
   }
 
   const run = async () => {
     try {
-      const response = await fetch(MINO_API_URL, {
+      const response = await fetch(TINYFISH_API_URL, {
         method: 'POST',
         headers: {
           'X-API-Key': apiKey,
@@ -47,11 +47,11 @@ export function startMinoAgent(
       });
 
       if (!response.ok) {
-        throw new Error(`Mino API returned ${response.status}: ${response.statusText}`);
+        throw new Error(`TinyFish API returned ${response.status}: ${response.statusText}`);
       }
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body from Mino API');
+      if (!reader) throw new Error('No response body from TinyFish API');
 
       const decoder = new TextDecoder();
       let buffer = '';

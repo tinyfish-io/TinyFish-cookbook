@@ -17,7 +17,7 @@ The app calls the TinyFish SSE endpoint once per restaurant, in parallel. Each a
 const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
-    "X-API-Key": import.meta.env.VITE_MINO_API_KEY,
+    "X-API-Key": import.meta.env.VITE_TINYFISH_API_KEY,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -65,7 +65,7 @@ npm install
 2. Create a `.env` file with your TinyFish API key:
 
 ```
-VITE_MINO_API_KEY=your_tinyfish_api_key_here
+VITE_TINYFISH_API_KEY=your_tinyfish_api_key_here
 ```
 
 3. Start the dev server:

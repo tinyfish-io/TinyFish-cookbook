@@ -1,7 +1,7 @@
 {
   "name": "waifu-deal-sniper",
   "version": "2.0.0",
-  "description": "Discord bot that finds discounted pre-owned anime figures using TinyFish Mino API",
+  "description": "Discord bot that finds discounted pre-owned anime figures using TinyFish API",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -13,12 +13,13 @@
     "figures",
     "web-scraping",
     "tinyfish",
-    "mino-api"
+    "tinyfish-api"
   ],
   "author": "Shubham Khandelwal",
   "license": "MIT",
   "dependencies": {
     "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
     "sql.js": "^1.10.3"
   },
   "engines": {

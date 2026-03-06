@@ -31,8 +31,8 @@ setInterval(() => {
 // =====================================
 const CONFIG = {
   DISCORD_TOKEN: process.env.DISCORD_TOKEN,
-  MINO_API_KEY: process.env.MINO_API_KEY,
-  MINO_ENDPOINT: 'https://mino.ai/v1/automation/run-sse',
+  TINYFISH_API_KEY: process.env.TINYFISH_API_KEY,
+  TINYFISH_ENDPOINT: 'https://agent.tinyfish.ai/v1/automation/run-sse',
   WATCH_INTERVAL: 5 * 60 * 1000, // 5 minutes
   RATE_LIMIT_WINDOW: 60000,      // 1 minute
   RATE_LIMIT_MAX: 10,            // 10 searches per minute
@@ -221,7 +221,7 @@ function findItemsArray(obj) {
 }
 
 // =====================================
-// 🔍 MINO API - Multi-Site Search
+// 🔍 TINYFISH API - Multi-Site Search
 // =====================================
 
 // Site configurations
@@ -382,11 +382,11 @@ async function searchSite(siteKey, query, maxPrice = null) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 90000);
     
-    const response = await fetch(CONFIG.MINO_ENDPOINT, {
+    const response = await fetch(CONFIG.TINYFISH_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': CONFIG.MINO_API_KEY,
+        'X-API-Key': CONFIG.TINYFISH_API_KEY,
       },
       body: JSON.stringify({ url: searchUrl, goal }),
       signal: controller.signal,
@@ -1596,8 +1596,8 @@ if (!CONFIG.DISCORD_TOKEN) {
   process.exit(1);
 }
 
-if (!CONFIG.MINO_API_KEY) {
-  console.error('❌ MINO_API_KEY not set!');
+if (!CONFIG.TINYFISH_API_KEY) {
+  console.error('❌ TINYFISH_API_KEY not set!');
   process.exit(1);
 }
 

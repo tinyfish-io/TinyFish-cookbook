@@ -2,15 +2,15 @@
 
 **Live Demo:** [https://discord.com/oauth2/authorize?client_id=1465346765611077871&permissions=277025508352&scope=bot]
 
-A Discord bot that helps anime figure collectors find discounted pre-owned figures by scraping deals in real-time from multiple sites using the TinyFish Mino API.
+A Discord bot that helps anime figure collectors find discounted pre-owned figures by scraping deals in real-time from multiple sites using the TinyFish API.
 
 ---
 
 ## 🎯 What It Does
 
-Waifu Deal Sniper lets users search for anime figures across **AmiAmi**, **Mercari US**, and **Solaris Japan** directly from Discord. The bot uses TinyFish's Mino API to scrape real-time pricing, condition grades, and availability — then presents results with a fun, personality-driven interface including gacha mode, roast mode, and copium dispensary.
+Waifu Deal Sniper lets users search for anime figures across **AmiAmi**, **Mercari US**, and **Solaris Japan** directly from Discord. The bot uses TinyFish's TinyFish API to scrape real-time pricing, condition grades, and availability — then presents results with a fun, personality-driven interface including gacha mode, roast mode, and copium dispensary.
 
-**Where TinyFish API is used:** The Mino API powers all figure searches by scraping e-commerce sites with natural language goals, extracting structured data (prices, conditions, images, stock status) from pages that don't have public APIs.
+**Where TinyFish API is used:** The TinyFish API powers all figure searches by scraping e-commerce sites with natural language goals, extracting structured data (prices, conditions, images, stock status) from pages that don't have public APIs.
 
 ---
 
@@ -30,13 +30,13 @@ https://github.com/user-attachments/assets/demo.mp4
 ## 📦 TinyFish API Integration
 
 ```javascript
-const MINO_ENDPOINT = 'https://mino.ai/v1/automation/run-sse';
+const TINYFISH_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run-sse';
 
 async function searchSite(siteKey, query, maxPrice = null) {
   const site = SITES[siteKey];
   const searchUrl = site.searchUrl(query);
   
-  // Natural language goal for Mino
+  // Natural language goal for TinyFish
   const goal = `Scrape pre-owned figure listings from this page.
     For each product (max 8), extract:
     - raw_title: Full product title
@@ -48,11 +48,11 @@ async function searchSite(siteKey, query, maxPrice = null) {
     - manufacturer: Company name
     Return JSON array.`;
 
-  const response = await fetch(MINO_ENDPOINT, {
+  const response = await fetch(TINYFISH_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-API-Key': process.env.MINO_API_KEY,
+      'X-API-Key': process.env.TINYFISH_API_KEY,
     },
     body: JSON.stringify({ url: searchUrl, goal }),
   });
@@ -79,7 +79,7 @@ async function searchSite(siteKey, query, maxPrice = null) {
 ### Prerequisites
 - Node.js 18+
 - Discord Bot Token
-- TinyFish Mino API Key
+- TinyFish API Key
 
 ### 1. Clone the repository
 ```bash
@@ -95,13 +95,13 @@ npm install
 ### 3. Set environment variables
 ```bash
 export DISCORD_TOKEN=your_discord_bot_token
-export MINO_API_KEY=your_tinyfish_mino_api_key
+export TINYFISH_API_KEY=your_tinyfish_api_key
 ```
 
 Or create a `.env` file:
 ```env
 DISCORD_TOKEN=your_discord_bot_token
-MINO_API_KEY=your_tinyfish_mino_api_key
+TINYFISH_API_KEY=your_tinyfish_api_key
 ```
 
 ### 4. Run the bot
@@ -143,7 +143,7 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
                                                         │
                                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      TINYFISH MINO API                                  │
+│                      TINYFISH API                                  │
 │                                                                         │
 │   POST /v1/automation/run-sse                                           │
 │   { url: "https://mercari.com/search?keyword=rem", goal: "..." }       │
@@ -170,7 +170,7 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
 | Feature | Description |
 |---------|-------------|
 | **Multi-Site Search** | AmiAmi, Mercari US, Solaris Japan |
-| **Real-Time Scraping** | Live prices via Mino API |
+| **Real-Time Scraping** | Live prices via TinyFish API |
 | **Rarity Scoring** | SSR/SR/R/N based on scale, manufacturer, exclusivity |
 | **Gacha Mode** | Random figure picks with dramatic reveals |
 | **Roast Mode** | Get roasted for your waifu choices |
@@ -198,7 +198,7 @@ waifu-deal-sniper/
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `DISCORD_TOKEN` | Discord bot token | ✅ |
-| `MINO_API_KEY` | TinyFish Mino API key | ✅ |
+| `TINYFISH_API_KEY` | TinyFish API key | ✅ |
 
 ---
 
@@ -223,7 +223,7 @@ waifu-deal-sniper/
 
 ## 🙏 Credits
 
-Built with [TinyFish Mino API](https://tinyfish.io) for web scraping.
+Built with [TinyFish API](https://tinyfish.ai) for web scraping.
 
 ---
 

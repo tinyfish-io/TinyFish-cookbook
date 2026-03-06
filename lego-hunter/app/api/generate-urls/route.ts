@@ -13,9 +13,10 @@ export async function POST(request: Request) {
 
     return Response.json({ retailers })
   } catch (error) {
-    console.error('Error generating URLs:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('Error generating URLs:', message)
     return Response.json(
-      { error: 'Failed to generate retailer URLs' },
+      { error: message },
       { status: 500 }
     )
   }

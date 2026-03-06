@@ -110,8 +110,3 @@ export function buildSearchUrl(retailer: RetailerConfig, searchTerm: string): st
   url.searchParams.set(retailer.searchQueryParam, searchTerm)
   return url.toString()
 }
-
-// Get a simple list of retailer names
-export function getRetailerNames(): string[] {
-  return DEFAULT_RETAILERS.map(r => r.name)
-}

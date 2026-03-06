@@ -35,7 +35,7 @@ const dealAnalysisSchema = z.object({
  * Generate retailer search URLs using Gemini
  */
 export async function generateRetailerUrls(legoSetName: string): Promise<Retailer[]> {
-  const model = google('gemini-2.0-flash-exp')
+  const model = google('gemini-2.5-flash')
 
   const prompt = `You are a Lego shopping expert. Generate 15 specific product search URLs for finding "${legoSetName}" Lego set.
 
@@ -80,7 +80,7 @@ export async function analyzeBestDeal(
   maxBudget: number,
   results: ProductData[]
 ): Promise<DealAnalysis> {
-  const model = google('gemini-2.0-flash-exp')
+  const model = google('gemini-2.5-flash')
 
   // Filter to only in-stock results
   const inStockResults = results.filter(r => r.inStock)
@@ -121,17 +121,4 @@ Provide your analysis with the best retailer recommendation.`
   })
 
   return object
-}
-
-/**
- * Format price for display
- */
-export function formatPrice(price: string, currency: string = 'USD'): string {
-  const numPrice = parseFloat(price.replace(/[^0-9.]/g, ''))
-  if (isNaN(numPrice)) return price
-
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency
-  }).format(numPrice)
 }

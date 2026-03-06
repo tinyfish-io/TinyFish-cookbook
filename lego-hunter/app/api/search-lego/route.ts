@@ -1,5 +1,5 @@
 import { analyzeBestDeal } from '@/lib/gemini-client'
-import type { Retailer, ProductData, SSEEvent, MinoSSEEvent } from '@/types'
+import type { Retailer, ProductData, SSEEvent, TinyFishSSEEvent } from '@/types'
 
 interface SearchLegoRequest {
   legoSetName: string
@@ -116,10 +116,10 @@ async function scrapeRetailer(
   legoSetName: string,
   sendEvent: (event: SSEEvent) => Promise<void>
 ): Promise<ProductData | null> {
-  const MINO_API_KEY = process.env.MINO_API_KEY
+  const TINYFISH_API_KEY = process.env.TINYFISH_API_KEY
 
-  if (!MINO_API_KEY) {
-    throw new Error('MINO_API_KEY not configured')
+  if (!TINYFISH_API_KEY) {
+    throw new Error('TINYFISH_API_KEY not configured')
   }
 
   // Send start event
@@ -128,10 +128,10 @@ async function scrapeRetailer(
     retailer: retailer.name
   })
 
-  const minoResponse = await fetch('https://mino.ai/v1/automation/run-sse', {
+  const tinyfishResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
     method: 'POST',
     headers: {
-      'X-API-Key': MINO_API_KEY,
+      'X-API-Key': TINYFISH_API_KEY,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
@@ -166,13 +166,13 @@ Important: Return ONLY the JSON object, no additional text.`,
     })
   })
 
-  if (!minoResponse.ok) {
-    throw new Error(`Mino API error: ${minoResponse.status}`)
+  if (!tinyfishResponse.ok) {
+    throw new Error(`TinyFish API error: ${tinyfishResponse.status}`)
   }
 
-  const reader = minoResponse.body?.getReader()
+  const reader = tinyfishResponse.body?.getReader()
   if (!reader) {
-    throw new Error('No response body from Mino')
+    throw new Error('No response body from TinyFish')
   }
 
   const decoder = new TextDecoder()
@@ -193,11 +193,11 @@ Important: Return ONLY the JSON object, no additional text.`,
         if (!line.startsWith('data: ')) continue
 
         try {
-          const minoEvent: MinoSSEEvent = JSON.parse(line.slice(6))
+          const sseEvent: TinyFishSSEEvent = JSON.parse(line.slice(6))
 
           // Capture streaming URL for browser preview
-          if (minoEvent.streamingUrl && !streamingUrl) {
-            streamingUrl = minoEvent.streamingUrl
+          if (sseEvent.streamingUrl && !streamingUrl) {
+            streamingUrl = sseEvent.streamingUrl
             await sendEvent({
               type: 'retailer_start',
               retailer: retailer.name,
@@ -206,17 +206,17 @@ Important: Return ONLY the JSON object, no additional text.`,
           }
 
           // Forward step events for progress updates
-          if (minoEvent.type === 'STEP') {
+          if (sseEvent.type === 'STEP') {
             await sendEvent({
               type: 'retailer_step',
               retailer: retailer.name,
-              step: minoEvent.step || minoEvent.message || 'Processing...'
+              step: sseEvent.step || sseEvent.message || 'Processing...'
             })
           }
 
           // Handle completion
-          if (minoEvent.type === 'COMPLETE' && minoEvent.status === 'COMPLETED') {
-            let resultData = minoEvent.resultJson
+          if (sseEvent.type === 'COMPLETE' && sseEvent.status === 'COMPLETED') {
+            let resultData = sseEvent.resultJson
 
             // Try to parse if it's a string
             if (typeof resultData === 'string') {
@@ -262,13 +262,13 @@ Important: Return ONLY the JSON object, no additional text.`,
             break
           }
 
-          // Handle errors from Mino
-          if (minoEvent.type === 'ERROR' || minoEvent.status === 'FAILED') {
-            throw new Error(minoEvent.message || 'Mino scraping failed')
+          // Handle errors from TinyFish
+          if (sseEvent.type === 'ERROR' || sseEvent.status === 'FAILED') {
+            throw new Error(sseEvent.message || 'Scraping failed')
           }
         } catch (parseError) {
           // Ignore parse errors for individual events
-          console.warn('Failed to parse Mino event:', parseError)
+          console.warn('Failed to parse SSE event:', parseError)
         }
       }
 

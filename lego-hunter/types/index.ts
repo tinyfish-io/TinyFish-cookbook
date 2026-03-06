@@ -75,8 +75,8 @@ export interface SearchLegoRequest {
   retailers: Retailer[]
 }
 
-// Mino API types
-export interface MinoRequest {
+// TinyFish API types
+export interface TinyFishRequest {
   url: string
   goal: string
   browser_profile?: 'lite' | 'stealth'
@@ -86,7 +86,7 @@ export interface MinoRequest {
   }
 }
 
-export interface MinoSSEEvent {
+export interface TinyFishSSEEvent {
   type: 'STEP' | 'COMPLETE' | 'ERROR'
   status?: string
   step?: string

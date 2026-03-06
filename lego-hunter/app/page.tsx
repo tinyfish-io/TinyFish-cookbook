@@ -209,14 +209,14 @@ export default function LegoFinderPage() {
                   <label className="block text-display text-sm font-bold text-[var(--lego-gray-500)] uppercase tracking-wider mb-2">
                     Max Budget
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--lego-gray-400)] font-semibold">$</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[var(--lego-gray-400)] font-semibold text-lg">$</span>
                     <input
                       type="number"
                       value={maxBudget}
                       onChange={e => setMaxBudget(e.target.value)}
                       placeholder="1000"
-                      className="brick-input pl-8"
+                      className="brick-input flex-1"
                       disabled={isSearching}
                     />
                   </div>
@@ -450,7 +450,7 @@ export default function LegoFinderPage() {
             <span className="text-display font-bold">Lego Restock Hunter</span>
           </div>
           <p className="text-sm text-white/50">
-            Powered by Mino AI + Gemini. Not affiliated with LEGO Group.
+            Powered by TinyFish AI + Gemini. Not affiliated with LEGO Group.
           </p>
         </div>
       </footer>

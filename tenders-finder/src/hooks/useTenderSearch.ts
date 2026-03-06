@@ -68,13 +68,13 @@ export function useTenderSearch() {
           ...prev,
           agents: prev.agents.map(a => 
             a.id === agentId 
-              ? { ...a, status: 'connecting' as const, message: 'Connecting to Mino...' }
+              ? { ...a, status: 'connecting' as const, message: 'Connecting to TinyFish...' }
               : a
           ),
         }));
 
         // Use fetch with SSE streaming
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/mino-tender-search`, {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/tinyfish-tender-search`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

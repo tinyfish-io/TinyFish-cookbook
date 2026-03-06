@@ -18,11 +18,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiKey = Deno.env.get('MINO_API_KEY');
+    const apiKey = Deno.env.get('TINYFISH_API_KEY');
     if (!apiKey) {
-      console.error('MINO_API_KEY not configured');
+      console.error('TINYFISH_API_KEY not configured');
       return new Response(
-        JSON.stringify({ success: false, error: 'Mino API key not configured' }),
+        JSON.stringify({ success: false, error: 'TinyFish API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -66,15 +66,15 @@ Return JSON:
   ]
 }`;
 
-    console.log(`[${agentId}] Starting Mino agent for ${url}`);
+    console.log(`[${agentId}] Starting TinyFish agent for ${url}`);
 
-    // Create a streaming response to forward Mino's SSE events
+    // Create a streaming response to forward TinyFish SSE events
     const encoder = new TextEncoder();
     
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const response = await fetch('https://mino.ai/v1/automation/run-sse', {
+          const response = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -85,11 +85,11 @@ Return JSON:
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[${agentId}] Mino API error:`, response.status, errorText);
+            console.error(`[${agentId}] TinyFish API error:`, response.status, errorText);
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: 'ERROR', 
               agentId, 
-              error: `Mino API error: ${response.status}` 
+              error: `TinyFish API error: ${response.status}` 
             })}\n\n`));
             controller.close();
             return;
@@ -197,7 +197,7 @@ Return JSON:
       },
     });
   } catch (error) {
-    console.error('Error in mino-tender-search:', error);
+    console.error('Error in tinyfish-tender-search:', error);
     return new Response(
       JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

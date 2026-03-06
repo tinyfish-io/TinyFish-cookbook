@@ -11,7 +11,7 @@ export const TENDER_SOURCES = [
   { name: 'Tender Board', url: 'https://www.tenderboard.biz/vendor/tender-opportunities/' },
 ];
 
-export type MinoEventHandler = {
+export type TinyFishEventHandler = {
   onAgentUpdate: (agentId: string, update: Partial<AgentState>) => void;
   onTenderFound: (tender: Tender) => void;
   onAgentComplete: (agentId: string) => void;
@@ -20,9 +20,9 @@ export type MinoEventHandler = {
 
 export async function startTenderSearch(
   sector: Sector,
-  handlers: MinoEventHandler
+  handlers: TinyFishEventHandler
 ): Promise<void> {
-  const response = await supabase.functions.invoke('mino-tender-search', {
+  const response = await supabase.functions.invoke('tinyfish-tender-search', {
     body: { sector },
   });
 

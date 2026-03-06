@@ -1,127 +1,115 @@
-# Project Title - Government Tender Finder for Singapore 
+# Government Tender Finder - Singapore
 
-**Live Link**: https://tender-scout-singapore.lovable.app
+**Live Demo:** https://tender-scout-singapore.lovable.app
 
+## What This Project Is
 
-## What This Project Is -
-This project is an AI-powered summer school discovery and comparison tool that automatically finds, scans, and extracts information from official summer school websites worldwide.
-Instead of relying on outdated lists or manual searches, the app pulls live data directly from source websites and returns it in a clean, structured format. 
+An AI-powered government tender discovery tool for Singapore. It scrapes multiple tender portals in parallel using the TinyFish API, extracts structured tender data, and presents results in a clean, comparable format.
 
-## What This Project Is -
+**How TinyFish API is used:** TinyFish browser agents are deployed in parallel to scrape Singapore government tender portals (GeBIZ, Tenders On Time, Bid Detail, etc.), extracting structured fields like tender title, ID, deadline, and eligibility from dynamic pages.
 
-**AI-based Link Discovery**
+---
 
-The system first uses an AI layer to identify and curate relevant summer school websites based on the user’s query (region, subject, age group, duration, etc.).
+## Demo
 
-**Automated Web Browsing with TinyFish**
-The curated links are passed to the TinyFish Web Agent API, which launches multiple browser agents in parallel to:
+**Demo Video:** https://drive.google.com/file/d/1GXZhJOjiVUP5XcGvTAvRGcYhTWoKXlsE/view?usp=sharing
 
-1) Navigate dynamic pages
+---
 
-2) Handle real websites (no static scraping)
+## Code Snippet
 
-3) Extract structured details such as program name, location, dates, eligibility, fees, and deadlines
-
-**Real-Time Streaming & Aggregation**
-Progress updates are streamed via SSE, and extracted results are normalised into a unified JSON format for easy comparison.
-
-## What to Expect
-
-1) Live, up-to-date data pulled directly from official websites
-
-2) Parallel web scanning for fast results
-
-3) Real-time status updates during execution
-
-4) Structured, comparable output (JSON)
-
-
-**Demo Video** - https://drive.google.com/file/d/1GXZhJOjiVUP5XcGvTAvRGcYhTWoKXlsE/view?usp=sharing
-
-
-## Code snippet - 
 ```bash
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-API-Key": "sk-mino-YOUR_API_KEY",
-  },
-  body: JSON.stringify({
-    url: "https://www.gebiz.gov.sg",
-    goal: "Extract the latest open government tenders. Return JSON with tenderTitle, agency, tenderID, procurementCategory, submissionDeadline, eligibilityCriteria, estimatedValue, tenderStatus, and tenderLink.",
-    browser_profile: "lite",
-  }),
-});
-
-const reader = response.body!.getReader();
-const decoder = new TextDecoder();
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-
-  const chunk = decoder.decode(value);
-  for (const line of chunk.split("\n")) {
-    if (line.startsWith("data: ")) {
-      const data = JSON.parse(line.slice(6));
-
-      // Live browser view
-      if (data.streamingUrl) {
-        console.log("Live view:", data.streamingUrl);
-      }
-
-      // Final structured output
-      if (data.type === "COMPLETE" && data.resultJson) {
-        console.log("Extracted tenders:", data.resultJson);
-      }
-    }
-  }
-}
+curl -N -X POST "https://agent.tinyfish.ai/v1/automation/run-sse" \
+  -H "X-API-Key: $TINYFISH_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://www.gebiz.gov.sg",
+    "goal": "Extract the latest open government tenders. Return JSON with tenderTitle, agency, tenderID, submissionDeadline, tenderStatus, and tenderLink."
+  }'
 ```
 
+---
 
 ## Tech Stack
-**Next.js (TypeScript)**
 
-**Mino API**
+- **Vite + React (TypeScript)**
+- **TinyFish API** (browser automation)
+- **Supabase** (edge functions for API proxying)
 
-**AI**
+## How to Run
+
+### Prerequisites
+
+- Node.js 18+
+- Supabase project (for edge functions)
+- TinyFish API key (get from [tinyfish.ai](https://tinyfish.ai))
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone <repo-url>
+cd tenders-finder
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Create `.env` from the example:
+```bash
+cp .env.example .env
+```
+
+4. Set your Supabase credentials in `.env`:
+```
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+```
+
+5. Set TinyFish API key in Supabase secrets:
+```bash
+supabase secrets set TINYFISH_API_KEY=your_tinyfish_api_key
+```
+
+6. Deploy Supabase edge functions:
+```bash
+supabase functions deploy tinyfish-tender-search
+supabase functions deploy discover-tender-links
+```
+
+7. Run the development server:
+```bash
+npm run dev
+```
+
+---
 
 ## Architecture Diagram
+
 ```mermaid
 flowchart TB
+    UI["USER INTERFACE<br/>(React + Tailwind)"]
+    ORCH["Tender Search Orchestration Layer"]
+    DB["SUPABASE<br/>(Edge Functions)"]
+    TF["TINYFISH API<br/>(Browser Automation)"]
+    TFD["• Parallel web agents<br/>• Browse govt tender portals<br/>• Extract structured fields<br/>• SSE streaming updates"]
 
-%% =======================
-%% UI LAYER
-%% =======================
-UI["USER INTERFACE<br/>(React + Tailwind + Lovable)"]
-
-%% =======================
-%% ORCHESTRATION
-%% =======================
-ORCH["Tender Search Orchestration Layer<br/>(Next.js API / Server Actions)"]
-
-%% =======================
-%% SERVICES
-%% =======================
-DB["SUPABASE<br/>(Cached Tenders & Metadata)"]
-MINO["MINO API<br/>(Browser Automation)"]
-
-%% =======================
-%% DETAILS
-%% =======================
-DBD["• Cached tender listings<br/>• Deduplicated tenders<br/>• Historical records"]
-MINOD["• Parallel web agents<br/>• Browse govt tender portals<br/>• Open tender pages<br/>• Extract structured fields<br/>• SSE streaming updates"]
-
-%% =======================
-%% CONNECTIONS
-%% =======================
-UI --> ORCH
-
-ORCH --> DB
-ORCH --> MINO
-
-DB --> DBD
-MINO --> MINOD
+    UI --> ORCH
+    ORCH --> DB
+    DB --> TF
+    TF --> TFD
 ```
+
+---
+
+## Environment Variables
+
+| Variable | Where | Description |
+|----------|-------|-------------|
+| `VITE_SUPABASE_URL` | `.env` | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | `.env` | Supabase anon key |
+| `TINYFISH_API_KEY` | Supabase secrets | TinyFish API key |
+
+Contributor: Krishna Agarwal (@KrishnaAgarwal7531)

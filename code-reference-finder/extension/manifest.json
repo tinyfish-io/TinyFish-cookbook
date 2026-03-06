@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Code Reference Finder",
+  "version": "1.0.0",
+  "description": "Find real-world usage examples for unfamiliar code from GitHub and Stack Overflow",
+  "permissions": ["sidePanel", "contextMenus", "storage"],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Code Reference Finder"
+  }
+}

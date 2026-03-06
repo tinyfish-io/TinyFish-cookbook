@@ -6,7 +6,7 @@ Competitor Research CLI
 
 ## The Why
 
-Teams waste time manually checking competitor sites for feature changes and market signals. This CLI lets you set a list of competitors once, then ask natural‑language questions as your project evolves. The tool dispatches Tinyfish (Mino) web agents to each competitor site, gathers evidence, and returns a structured report that can inform product decisions without the manual research overhead.
+Teams waste time manually checking competitor sites for feature changes and market signals. This CLI lets you set a list of competitors once, then ask natural‑language questions as your project evolves. The tool dispatches TinyFish web agents to each competitor site, gathers evidence, and returns a structured report that can inform product decisions without the manual research overhead.
 
 ---
 
@@ -15,11 +15,11 @@ Teams waste time manually checking competitor sites for feature changes and mark
 ### 1. Product Architecture Overview
 
 - **Overview:**  
-  The system has a CLI/GUI front end, a planning layer (OpenAI), and an execution layer (Tinyfish/Mino). The planner translates a user question into per‑competitor browsing goals. The executor runs those goals and returns raw results. A summarizer turns results into per‑competitor findings and a comparison report.
+  The system has a CLI/GUI front end, a planning layer (OpenAI), and an execution layer (TinyFish). The planner translates a user question into per‑competitor browsing goals. The executor runs those goals and returns raw results. A summarizer turns results into per‑competitor findings and a comparison report.
 
 - **APIs called:**
   - **OpenAI Chat Completions**: planning goals, summarizing each competitor, and generating the comparison report.
-  - **Tinyfish (Mino) Web Agent API**: executes browsing goals for each competitor URL.
+  - **TinyFish Web Agent API**: executes browsing goals for each competitor URL.
 
 - **Relationship between APIs:**
   - OpenAI creates the goal list.
@@ -68,7 +68,7 @@ async function openaiPlanGoals(question: string, competitors: { name: string; ur
   return (JSON.parse(data.choices[0].message.content).goals || []) as Goal[];
 }
 
-async function submitMinoRun(url: string, goal: string) {
+async function submitTinyFishRun(url: string, goal: string) {
   const res = await fetch("https://agent.tinyfish.ai/v1/automation/run-async", {
     method: "POST",
     headers: {
@@ -82,10 +82,10 @@ async function submitMinoRun(url: string, goal: string) {
 }
 ```
 
-### 3. Goal (Prompt) Sent to Mino
+### 3. Goal (Prompt) Sent to TinyFish
 
 **Prompt label:**
-`Mino Goal`
+`TinyFish Goal`
 
 **Exact goal example:**
 ```

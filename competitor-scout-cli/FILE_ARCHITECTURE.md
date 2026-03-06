@@ -22,7 +22,7 @@ High‑level map of the project and what each file is for.
 ├─ lib/
 │  ├─ env.ts                   # Local env loader for dev
 │  ├─ openai-client.ts         # OpenAI planning + summarization + report
-│  ├─ tinyfish.ts              # Tinyfish/Mino API client
+│  ├─ tinyfish.ts              # TinyFish API client
 │  ├─ types.ts                 # Shared TypeScript types
 │  └─ utils.ts                 # Shared utilities (className helpers, etc.)
 ├─ public/

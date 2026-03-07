@@ -107,7 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_scrape_queue_status ON scrape_queue(status);
 CREATE TABLE IF NOT EXISTS menus (
     spot_id             TEXT PRIMARY KEY REFERENCES wing_spots(id) ON DELETE CASCADE,
     sections            JSONB NOT NULL DEFAULT '[]',
-    source              TEXT NOT NULL DEFAULT 'mino_scrape',
+    source              TEXT NOT NULL DEFAULT 'tinyfish_scrape',
     has_wings           BOOLEAN NOT NULL DEFAULT false,
     wing_section_index  INTEGER,
     fetched_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()

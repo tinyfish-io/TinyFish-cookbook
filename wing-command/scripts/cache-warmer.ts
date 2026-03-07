@@ -23,7 +23,7 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { geocodeZipCode } from '../lib/geocode';
-import { scrapeAllSources } from '../lib/agentql';
+import { scrapeAllSources } from '../lib/tinyfish-scraper';
 import { cacheWingSpots, cacheScrapeResult, getCachedScrapeResult } from '../lib/cache';
 import { createServerClient, upsertWingSpots } from '../lib/supabase';
 import { calculateAvailability } from '../lib/utils';

@@ -287,7 +287,7 @@ export async function invalidateMenuCache(spotId: string): Promise<void> {
 // Menu Scouting Lock (Redis-based deduplication)
 // ===========================================
 
-// Scouting lock TTL: 3 minutes (covers full Mino run + buffer)
+// Scouting lock TTL: 3 minutes (covers full TinyFish scrape run + buffer)
 const SCOUTING_LOCK_TTL = 3 * 60;
 
 /**

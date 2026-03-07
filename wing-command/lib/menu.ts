@@ -1,12 +1,12 @@
 // ===========================================
 // Wing Scout - Menu Fetching Service
 // Wings-only scraping with background fetch
-// Resilient parser for non-standard Mino responses
+// Resilient parser for non-standard TinyFish responses
 // ===========================================
 
 import axios from 'axios';
-import { Menu, MenuSection, MenuItem, PlatformIds, AgentQLResponse, WingPriceResult } from './types';
-import { executeMinoMenuScrape, executeMinoScrape } from './agentql';
+import { Menu, MenuSection, MenuItem, PlatformIds, TinyFishResponse, WingPriceResult } from './types';
+import { executeTinyFishMenuScrape, executeTinyFishScrape } from './tinyfish-scraper';
 import { cacheMenu, cacheChainMenu, clearScoutingLock } from './cache';
 import { createServerClient } from './supabase';
 
@@ -22,7 +22,7 @@ export interface MenuScrapeResult {
 
 /**
  * Main menu fetching function with fallback chain
- * Priority: 1. Yelp Fusion API  2. Mino scraping (45s timeout)
+ * Priority: 1. Yelp Fusion API  2. TinyFish scraping (45s timeout)
  */
 export async function fetchMenu(
     spotId: string,
@@ -36,10 +36,10 @@ export async function fetchMenu(
         return buildMenu(spotId, yelpMenu, 'yelp', platformIds?.source_url);
     }
 
-    // 2. Fallback to Mino scraping (wings-only, 45s timeout)
-    const scrapeResult = await scrapeMenuWithMino(name, address, platformIds);
+    // 2. Fallback to TinyFish scraping (wings-only, 45s timeout)
+    const scrapeResult = await scrapeMenuWithTinyFish(name, address, platformIds);
     if (scrapeResult) {
-        return buildMenu(spotId, scrapeResult.sections, 'mino_scrape', platformIds?.source_url);
+        return buildMenu(spotId, scrapeResult.sections, 'tinyfish_scrape', platformIds?.source_url);
     }
 
     return null;
@@ -91,7 +91,7 @@ async function fetchYelpMenu(
 }
 
 // ===========================================
-// Wings-Only Mino Goal Prompts (strict JSON)
+// Wings-Only TinyFish Goal Prompts (strict JSON)
 // ===========================================
 
 function getWingsOnlyGoal(hasDirectUrl: boolean): string {
@@ -134,7 +134,7 @@ Return ONLY the JSON. Be fast.`;
 }
 
 // ===========================================
-// Resilient Mino Response Parser
+// Resilient TinyFish Response Parser
 // ===========================================
 
 /**
@@ -152,7 +152,7 @@ function isWingRelatedText(text: string): boolean {
 }
 
 /**
- * Try to extract menu sections from non-standard Mino response formats.
+ * Try to extract menu sections from non-standard TinyFish response formats.
  * Handles: flat items array, nested menu objects, descriptive summaries, etc.
  */
 function extractFromAlternativeFormat(data: unknown): MenuSection[] | null {
@@ -161,14 +161,14 @@ function extractFromAlternativeFormat(data: unknown): MenuSection[] | null {
 
     // Format B: { items: [{ name, price }] } — flat items array
     if (Array.isArray(obj.items) && obj.items.length > 0) {
-        console.log('Mino wing scrape: alternative format — flat items array');
+        console.log('TinyFish wing scrape: alternative format — flat items array');
         return [{ name: 'Wings', items: parseItemsArray(obj.items) }];
     }
 
     // Format B2: { menu_items: [...] } or { menu: [...] }
     const menuItems = obj.menu_items || obj.menu;
     if (Array.isArray(menuItems) && menuItems.length > 0) {
-        console.log('Mino wing scrape: alternative format — menu_items/menu array');
+        console.log('TinyFish wing scrape: alternative format — menu_items/menu array');
         return [{ name: 'Wings', items: parseItemsArray(menuItems) }];
     }
 
@@ -176,11 +176,11 @@ function extractFromAlternativeFormat(data: unknown): MenuSection[] | null {
     if (obj.menu && typeof obj.menu === 'object' && !Array.isArray(obj.menu)) {
         const menuObj = obj.menu as Record<string, unknown>;
         if (Array.isArray(menuObj.sections) && menuObj.sections.length > 0) {
-            console.log('Mino wing scrape: alternative format — nested menu.sections');
+            console.log('TinyFish wing scrape: alternative format — nested menu.sections');
             return parseSectionsArray(menuObj.sections);
         }
         if (Array.isArray(menuObj.items) && menuObj.items.length > 0) {
-            console.log('Mino wing scrape: alternative format — nested menu.items');
+            console.log('TinyFish wing scrape: alternative format — nested menu.items');
             return [{ name: 'Wings', items: parseItemsArray(menuObj.items) }];
         }
     }
@@ -226,7 +226,7 @@ function extractFromAlternativeFormat(data: unknown): MenuSection[] | null {
     }
 
     if (wingItems.length > 0) {
-        console.log(`Mino wing scrape: alternative format — extracted ${wingItems.length} wing items from descriptive response`);
+        console.log(`TinyFish wing scrape: alternative format — extracted ${wingItems.length} wing items from descriptive response`);
         return [{ name: 'Wings', items: wingItems }];
     }
 
@@ -235,7 +235,7 @@ function extractFromAlternativeFormat(data: unknown): MenuSection[] | null {
         if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
             const firstItem = value[0] as Record<string, unknown>;
             if ('name' in firstItem) {
-                console.log('Mino wing scrape: alternative format — generic named items array');
+                console.log('TinyFish wing scrape: alternative format — generic named items array');
                 const items = parseItemsArray(value);
                 if (items.length > 0) return [{ name: 'Wings', items }];
             }
@@ -306,11 +306,11 @@ function extractItemsFromText(text: string): MenuItem[] {
 }
 
 // ===========================================
-// Main Mino Scraper
+// Main TinyFish Scraper
 // ===========================================
 
 /**
- * Extract phone and address from a parsed Mino response object.
+ * Extract phone and address from a parsed TinyFish response object.
  * Returns cleaned values or undefined if not found.
  */
 function extractContactInfo(data: unknown): { phone?: string; address?: string } {
@@ -343,56 +343,56 @@ function extractContactInfo(data: unknown): { phone?: string; address?: string }
 }
 
 /**
- * Single scrape attempt: call Mino, parse the response using all available formats.
+ * Single scrape attempt: call TinyFish, parse the response using all available formats.
  * Returns MenuScrapeResult (sections may be empty []) or null on API failure.
  * Also extracts phone and address when available in the response.
  */
 async function attemptScrape(
-    scrape: (url: string, goal: string) => Promise<AgentQLResponse>,
+    scrape: (url: string, goal: string) => Promise<TinyFishResponse>,
     url: string,
     goal: string
 ): Promise<MenuScrapeResult | null> {
-    console.log(`Mino wing scrape: ${url}`);
+    console.log(`TinyFish wing scrape: ${url}`);
     const result = await scrape(url, goal);
 
     if (!result.success || !result.data) {
-        console.log('Mino wing scrape: No results');
+        console.log('TinyFish wing scrape: No results');
         return null;
     }
 
-    // Mino can return result as a JSON string or a parsed object — handle both
+    // TinyFish can return result as a JSON string or a parsed object — handle both
     let parsed: unknown = result.data;
-    console.log(`Mino wing scrape: result.data type = ${typeof parsed}`);
+    console.log(`TinyFish wing scrape: result.data type = ${typeof parsed}`);
 
     if (typeof parsed === 'string') {
         const trimmed = (parsed as string).trim();
         try {
             parsed = JSON.parse(trimmed);
-            console.log('Mino wing scrape: Parsed string result to object');
+            console.log('TinyFish wing scrape: Parsed string result to object');
         } catch {
             // Not valid JSON — try to extract items from the text
-            console.log('Mino wing scrape: String is not JSON, trying text extraction');
+            console.log('TinyFish wing scrape: String is not JSON, trying text extraction');
             const textItems = extractItemsFromText(trimmed);
             if (textItems.length > 0) {
-                console.log(`Mino wing scrape: Extracted ${textItems.length} items from text`);
+                console.log(`TinyFish wing scrape: Extracted ${textItems.length} items from text`);
                 return { sections: [{ name: 'Wings', items: textItems }] };
             }
-            console.log('Mino wing scrape: No extractable items from text response');
+            console.log('TinyFish wing scrape: No extractable items from text response');
             return { sections: [] }; // Empty = "no wings found" (not null = "failed")
         }
     }
 
     // Extract contact info from the parsed response (phone, address)
     const contact = extractContactInfo(parsed);
-    if (contact.phone) console.log(`Mino wing scrape: Found phone: ${contact.phone}`);
-    if (contact.address) console.log(`Mino wing scrape: Found address: ${contact.address.substring(0, 50)}`);
+    if (contact.phone) console.log(`TinyFish wing scrape: Found phone: ${contact.phone}`);
+    if (contact.address) console.log(`TinyFish wing scrape: Found address: ${contact.address.substring(0, 50)}`);
 
     // Standard format: { sections: [...] }
     const data = parsed as { sections?: Array<{ name: string; items: unknown[] }> };
     if (data.sections && Array.isArray(data.sections)) {
         if (data.sections.length === 0) {
-            console.log('Mino wing scrape: Returned empty sections array (no wings at this restaurant)');
-            return { sections: [], ...contact }; // Mino explicitly said no wings
+            console.log('TinyFish wing scrape: Returned empty sections array (no wings at this restaurant)');
+            return { sections: [], ...contact }; // TinyFish explicitly said no wings
         }
 
         // Parse and structure the menu sections
@@ -411,28 +411,28 @@ async function attemptScrape(
             }),
         }));
 
-        console.log(`Mino wing scrape: Found ${sections.length} sections (standard format)`);
+        console.log(`TinyFish wing scrape: Found ${sections.length} sections (standard format)`);
         return { sections, ...contact };
     }
 
     // Non-standard format — try alternative extraction
-    console.log('Mino wing scrape: No sections found, trying alternative formats...',
+    console.log('TinyFish wing scrape: No sections found, trying alternative formats...',
         JSON.stringify(data).substring(0, 300));
     const altSections = extractFromAlternativeFormat(parsed);
     if (altSections && altSections.length > 0) {
         return { sections: altSections, ...contact };
     }
 
-    // Mino returned data but nothing we can parse into wing items
-    console.log('Mino wing scrape: Could not extract wing items from response');
+    // TinyFish returned data but nothing we can parse into wing items
+    console.log('TinyFish wing scrape: Could not extract wing items from response');
     return { sections: [], ...contact }; // Empty = "no wings found at this restaurant"
 }
 
 /**
- * Scrape wing items from restaurant using Mino.
+ * Scrape wing items from restaurant using TinyFish.
  * Accepts optional scrape function for timeout flexibility:
- * - Default: executeMinoMenuScrape (45s timeout) for fast path
- * - Background: executeMinoScrape (120s timeout) for background scrape
+ * - Default: executeTinyFishMenuScrape (45s timeout) for fast path
+ * - Background: executeTinyFishScrape (120s timeout) for background scrape
  *
  * Fallback chain:
  * 1. Try platform URL (Grubhub/DoorDash/UberEats) if available
@@ -442,13 +442,13 @@ async function attemptScrape(
  * Returns MenuScrapeResult (with sections, phone, address) or null on total failure.
  * sections may be empty [] meaning "no wings found" vs null meaning "API failure".
  */
-export async function scrapeMenuWithMino(
+export async function scrapeMenuWithTinyFish(
     name: string,
     address: string,
     platformIds?: PlatformIds,
-    scrapeFn?: (url: string, goal: string) => Promise<AgentQLResponse>
+    scrapeFn?: (url: string, goal: string) => Promise<TinyFishResponse>
 ): Promise<MenuScrapeResult | null> {
-    const scrape = scrapeFn || executeMinoMenuScrape;
+    const scrape = scrapeFn || executeTinyFishMenuScrape;
 
     // Determine best URL to scrape: platform URL > website URL > Google Maps fallback
     const hasDirectUrl = !!platformIds?.source_url;
@@ -468,12 +468,12 @@ export async function scrapeMenuWithMino(
         // Only when we used a direct URL (don't loop if already on Google)
         // But preserve contact info from the first attempt
         if (result !== null && result.sections.length === 0 && (hasDirectUrl || hasWebsiteUrl)) {
-            console.log(`Mino wing scrape: platform URL returned empty, trying Google search for "${name}"...`);
+            console.log(`TinyFish wing scrape: platform URL returned empty, trying Google search for "${name}"...`);
             const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(name + ' menu wings')}`;
             const googleGoal = getWingsOnlyGoal(false);
             const googleResult = await attemptScrape(scrape, googleUrl, googleGoal);
             if (googleResult && googleResult.sections.length > 0) {
-                console.log(`Mino wing scrape: Google fallback found ${googleResult.sections.length} sections!`);
+                console.log(`TinyFish wing scrape: Google fallback found ${googleResult.sections.length} sections!`);
                 // Merge: use Google's sections but keep contact info from platform page
                 return {
                     sections: googleResult.sections,
@@ -481,12 +481,12 @@ export async function scrapeMenuWithMino(
                     address: result.address || googleResult.address,
                 };
             }
-            console.log('Mino wing scrape: Google fallback also empty — genuinely no wings');
+            console.log('TinyFish wing scrape: Google fallback also empty — genuinely no wings');
         }
 
         return result;
     } catch (error) {
-        console.error('Mino wing scrape error:', error);
+        console.error('TinyFish wing scrape error:', error);
         return null; // null = actual failure, can retry
     }
 }
@@ -497,7 +497,7 @@ export async function scrapeMenuWithMino(
 function buildMenu(
     spotId: string,
     sections: MenuSection[],
-    source: 'yelp' | 'mino_scrape',
+    source: 'yelp' | 'tinyfish_scrape',
     sourceUrl?: string
 ): Menu {
     return {
@@ -648,7 +648,7 @@ export function getCheapestWingPrice(sections: MenuSection[]): WingPriceResult {
 
 /**
  * Fire-and-forget background wing scrape.
- * Uses the full 120s Mino timeout via executeMinoScrape.
+ * Uses the full 120s TinyFish timeout via executeTinyFishScrape.
  * On success, caches the result in Redis + chain cache + Supabase.
  * Redis scouting lock prevents duplicates across serverless instances.
  *
@@ -663,10 +663,10 @@ export function startBackgroundMenuScrape(
 ): void {
     console.log(`Starting background wing scrape for ${spotId}: ${name}`);
 
-    // Fire-and-forget — reuses scrapeMenuWithMino with full 120s timeout
+    // Fire-and-forget — reuses scrapeMenuWithTinyFish with full 120s timeout
     (async () => {
         try {
-            const scrapeResult = await scrapeMenuWithMino(name, address, platformIds, executeMinoScrape);
+            const scrapeResult = await scrapeMenuWithTinyFish(name, address, platformIds, executeTinyFishScrape);
 
             // null = total failure (API error, timeout, etc.) — don't cache, allow retry
             if (scrapeResult === null) {
@@ -676,8 +676,8 @@ export function startBackgroundMenuScrape(
 
             const { sections, phone: scrapedPhone, address: scrapedAddress } = scrapeResult;
 
-            // Empty array = Mino found no wing items at this restaurant — cache to prevent re-scraping
-            const menu = buildMenu(spotId, sections, 'mino_scrape', platformIds?.source_url);
+            // Empty array = TinyFish found no wing items at this restaurant — cache to prevent re-scraping
+            const menu = buildMenu(spotId, sections, 'tinyfish_scrape', platformIds?.source_url);
 
             // Cache in Redis (per-spot + chain)
             await cacheMenu(spotId, menu);

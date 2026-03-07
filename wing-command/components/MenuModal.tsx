@@ -215,7 +215,7 @@ export function MenuModal({ spot, isOpen, onClose }: MenuModalProps) {
             }
 
             try {
-                // poll=true ensures NO new Mino scrapes are triggered
+                // poll=true ensures NO new TinyFish scrapes are triggered
                 const res = await fetch(`/api/menu?spot_id=${encodeURIComponent(spot.id)}&poll=true`);
                 const data: MenuResponse = await res.json();
 
@@ -420,7 +420,7 @@ export function MenuModal({ spot, isOpen, onClose }: MenuModalProps) {
                                                         </div>
                                                     )}
                                                     <p className="text-[10px] text-amber-400">
-                                                        {menu.cached ? 'Cached' : 'Freshly scouted'} via {menu.menu.source === 'mino_scrape' ? 'AI scraping' : menu.menu.source}
+                                                        {menu.cached ? 'Cached' : 'Freshly scouted'} via {menu.menu.source === 'tinyfish_scrape' ? 'AI scraping' : menu.menu.source}
                                                     </p>
                                                 </div>
                                             </>

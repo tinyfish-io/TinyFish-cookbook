@@ -4,7 +4,7 @@
 
 const requiredServerEnvVars = [
     'SUPABASE_SERVICE_ROLE_KEY',
-    'AGENTQL_API_KEY',
+    'TINYFISH_API_KEY',
 ] as const;
 
 const requiredClientEnvVars = [
@@ -15,7 +15,7 @@ const requiredClientEnvVars = [
 const optionalEnvVars = [
     'UPSTASH_REDIS_REST_URL',
     'UPSTASH_REDIS_REST_TOKEN',
-    'AGENTQL_API_URL',
+    'TINYFISH_API_URL',
 ] as const;
 
 export function validateEnv(): {

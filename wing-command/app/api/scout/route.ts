@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, getWingSpotsByZip, upsertWingSpots, deleteWingSpotsByZip } from '@/lib/supabase';
 import { getCachedWingSpots, cacheWingSpots, checkRateLimit, getCachedScrapeResult, cacheScrapeResult, purgeZipCache, setScoutingLock, getCachedMenu } from '@/lib/cache';
 import { geocodeZipCode } from '@/lib/geocode';
-import { scrapeAllSources } from '@/lib/agentql';
+import { scrapeAllSources } from '@/lib/tinyfish-scraper';
 import { generateSeedData } from '@/lib/seed-data';
 import { isValidZipCode, cleanZipCode, calculateAvailability } from '@/lib/utils';
 import { startBackgroundMenuScrape, getCheapestWingPrice } from '@/lib/menu';

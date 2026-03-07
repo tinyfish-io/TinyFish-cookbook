@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 # Environment variables
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
-AGENTQL_API_KEY = os.environ.get('AGENTQL_API_KEY', '')
-AGENTQL_API_URL = os.environ.get('AGENTQL_API_URL', 'https://api.agentql.com')
+TINYFISH_API_KEY = os.environ.get('TINYFISH_API_KEY', '')
+TINYFISH_API_URL = os.environ.get('TINYFISH_API_URL', 'https://agent.tinyfish.ai')
 
 # Top 150 ZIP codes to scrape
 TOP_ZIP_CODES = [
@@ -131,23 +131,25 @@ def geocode_zip(zip_code: str) -> Optional[Dict[str, float]]:
     return None
 
 
-def scrape_with_agentql(url: str, query: str) -> Optional[Dict]:
-    """Execute AgentQL query"""
+def scrape_with_tinyfish(url: str, goal: str) -> Optional[Dict]:
+    """Execute TinyFish scrape via sync endpoint"""
     try:
         response = requests.post(
-            f'{AGENTQL_API_URL}/v1/query',
-            json={'url': url, 'query': query, 'timeout': 60000},
+            f'{TINYFISH_API_URL}/v1/automation/run',
+            json={'url': url, 'goal': goal},
             headers={
-                'Authorization': f'Bearer {AGENTQL_API_KEY}',
+                'X-API-Key': TINYFISH_API_KEY,
                 'Content-Type': 'application/json',
-                'User-Agent': random.choice(USER_AGENTS),
             },
-            timeout=65
+            timeout=120
         )
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            if data.get('status') == 'COMPLETED' and data.get('result'):
+                return data['result']
+            logger.warning(f'TinyFish status: {data.get("status")}, no result')
     except Exception as e:
-        logger.error(f'AgentQL error: {e}')
+        logger.error(f'TinyFish error: {e}')
     return None
 
 
@@ -157,7 +159,7 @@ def scrape_doordash(zip_code: str, lat: float, lng: float) -> List[Dict]:
     try:
         url = f'https://www.doordash.com/search/store/chicken%20wings/'
         query = '{restaurants[]{name address delivery_time rating image_url is_open}}'
-        result = scrape_with_agentql(url, query)
+        result = scrape_with_tinyfish(url, query)
         
         if result and 'restaurants' in result:
             for r in result['restaurants'][:10]:
@@ -222,8 +224,8 @@ def main():
     logger.info('Starting Wing Scout cron scraper')
     logger.info(f'Processing {len(TOP_ZIP_CODES)} zip codes')
     
-    if not AGENTQL_API_KEY:
-        logger.error('AGENTQL_API_KEY not set')
+    if not TINYFISH_API_KEY:
+        logger.error('TINYFISH_API_KEY not set')
         sys.exit(1)
     
     total_spots = 0

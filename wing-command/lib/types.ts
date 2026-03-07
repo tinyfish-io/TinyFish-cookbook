@@ -161,7 +161,7 @@ export interface Menu {
     spot_id: string;
     sections: MenuSection[];
     fetched_at: string;
-    source: 'yelp' | 'mino_scrape' | 'cached';
+    source: 'yelp' | 'tinyfish_scrape' | 'cached';
     has_wings: boolean;
     wing_section_index?: number;
     source_url?: string;
@@ -203,9 +203,9 @@ export interface ScrapedRestaurant {
 }
 
 /**
- * AgentQL scrape request
+ * TinyFish scrape request
  */
-export interface AgentQLRequest {
+export interface TinyFishRequest {
     url: string;
     query: string;
     wait_for_selector?: string;
@@ -214,9 +214,9 @@ export interface AgentQLRequest {
 }
 
 /**
- * AgentQL scrape response
+ * TinyFish scrape response
  */
-export interface AgentQLResponse {
+export interface TinyFishResponse {
     success: boolean;
     data: unknown;
     screenshot?: string;

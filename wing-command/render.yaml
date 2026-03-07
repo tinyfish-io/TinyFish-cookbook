@@ -14,7 +14,7 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: AGENTQL_API_KEY
+      - key: TINYFISH_API_KEY
         sync: false
       - key: UPSTASH_REDIS_REST_URL
         sync: false
@@ -38,7 +38,7 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: AGENTQL_API_KEY
+      - key: TINYFISH_API_KEY
         sync: false
       - key: UPSTASH_REDIS_REST_URL
         sync: false
@@ -63,7 +63,7 @@ services:
   #       sync: false
   #     - key: SUPABASE_SERVICE_ROLE_KEY
   #       sync: false
-  #     - key: AGENTQL_API_KEY
+  #     - key: TINYFISH_API_KEY
   #       sync: false
   #     - key: UPSTASH_REDIS_REST_URL
   #       sync: false

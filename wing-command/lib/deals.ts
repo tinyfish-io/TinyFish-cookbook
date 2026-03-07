@@ -5,8 +5,8 @@
 // Falls back to website-only scrape for local restaurants
 // ===========================================
 
-import { SuperBowlDeal, AggregatorDeal, PlatformIds, AgentQLResponse } from './types';
-import { runMinoScrape } from './agentql';
+import { SuperBowlDeal, AggregatorDeal, PlatformIds, TinyFishResponse } from './types';
+import { runTinyFishScrape } from './tinyfish-scraper';
 import {
     cacheDeals,
     cacheAggregatorDeals,
@@ -38,7 +38,7 @@ const AGGREGATOR_SOURCES = [
 ];
 
 // ===========================================
-// Aggregator Mino Goal Prompt
+// Aggregator TinyFish Goal Prompt
 // ===========================================
 
 const AGGREGATOR_GOAL = `Extract ALL restaurant Super Bowl deals and specials from this page.
@@ -125,7 +125,7 @@ async function scrapeAggregatorPage(
 ): Promise<AggregatorDeal[]> {
     try {
         console.log(`Aggregator: scraping ${sourceName}: ${url}`);
-        const result = await runMinoScrape(url, AGGREGATOR_GOAL, AGGREGATOR_SCRAPE_TIMEOUT);
+        const result = await runTinyFishScrape(url, AGGREGATOR_GOAL, AGGREGATOR_SCRAPE_TIMEOUT);
         return parseAggregatorResponse(result);
     } catch (error) {
         console.error(`Aggregator scrape error for ${sourceName}:`, error);
@@ -134,10 +134,10 @@ async function scrapeAggregatorPage(
 }
 
 /**
- * Parse Mino response from aggregator page into AggregatorDeal[].
+ * Parse TinyFish response from aggregator page into AggregatorDeal[].
  * Groups deals by restaurant_name.
  */
-function parseAggregatorResponse(result: AgentQLResponse): AggregatorDeal[] {
+function parseAggregatorResponse(result: TinyFishResponse): AggregatorDeal[] {
     if (!result.success || !result.data) return [];
 
     try {
@@ -279,7 +279,7 @@ export function startBackgroundAggregatorScrape(): void {
 /**
  * Scrape a restaurant's website for Super Bowl specials.
  * Used as fallback for local restaurants not found in aggregator data.
- * Website-only (no Instagram) — 1 Mino call instead of 2.
+ * Website-only (no Instagram) — 1 TinyFish call instead of 2.
  */
 async function scrapeWebsiteForDeals(
     name: string,
@@ -328,7 +328,7 @@ Return the JSON object ONLY, no other text.`;
 
     try {
         console.log(`Deals fallback: scraping website for ${name}: ${url}`);
-        const result = await runMinoScrape(url, goal, FALLBACK_SCRAPE_TIMEOUT);
+        const result = await runTinyFishScrape(url, goal, FALLBACK_SCRAPE_TIMEOUT);
         return parseFallbackDeals(result);
     } catch (error) {
         console.error(`Website deals fallback error for ${name}:`, error);
@@ -337,9 +337,9 @@ Return the JSON object ONLY, no other text.`;
 }
 
 /**
- * Parse deals from a per-restaurant Mino scrape result.
+ * Parse deals from a per-restaurant TinyFish scrape result.
  */
-function parseFallbackDeals(result: AgentQLResponse): SuperBowlDeal[] {
+function parseFallbackDeals(result: TinyFishResponse): SuperBowlDeal[] {
     if (!result.success || !result.data) return [];
 
     try {

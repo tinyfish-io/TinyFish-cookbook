@@ -1,19 +1,19 @@
 // ===========================================
-// Wing Scout v2 — Mino AI Web Scraper
+// Wing Scout v2 — TinyFish Web Scraper
 // Flavor-aware parallel scraping engine
-// Uses agent.tinyfish.ai sync endpoint (mino.ai CloudFront blocks POST)
+// Uses agent.tinyfish.ai sync endpoint
 // ===========================================
 
-import { ScrapedRestaurant, WingSpot, AgentQLResponse, PlatformIds, FlavorPersona } from './types';
+import { ScrapedRestaurant, WingSpot, TinyFishResponse, PlatformIds, FlavorPersona } from './types';
 import { calculateStatus, deduplicateWingSpots, getFlavorPersona, scoreSpotFlavor } from './utils';
 
-// Mino API Configuration — agent.tinyfish.ai is the actual API server
-// mino.ai/v1 redirects there but CloudFront blocks POST, so we hit the origin directly
-const MINO_API_URL = process.env.AGENTQL_API_URL || 'https://agent.tinyfish.ai/v1/automation/run';
-const MINO_API_KEY = process.env.AGENTQL_API_KEY || '';
+// TinyFish API Configuration
 
-if (!MINO_API_KEY) {
-    console.warn('Warning: MINO API KEY (AGENTQL_API_KEY) not set. Scraping will be disabled.');
+const TINYFISH_API_URL = process.env.TINYFISH_API_URL || 'https://agent.tinyfish.ai/v1/automation/run';
+const TINYFISH_API_KEY = process.env.TINYFISH_API_KEY || '';
+
+if (!TINYFISH_API_KEY) {
+    console.warn('Warning: TINYFISH_API_KEY not set. Scraping will be disabled.');
 }
 
 // Timeout helper
@@ -32,7 +32,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: 
 const SCRAPER_TIMEOUT = 120000; // 120 seconds per source (restaurant discovery)
 const MENU_SCRAPER_TIMEOUT = 45000; // 45 seconds for menu fetch (must fit inside maxDuration=60)
 
-interface MinoSyncResponse {
+interface TinyFishSyncResponse {
     run_id: string;
     status: 'COMPLETED' | 'FAILED' | 'CANCELLED';
     started_at: string;
@@ -43,25 +43,25 @@ interface MinoSyncResponse {
 }
 
 /**
- * Core Mino scrape function with configurable timeout
+ * Core TinyFish scrape function with configurable timeout
  * Exported for use by deals scraper
  */
-export async function runMinoScrape(url: string, goal: string, timeoutMs: number): Promise<AgentQLResponse> {
-    if (!MINO_API_KEY) {
-        console.error('Mino API key not configured');
-        return { success: false, data: null, error: 'MINO API KEY not configured' };
+export async function runTinyFishScrape(url: string, goal: string, timeoutMs: number): Promise<TinyFishResponse> {
+    if (!TINYFISH_API_KEY) {
+        console.error('TinyFish API key not configured');
+        return { success: false, data: null, error: 'TinyFish API key not configured' };
     }
 
     try {
-        console.log(`Mino scraping (${timeoutMs}ms timeout): ${url}`);
+        console.log(`TinyFish scraping (${timeoutMs}ms timeout): ${url}`);
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-        const response = await fetch(MINO_API_URL, {
+        const response = await fetch(TINYFISH_API_URL, {
             method: 'POST',
             headers: {
-                'X-API-Key': MINO_API_KEY,
+                'X-API-Key': TINYFISH_API_KEY,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ url, goal }),
@@ -73,48 +73,48 @@ export async function runMinoScrape(url: string, goal: string, timeoutMs: number
 
         if (!response.ok) {
             const errText = await response.text();
-            console.error(`Mino HTTP ${response.status}:`, errText.substring(0, 200));
+            console.error(`TinyFish HTTP ${response.status}:`, errText.substring(0, 200));
             return { success: false, data: null, error: `HTTP ${response.status}: ${errText.substring(0, 200)}` };
         }
 
-        const data = await response.json() as MinoSyncResponse;
+        const data = await response.json() as TinyFishSyncResponse;
 
         if (data.error) {
-            console.error('Mino error:', data.error);
+            console.error('TinyFish error:', data.error);
             return { success: false, data: null, error: data.error };
         }
 
         if (data.status === 'COMPLETED' && data.result) {
-            console.log(`Mino COMPLETED (${data.num_of_steps} steps, ${data.run_id})`);
+            console.log(`TinyFish COMPLETED (${data.num_of_steps} steps, ${data.run_id})`);
             return { success: true, data: data.result };
         }
 
-        console.error(`Mino status: ${data.status}, no result`);
-        return { success: false, data: null, error: `Mino status: ${data.status}` };
+        console.error(`TinyFish status: ${data.status}, no result`);
+        return { success: false, data: null, error: `TinyFish status: ${data.status}` };
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         if (errorMessage.includes('abort')) {
-            console.error(`Mino timeout after ${timeoutMs}ms for: ${url}`);
+            console.error(`TinyFish timeout after ${timeoutMs}ms for: ${url}`);
         } else {
-            console.error('Mino API error:', errorMessage);
+            console.error('TinyFish API error:', errorMessage);
         }
         return { success: false, data: null, error: errorMessage };
     }
 }
 
 /**
- * Execute Mino scrape for restaurant discovery (120s timeout)
+ * Execute TinyFish scrape for restaurant discovery (120s timeout)
  */
-export async function executeMinoScrape(url: string, goal: string): Promise<AgentQLResponse> {
-    return runMinoScrape(url, goal, SCRAPER_TIMEOUT);
+export async function executeTinyFishScrape(url: string, goal: string): Promise<TinyFishResponse> {
+    return runTinyFishScrape(url, goal, SCRAPER_TIMEOUT);
 }
 
 /**
- * Execute Mino scrape for menu extraction (45s timeout)
+ * Execute TinyFish scrape for menu extraction (45s timeout)
  * Shorter timeout to fit within the /api/menu maxDuration=60s limit
  */
-export async function executeMinoMenuScrape(url: string, goal: string): Promise<AgentQLResponse> {
-    return runMinoScrape(url, goal, MENU_SCRAPER_TIMEOUT);
+export async function executeTinyFishMenuScrape(url: string, goal: string): Promise<TinyFishResponse> {
+    return runTinyFishScrape(url, goal, MENU_SCRAPER_TIMEOUT);
 }
 
 // ===== DOORDASH SCRAPER =====
@@ -129,7 +129,7 @@ export async function scrapeDoorDash(zipCode: string, city?: string, state?: str
             : `https://www.doordash.com/search/store/chicken%20wings%20near%20${zipCode}/?pickup=false`;
         const goal = `Find chicken wings restaurants that deliver to zip code ${zipCode}${locationHint}. IMPORTANT: Only include restaurants located in or delivering to ${city || 'this area'}, ${state || 'US'}. Ignore any results from other cities. Extract a JSON array of restaurants with these fields for each: name, address (full street address if visible, or neighborhood/area name), delivery_time (as string like "25-35 min"), rating (number), image_url, is_open (boolean), store_url (the DoorDash URL path like /store/12345/). Return as JSON array called "restaurants".`;
 
-        const result = await executeMinoScrape(searchUrl, goal);
+        const result = await executeTinyFishScrape(searchUrl, goal);
         if (!result.success || !result.data) return restaurants;
 
         const data = result.data as { restaurants?: Array<Record<string, unknown>> };
@@ -170,7 +170,7 @@ export async function scrapeUberEats(zipCode: string, city?: string, state?: str
             : `https://www.ubereats.com/search?q=chicken%20wings%20near%20${zipCode}`;
         const goal = `Find chicken wings restaurants that deliver to zip code ${zipCode}${locationHint}. IMPORTANT: Only include restaurants in ${city || 'this area'}, ${state || 'US'}. Ignore results from other cities. Extract a JSON array of stores with these fields for each: name, address, eta (delivery time as string), rating (number), image (image URL), is_available (boolean), store_url (the UberEats URL path like /store/restaurant-name/uuid). Return as JSON array called "stores".`;
 
-        const result = await executeMinoScrape(searchUrl, goal);
+        const result = await executeTinyFishScrape(searchUrl, goal);
         if (!result.success || !result.data) return restaurants;
 
         const data = result.data as { stores?: Array<Record<string, unknown>> };
@@ -210,7 +210,7 @@ export async function scrapeGrubhub(zipCode: string, city?: string, state?: stri
             : `https://www.grubhub.com/search?query=chicken+wings+near+${zipCode}&locationMode=DELIVERY`;
         const goal = `Find chicken wings restaurants that deliver to zip code ${zipCode}${locationHint}. IMPORTANT: Only include restaurants in ${city || 'this area'}, ${state || 'US'}. Ignore results from other cities. Extract a JSON array of restaurants with these fields for each: name, address, delivery_time (as string), rating (number), image (image URL), is_open (boolean), restaurant_url (the Grubhub URL path like /restaurant/name/12345). Return as JSON array called "restaurants".`;
 
-        const result = await executeMinoScrape(searchUrl, goal);
+        const result = await executeTinyFishScrape(searchUrl, goal);
         if (!result.success || !result.data) return restaurants;
 
         const data = result.data as { restaurants?: Array<Record<string, unknown>> };
@@ -265,7 +265,7 @@ Return a JSON array called "businesses" with these fields for each restaurant:
 - website (the restaurant's official website URL if shown in the Google listing, not a Google link)
 Scroll down and extract every restaurant listing. Aim for 10-20+ diverse results including hidden gems and local favorites.`;
 
-        const result = await executeMinoScrape(searchUrl, goal);
+        const result = await executeTinyFishScrape(searchUrl, goal);
         if (!result.success || !result.data) return restaurants;
 
         const data = result.data as { businesses?: Array<Record<string, unknown>> };

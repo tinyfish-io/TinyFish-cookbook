@@ -46,7 +46,7 @@ export function DealsView({ spotId, spotName, enabled = true }: DealsViewProps) 
             }
 
             try {
-                // poll=true ensures NO new Mino scrapes are triggered
+                // poll=true ensures NO new TinyFish scrapes are triggered
                 const res = await fetch(
                     `/api/deals?spot_id=${encodeURIComponent(spotId)}&poll=true`
                 );

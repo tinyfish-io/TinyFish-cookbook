@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    // Seed data spots have no real restaurants — skip Mino entirely
+    // Seed data spots have no real restaurants — skip TinyFish scraping entirely
     if (spotId.startsWith('seed-')) {
         return NextResponse.json<MenuResponse>({
             success: false,

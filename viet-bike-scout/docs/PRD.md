@@ -6,30 +6,30 @@ The Vietnam Bike Price Scout is a real-time price comparison tool for motorbike 
 
 ### How it works:
 1. **User Input**: The user selects up to 4 cities in parallel (HCMC, Hanoi, Da Nang, Nha Trang) and chooses bike types (scooter, semi-auto, manual, adventure).
-2. **Cache Check**: The API route checks Supabase for cached results (6-hour TTL). Cached shops stream instantly; only uncached shops trigger Mino.
-3. **Parallel Extraction**: The Next.js backend triggers multiple TinyFish Mino API calls in parallel (zero stagger), one for each known rental shop in that city.
+2. **Cache Check**: The API route checks Supabase for cached results (6-hour TTL). Cached shops stream instantly; only uncached shops trigger TinyFish.
+3. **Parallel Extraction**: The Next.js backend triggers multiple TinyFish API calls in parallel (zero stagger), one for each known rental shop in that city.
 4. **Real-time Streaming**: Using Server-Sent Events (SSE), the backend streams results and live browser iframe URLs back to the frontend as each agent progresses.
 5. **Data Normalization**: The frontend normalizes currency (VND to USD at 25,000:1), classifies bike types, and updates the UI dynamically.
-6. **Visual Comparison**: Users can sort by price (low→high, high→low), filter by model name, and watch live Mino browser agents (up to 5 iframes per search).
+6. **Visual Comparison**: Users can sort by price (low→high, high→low), filter by model name, and watch live TinyFish browser agents (up to 5 iframes per search).
 
 ---
 
 ## Runnable Code Snippet (SSE Proxy Pattern)
 
-This snippet from `src/app/api/search/route.ts` demonstrates how to proxy Mino's SSE stream to a client-side frontend.
+This snippet from `src/app/api/search/route.ts` demonstrates how to proxy TinyFish's SSE stream to a client-side frontend.
 
 ```typescript
 // src/app/api/search/route.ts
 export const runtime = "nodejs"; // Required for long-running SSE streams (up to 800s on Vercel Pro)
 
-const MINO_SSE_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
+const TINYFISH_SSE_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
 
-async function runMinoSseForSite(
+async function runTinyFishSseForSite(
   url: string,
   apiKey: string,
   enqueue: (payload: unknown) => void,
 ): Promise<boolean> {
-  const response = await fetch(MINO_SSE_URL, {
+  const response = await fetch(TINYFISH_SSE_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -79,9 +79,9 @@ async function runMinoSseForSite(
 
 ---
 
-## Exact Mino Goal Prompt
+## Exact TinyFish Goal Prompt
 
-The following prompt is sent to the Mino API to ensure consistent, structured extraction across different website layouts.
+The following prompt is sent to the TinyFish API to ensure consistent, structured extraction across different website layouts.
 
 ```text
 You are extracting motorbike rental pricing from this website.

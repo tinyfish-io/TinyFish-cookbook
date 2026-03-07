@@ -7,14 +7,14 @@
 Tourists and expats in Vietnam waste hours checking 10-20 individual rental shop websites to compare motorbike prices — there's no aggregator and no API for any of them.
 
 ## Description
-Users select a city (HCMC, Hanoi, Da Nang, Hoi An, Nha Trang) and bike type (scooter, semi-auto, manual, adventure) → Mino scrapes 15-20+ rental shop websites **in parallel** → returns a unified price comparison dashboard showing daily/weekly/monthly rates, bike models, deposit requirements, and booking links — all in one view.
+Users select a city (HCMC, Hanoi, Da Nang, Hoi An, Nha Trang) and bike type (scooter, semi-auto, manual, adventure) → TinyFish scrapes 15-20+ rental shop websites **in parallel** → returns a unified price comparison dashboard showing daily/weekly/monthly rates, bike models, deposit requirements, and booking links — all in one view.
 
-## Why Mino Is the Only Solution
+## Why TinyFish Is the Only Solution
 - **200+ independent rental shops** across Vietnam, each with their own website (WordPress, Wix, custom builds)
 - **Zero API exists** — no shop exposes pricing data programmatically
 - **Zero aggregator exists** — no Vietnamese "Kayak for motorbikes"
 - Sites require **multi-step navigation**: bike model pages → pricing tables → availability calendars → booking forms
-- Mino's **parallel processing** is the killer feature: checking 20 shops simultaneously vs. opening 20 browser tabs manually
+- TinyFish's **parallel processing** is the killer feature: checking 20 shops simultaneously vs. opening 20 browser tabs manually
 
 ## Target Persona
 - **Primary**: Tourists and backpackers planning Vietnam trips (millions annually)
@@ -77,14 +77,14 @@ Users select a city (HCMC, Hanoi, Da Nang, Hoi An, Nha Trang) and bike type (sco
 │  Next.js API Route (/api/search)  [Node.js]     │
 │  - Check Supabase cache (6h TTL)                │
 │  - Stream cached results instantly via SSE      │
-│  - Fire parallel Mino calls for uncached sites  │
+│  - Fire parallel TinyFish calls for uncached sites  │
 │  - Cache-before-stream: persist before sending  │
 │  - Uses Promise.allSettled() for fault tolerance │
 └────────┬────────────────────────┬───────────────┘
          │ Cached hits            │ Uncached sites
          ▼                        ▼
 ┌────────────────┐  ┌────────────────────────────┐
-│  Supabase      │  │  TinyFish Mino API (SSE)   │
+│  Supabase      │  │  TinyFish API (SSE)   │
 │  (PostgreSQL)  │  │                             │
 │  6h TTL cache  │  │  Agent 1 → site1.com  ─┐   │
 │  keyed by      │  │  Agent 2 → site2.com  ─┤   │
@@ -104,13 +104,13 @@ Users select a city (HCMC, Hanoi, Da Nang, Hoi An, Nha Trang) and bike type (sco
 └─────────────────────────────────────────────────┘
 ```
 
-**API calls per search**: 2-6 Mino SSE calls (one per uncached rental site in the selected city), fired in parallel with zero stagger via `Promise.allSettled()`.
+**API calls per search**: 2-6 TinyFish SSE calls (one per uncached rental site in the selected city), fired in parallel with zero stagger via `Promise.allSettled()`.
 
-**Why SSE streaming**: Results appear in real-time as each agent finishes — the user watches bikes populate the dashboard live. Live browser agent iframes show Mino navigating each site in real time. This is the best UX for demos and showcases Mino's parallel power visually.
+**Why SSE streaming**: Results appear in real-time as each agent finishes — the user watches bikes populate the dashboard live. Live browser agent iframes show TinyFish navigating each site in real time. This is the best UX for demos and showcases TinyFish's parallel power visually.
 
 ---
 
-## Mino Goal (Exact Prompt)
+## TinyFish Goal (Exact Prompt)
 
 ```
 You are extracting motorbike/scooter rental pricing from this rental shop website.
@@ -237,7 +237,7 @@ Extract up to 20 bikes maximum.
 export const runtime = "nodejs";
 export const maxDuration = 800;
 
-const MINO_SSE_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
+const TINYFISH_SSE_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
 
 const CITY_SITES: Record<string, string[]> = {
   hcmc: [
@@ -283,13 +283,13 @@ export async function POST(request: Request): Promise<Response> {
       // Optionally stream cached results instantly from Supabase
       // ... (cache-aside pattern, see full source)
 
-      // Fire ALL Mino requests in parallel — zero stagger, zero rate limits
+      // Fire ALL TinyFish requests in parallel — zero stagger, zero rate limits
       const tasks = sites.map((url) =>
         (async () => {
           // Each agent call uses getReader() + buffer pattern for SSE
           // Forwards STREAMING_URL events (live browser iframes) to client
           // On COMPLETED: caches result to Supabase, then streams SHOP_RESULT
-          return runMinoSseForSite(url, apiKey, enqueue);
+           return runTinyFishSseForSite(url, apiKey, enqueue);
         })()
       );
       await Promise.allSettled(tasks);
@@ -309,12 +309,12 @@ export async function POST(request: Request): Promise<Response> {
 
 ## What Makes This Use Case Stand Out
 
-1. **Parallel Scale**: Up to 18 sites scraped simultaneously across 4 cities at once — the core Mino advantage, visually demonstrated as results stream in real-time
+1. **Parallel Scale**: Up to 18 sites scraped simultaneously across 4 cities at once — the core TinyFish advantage, visually demonstrated as results stream in real-time
 2. **Zero API Territory**: Not a single rental shop has an API — this is impossible without a web agent
 3. **Vietnam-Specific**: Leverages local market knowledge that no other applicant has. Vietnam = uncovered category in the Use Case Library
 4. **Real Utility**: Millions of tourists visit Vietnam annually. Every single one rents a motorbike. This solves a daily pain point
-5. **Complex Navigation**: Multi-step booking forms, currency switchers, pagination — showcases Mino's AI navigation vs. simple scrapers
-6. **Visual Demo**: Live browser agent iframes show Mino navigating in real-time + cards populating as agents complete = compelling demo video
+5. **Complex Navigation**: Multi-step booking forms, currency switchers, pagination — showcases TinyFish's AI navigation vs. simple scrapers
+6. **Visual Demo**: Live browser agent iframes show TinyFish navigating in real-time + cards populating as agents complete = compelling demo video
 7. **No Anti-Bot Risk**: These are small WordPress/Wix sites with zero bot protection — most reliable demo possible
 8. **Smart Caching**: Supabase cache with 6h TTL means repeat searches are instant — graceful degradation if Supabase is unavailable
 
@@ -322,14 +322,14 @@ export async function POST(request: Request): Promise<Response> {
 
 ## Tech Stack
 - **Frontend**: Next.js 16 + React 19 + Tailwind CSS v4 + shadcn/ui
-- **API**: TinyFish Mino SSE streaming endpoint (`https://agent.tinyfish.ai/v1/automation/run-sse`)
+- **API**: TinyFish SSE streaming endpoint (`https://agent.tinyfish.ai/v1/automation/run-sse`)
 - **Caching**: Supabase (PostgreSQL) — 6h TTL, graceful degradation
 - **Hosting**: Vercel (800s max duration, Node.js runtime)
 - **Build Tool**: Claude Code
 
 ## Estimated Build Time
 - Scaffold + UI: ~30 min (Next.js + Tailwind + shadcn/ui)
-- Mino integration + prompt tuning: 1-2 hours
+- TinyFish integration + prompt tuning: 1-2 hours
 - Frontend polish + real-time streaming UX: 1-2 hours
 - Testing across all cities + edge cases: 1 hour
 - Demo video recording: 1 hour

@@ -1,6 +1,6 @@
 # 🛵 Vietnam Bike Price Scout
 
-> Compare motorbike rental prices across Vietnam in seconds — powered by [TinyFish Mino](https://mino.ai/) parallel browser agents.
+> Compare motorbike rental prices across Vietnam in seconds — powered by [TinyFish](https://tinyfish.ai/) parallel browser agents.
 
 **Live demo → [viet-bike-scout.vercel.app](https://viet-bike-scout.vercel.app)**
 
@@ -8,7 +8,7 @@
 
 ## What it does
 
-Rental shops in Vietnam don't list prices on any aggregator. You have to visit 5–10 different websites, each with different layouts, currencies, and formats. This app sends Mino browser agents to all of them **simultaneously**, extracts structured pricing data, and streams results back to a unified dashboard in real time.
+Rental shops in Vietnam don't list prices on any aggregator. You have to visit 5–10 different websites, each with different layouts, currencies, and formats. This app sends TinyFish browser agents to all of them **simultaneously**, extracts structured pricing data, and streams results back to a unified dashboard in real time.
 
 - Search up to **4 cities at once** — HCMC, Hanoi, Da Nang, Nha Trang
 - Filter by **bike type** — Scooter, Semi-Auto, Manual, Adventure
@@ -29,14 +29,14 @@ POST /api/search
        │
        ├── Cache hit? → stream result instantly via SSE
        │
-       └── Cache miss? → fire Mino SSE requests for all shops in parallel
+        └── Cache miss? → fire TinyFish SSE requests for all shops in parallel
                               │
                               ├── STREAMING_URL event → forward iframe URL to client
                               │
                               └── COMPLETED event → parse JSON, stream to client, upsert to cache
 ```
 
-Each city has 5–6 target shops. Mino handles all the hard parts: cookie banners, dynamic loading, VND→USD conversion, pagination. The API route streams results via **Server-Sent Events** so the UI updates as shops finish — typically within 15–30 seconds for a full city scrape.
+Each city has 5–6 target shops. TinyFish handles all the hard parts: cookie banners, dynamic loading, VND→USD conversion, pagination. The API route streams results via **Server-Sent Events** so the UI updates as shops finish — typically within 15–30 seconds for a full city scrape.
 
 ---
 
@@ -46,7 +46,7 @@ Each city has 5–6 target shops. Mino handles all the hard parts: cookie banner
 |---|---|---|
 | Framework | Next.js 16 (App Router) | SSE streaming via Node.js runtime |
 | UI | React 19 + Tailwind CSS 4 + shadcn/ui | Fast, clean, no design system overhead |
-| Scraping | [TinyFish Mino API](https://mino.ai/) | Parallel browser agents, structured JSON output |
+| Scraping | [TinyFish API](https://tinyfish.ai/) | Parallel browser agents, structured JSON output |
 | Caching | Supabase (Postgres) | 6-hour TTL, graceful degradation if unavailable |
 | Hosting | Vercel | Zero-config, auto-deploys |
 
@@ -70,7 +70,7 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-Get a Mino API key at [mino.ai](https://mino.ai/).
+Get a TinyFish API key at [tinyfish.ai](https://tinyfish.ai/).
 
 ```bash
 npm run dev
@@ -91,7 +91,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## Mino prompt
+## TinyFish prompt
 
 The same goal prompt is sent to every shop URL:
 
@@ -106,7 +106,7 @@ You are extracting motorbike rental pricing from this website.
    deposit, availability, and link to the bike's detail page
 ```
 
-Output is a structured JSON object — shop name, city, website, and a `bikes[]` array. Mino handles currency conversion from VND automatically.
+Output is a structured JSON object — shop name, city, website, and a `bikes[]` array. TinyFish handles currency conversion from VND automatically.
 
 ---
 
@@ -118,7 +118,7 @@ Results are cached in Supabase with a 6-hour TTL, keyed by `(city, website)`. Th
 
 ## Live browser agent iframes
 
-When a live scrape is running, Mino returns a `streamingUrl` for each agent — a real browser session you can watch in an iframe. Up to 5 active agent windows are shown per search (deduped by site, capped to prevent browser overload). Done iframes are automatically removed from the DOM to free memory. A collapse button lets you minimize the grid.
+When a live scrape is running, TinyFish returns a `streamingUrl` for each agent — a real browser session you can watch in an iframe. Up to 5 active agent windows are shown per search (deduped by site, capped to prevent browser overload). Done iframes are automatically removed from the DOM to free memory. A collapse button lets you minimize the grid.
 
 ---
 
@@ -128,7 +128,7 @@ When a live scrape is running, Mino returns a `streamingUrl` for each agent — 
 src/
 ├── app/
 │   ├── page.tsx              # Main UI — city/type selection, sort/filter toolbar, results, iframes
-│   └── api/search/route.ts   # SSE endpoint — cache lookup + Mino orchestration
+│   └── api/search/route.ts   # SSE endpoint — cache lookup + TinyFish orchestration
 ├── hooks/
 │   └── use-bike-search.ts    # SSE client, state management, StreamingPreview type
 └── components/
@@ -140,4 +140,4 @@ src/
 
 ---
 
-Built as a take-home demo for [TinyFish](https://tinyfish.io) — showing what's possible when you give Mino a list of niche local websites and let it run in parallel.
+Built as a take-home demo for [TinyFish](https://tinyfish.ai) — showing what's possible when you give TinyFish a list of niche local websites and let it run in parallel.

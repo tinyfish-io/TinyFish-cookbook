@@ -22,7 +22,7 @@ export function LivePreviewGrid({ previews }: LivePreviewGridProps) {
   const doneCount   = previews.filter(p =>  p.done).length;
 
   // Only render ACTIVE iframes — done agents are removed from DOM to free memory.
-  // Each live Mino iframe is a real browser session; keeping done ones wastes resources.
+  // Each live TinyFish iframe is a real browser session; keeping done ones wastes resources.
   const active    = previews.filter(p => !p.done);
   const recent    = [...active].reverse();
   const visible   = expanded ? recent.slice(0, MAX_VISIBLE) : recent.slice(0, 1);
@@ -93,7 +93,7 @@ export function LivePreviewGrid({ previews }: LivePreviewGridProps) {
             <iframe
               src={streamingUrl}
               className={`w-full border-0 bg-zinc-50 ${expanded ? 'h-44' : 'h-72'}`}
-              title={`Mino agent: ${getHostname(siteUrl)}`}
+              title={`TinyFish agent: ${getHostname(siteUrl)}`}
               loading="eager"
             />
           </div>

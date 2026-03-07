@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Viet Bike Price Scout",
-  description: "Compare motorbike rental prices across Vietnam in seconds — powered by TinyFish Mino parallel browser agents.",
+  description: "Compare motorbike rental prices across Vietnam in seconds — powered by TinyFish parallel browser agents.",
   icons: {
     icon: "/favicon.png",
     apple: "/favicon.png",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Viet Bike Price Scout",
-    description: "Compare motorbike rental prices across Vietnam in seconds. Powered by TinyFish Mino parallel browser agents.",
+    description: "Compare motorbike rental prices across Vietnam in seconds. Powered by TinyFish parallel browser agents.",
   },
   metadataBase: new URL("https://viet-bike-scout.vercel.app"),
 };

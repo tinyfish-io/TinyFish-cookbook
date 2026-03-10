@@ -60,7 +60,7 @@ export default function SystemArchitecture({ active }: { active?: boolean }) {
 
                     <g transform="translate(150, 100)">
                         <rect x="-20" y="-20" width="40" height="40" rx="4" fill="hsl(var(--card))" stroke={active ? "hsl(var(--accent))" : "hsl(var(--border))"} strokeWidth="2" />
-                        <text x="0" y="4" textAnchor="middle" fontSize="6" fill="hsl(var(--foreground))" className="font-bold">MINO</text>
+                        <text x="0" y="4" textAnchor="middle" fontSize="6" fill="hsl(var(--foreground))" className="font-bold">TinyFish</text>
                     </g>
 
                     <g transform="translate(250, 100)">

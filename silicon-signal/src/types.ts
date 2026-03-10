@@ -21,7 +21,7 @@ export interface ScanResult {
     risk: RiskAnalysis;
     evidence_links: string[];
 
-    // Tinyfish (Mino) Agent Extensions
+    // TinyFish Agent Extensions
     price_estimate?: string;
     sources?: string[];
     sources_checked?: string[];

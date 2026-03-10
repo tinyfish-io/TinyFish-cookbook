@@ -81,6 +81,7 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when traveling for conventions or events |
 | [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world |
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
+| [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
 
 > More recipes added weekly!
 

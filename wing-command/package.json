@@ -1,0 +1,52 @@
+{
+  "name": "wing-scout",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Super Bowl LX: Wing Command — Your Game Day Wing HQ. Find the best chicken wings for your Super Bowl party.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3000}",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "warm": "npx tsx scripts/cache-warmer.ts",
+    "warm:sb": "npx tsx scripts/cache-warmer.ts --tier=1",
+    "warm:metros": "npx tsx scripts/cache-warmer.ts --tier=2",
+    "warm:full": "npx tsx scripts/cache-warmer.ts --tier=3",
+    "warm:loop": "npx tsx scripts/cache-warmer.ts --loop",
+    "warm:dry": "npx tsx scripts/cache-warmer.ts --dry-run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "@tanstack/react-query": "^5.51.1",
+    "@upstash/redis": "^1.34.0",
+    "autoprefixer": "^10.4.19",
+    "axios": "^1.7.2",
+    "canvas-confetti": "^1.9.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "dotenv": "^17.2.4",
+    "framer-motion": "^11.3.0",
+    "lucide-react": "^0.400.0",
+    "next": "^14.2.35",
+    "postcss": "^8.4.39",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sharp": "^0.34.5",
+    "tailwind-merge": "^2.4.0",
+    "tailwindcss": "^3.4.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/canvas-confetti": "^1.6.4",
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.35",
+    "typescript": "^5.5.3"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}

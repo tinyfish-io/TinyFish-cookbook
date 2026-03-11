@@ -3,7 +3,7 @@ export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions
 export const GITHUB_API_URL = 'https://api.github.com';
 export const STACKEXCHANGE_API_URL = 'https://api.stackexchange.com/2.3';
 
-export const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001';
+export const OPENROUTER_MODEL = 'google/gemini-3.1-flash-lite-preview';
 export const OPENROUTER_TEMPERATURE = 0.2;
 
 export const MAX_AGENTS = 10;

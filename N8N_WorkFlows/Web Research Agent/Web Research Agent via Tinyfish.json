@@ -1,0 +1,182 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "6b956bb9-d6c3-46dc-abf0-3b253aef99b5",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        2944,
+        256
+      ],
+      "webhookId": "reddit-consensus-chat"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-haiku-4.5",
+        "options": {}
+      },
+      "id": "50c633c7-8347-4e38-b20e-708393ab8cb6",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        3088,
+        480
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "93xqbFvgDLszbEx2",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pageId": {
+          "__rl": true,
+          "value": "https://www.notion.so/Reports-32066186caec802abbaef57607a62f9b?source=copy_link",
+          "mode": "url"
+        },
+        "title": "=Report — {{ $('When chat message received').item.json.chatInput }} — {{ new Date().toISOString().split('T')[0] }}",
+        "blockUi": {
+          "blockValues": [
+            {
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.output }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d71b9fd1-0cc1-4308-b6fb-377dd7daf769",
+      "name": "Create Notion Report",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        3440,
+        256
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "zy8vYCBko9zNEyFW",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# Web Research Agent (TinyFish Web Agent)\n\nChat with an AI agent that scrapes any website and gives you a summarized report.\n\n## How It Works\n1. **You ask** — \"What do people think about [topic]?\" or \"Find pricing for [product]\"\n2. **Agent scrapes** — TinyFish Web Agent browses the relevant site with stealth mode\n3. **Agent analyzes** — OpenRouter LLM synthesizes the findings\n4. **Saved** — Creates a Notion page with the full report\n\n## Setup\n1. **TinyFish API Key** — Get at https://agent.tinyfish.ai/api-keys\n2. **OpenRouter API Key** — Get at https://openrouter.ai/keys\n3. **Notion** — Create an internal integration at notion.so/my-integrations, connect a parent page\n4. Connect all credentials and test with the chat!",
+        "height": 680,
+        "width": 760
+      },
+      "id": "30881dd3-5d01-4f5e-8576-ffde9aee9d94",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2096,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('URL', ``, 'string') }}",
+        "goal": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Goal', ``, 'string') }}",
+        "options": {
+          "browserProfile": "stealth"
+        }
+      },
+      "type": "n8n-nodes-tinyfish.tinyfishTool",
+      "typeVersion": 1,
+      "position": [
+        3392,
+        512
+      ],
+      "id": "3f136c27-1d85-457c-8ae5-d40f909df960",
+      "name": "TinyFish Web Agent1",
+      "credentials": {
+        "tinyfishApi": {
+          "id": "mbrt8uD2ZV0tqtAh",
+          "name": "TinyFish Web Agent account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an intelligent web research analyst. When the user asks you to find\n  opinions, consensus, reviews, or information on any topic:\n\n  1. Analyze the user's message and decide the best URL and goal to pass to\n  the TinyFish Web Agent tool.\n     - For Reddit: use\n  https://old.reddit.com/search/?q=YOUR_SEARCH_TERMS&sort=relevance&t=month\n     - For any other website: construct the appropriate URL based on what the\n  user asks.\n     - You decide the search terms, URL, and extraction goal based on the\n  user's intent.\n  2. In the goal, tell TinyFish exactly what to extract (titles, content,\n  links, prices, reviews — whatever is relevant).\n  3. Once you receive the scraped data, analyze it and give the user a clear,\n  useful summary.\n  4. Format your response in plain text only. No markdown, no bold, no\n  headers, no bullet symbols. Use line breaks and spacing to organize\n  sections. Label sections like TOPIC:, SUMMARY:, KEY THEMES:, NOTABLE\n  SOURCES:, DISSENTING VIEWS:.\n\n  Always use stealth browser profile when calling TinyFish.\n  If the scrape returns no data, tell the user and suggest refining their\n  query.\n\n  IMPORTANT: Keep your entire response under 2000 characters. Be concise. Do\n  NOT use any markdown formatting — no asterisks, no hashtags, no dashes for\n  bullets."
+        }
+      },
+      "id": "98efb616-3fe2-47b6-a986-f8d0bf907eb9",
+      "name": "Web Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        3184,
+        256
+      ]
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Web Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Web Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TinyFish Web Agent1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Web Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Agent": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "93ae535be561fa96a49e2c0436c691a052a1b8a9118da8ac44dd7791f8b097b9"
+  }
+}

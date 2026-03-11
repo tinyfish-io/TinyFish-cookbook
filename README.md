@@ -70,18 +70,39 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 |--------|-------------|
 | [anime-watch-hub](./anime-watch-hub) | Helps you find sites to read/watch your favorite manga/anime for free |
 | [bestbet](./bestbet) | Sports betting odds comparison tool |
+| [code-reference-finder](./code-reference-finder) | AI-powered code snippet analyzer that finds real-world usage examples from GitHub and Stack Overflow |
 | [competitor-analysis](./competitor-analysis) | Live competitive pricing intelligence dashboard |
+| [competitor-scout-cli](./competitor-scout-cli) | Natural language CLI tool for researching competitor feature decisions across multiple websites |
+| [concept-discovery-system](./concept-discovery-system) | Project idea validator that discovers similar existing projects across GitHub, Dev.to, and Stack Overflow |
 | [fast-qa](./fast-qa) | No-code QA testing platform with parallel test execution and live browser previews |
+| [game-buying-guide](./game-buying-guide) | Video game buying decision tool comparing pricing and deals across 10 gaming platforms in parallel |
+| [lego-hunter](./lego-hunter) | Global inventory search tool finding rare Lego sets across 15+ retailers with price and availability analysis |
 | [loan-decision-copilot](./loan-decision-copilot) | AI-powered loan comparison tool across banks and regions |
 | [logistics-sentry](./logistics-sentry) | Logistics intelligence platform for port congestion and carrier risk tracking |
 | [Manga-Availability-Finder](./Manga-Availability-Finder) | Searches multiple reading platforms for manga/webtoon availability |
 | [openbox-deals](./openbox-deals) | Real-time open-box and refurbished deal aggregator across 8 retailers |
 | [research-sentry](./research-sentry) | Voice-first academic research co-pilot scanning ArXiv, PubMed, and more |
+| [restaurant-comparison-tool](./restaurant-comparison-tool) | Pre-visit restaurant safety intelligence tool analyzing Google Maps reviews, menus, and allergen signals |
 | [scholarship-finder](./scholarship-finder) | AI-powered scholarship discovery system pulling live data from official websites |
+| [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when traveling for conventions or events |
 | [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world |
+| [tenders-finder](./tenders-finder) | AI-powered Singapore government tender discovery tool scraping multiple tender portals in parallel |
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
-| [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
+| [tutor-finder](./tutor-finder) | AI-powered tutor discovery platform for competitive exams across multiple platforms |
+| [viet-bike-scout](./viet-bike-scout) | Motorbike rental price comparison tool across Vietnamese cities using parallel browser agents |
+| [waifu-deal-sniper](./waifu-deal-sniper) | Discord bot for anime figure collectors finding discounted pre-owned figures from AmiAmi, Mercari, and Solaris Japan |
+| [wing-command](./wing-command) | Chicken wing tracker using AI-powered scraping to find the best wings near you by flavor preference |
+
+### n8n Workflows
+
+Pre-built n8n workflows using TinyFish — import the JSON and go.
+
+| Workflow | Description |
+|----------|-------------|
+| [Competitor Scout](./N8N_WorkFlows/Competitor%20Scout%20CLI) | Research competitor feature decisions with OpenAI planning and TinyFish evidence collection |
+| [Web Research Agent](./N8N_WorkFlows/Web%20Research%20Agent) | Chatbot that scrapes any website with TinyFish and saves summarized reports to Notion |
+| [Daily Product Hunt Tracker](./N8N_WorkFlows/Daily%20Product%20Hunt%20Tracker) | Scheduled workflow delivering daily top 5 trending Product Hunt products to Telegram |
 
 > More recipes added weekly!
 

@@ -1,0 +1,216 @@
+{
+  "name": "Daily Product Hunt Tracker — TinyFish + Telegram",
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [-740, -100],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "tinyfish-extract",
+      "name": "TinyFish Extract",
+      "type": "n8n-nodes-tinyfish.tinyfish",
+      "position": [-400, -100],
+      "parameters": {
+        "url": "https://www.producthunt.com",
+        "goal": "Extract today's top 5 trending products from the homepage with their name, tagline, upvote count, tags, and product page URL.",
+        "options": {
+          "browserProfile": "stealth"
+        },
+        "operation": "runSse"
+      },
+      "credentials": {
+        "tinyfishApi": {
+          "id": "",
+          "name": "TinyFish Web Agent API account"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "if-has-data",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "position": [-100, -100],
+      "parameters": {
+        "options": {
+          "looseTypeValidation": true
+        },
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-result",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.resultJson }}",
+              "rightValue": ""
+            }
+          ]
+        }
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "format-agent",
+      "name": "Format Report",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [180, -100],
+      "parameters": {
+        "text": "=Here is raw scraped data from Product Hunt. Format it into a clean Telegram message.\n\nData:\n{{ JSON.stringify($json.resultJson) }}",
+        "promptType": "define",
+        "batching": {}
+      },
+      "typeVersion": 1.7
+    },
+    {
+      "id": "openrouter-llm",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "position": [180, 100],
+      "parameters": {
+        "options": {
+          "systemMessage": "You format scraped product data into clean Telegram messages. Output ONLY the formatted message, nothing else.\n\nFormat:\n\ud83c\udfc6 Daily Product Hunt Trending Report\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\nThen for each product (ranked by upvotes, highest first):\n[medal emoji] [Name]  ([upvotes] upvotes)\n[Tagline]\n\ud83c\udff7 [comma-separated tags]\n\ud83d\udd17 [URL]\n\nUse \ud83e\udd47 \ud83e\udd48 \ud83e\udd49 for top 3, then #4 #5 etc.\n\nEnd with:\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\ud83d\udcc5 [today's date YYYY-MM-DD]\n\nDo not add any commentary. Just the formatted message."
+        }
+      },
+      "credentials": {
+        "openRouterApi": {
+          "id": "",
+          "name": "OpenRouter account"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "telegram-send",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "position": [440, -100],
+      "parameters": {
+        "text": "={{ $json.text }}",
+        "chatId": "YOUR_CHAT_ID",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "sticky-main",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-1400, -260],
+      "parameters": {
+        "color": 5,
+        "width": 700,
+        "height": 900,
+        "content": "\ud83c\udfc6 Daily Product Hunt Tracker with AI Formatting\nScrapes Product Hunt daily using TinyFish Web Agent, formats with AI, sends to Telegram.\n\n\ud83e\udded How It Works:\n\ud83d\udd54 Schedule Trigger \u2014 Runs daily at 6PM\n\ud83c\udfc6 TinyFish Web Agent \u2014 Scrapes top 5 products (stealth mode, SSE streaming)\n\ud83d\udd00 IF Node \u2014 Checks if data was returned\n\ud83e\udd16 AI Format \u2014 OpenRouter LLM formats the raw data into a clean report\n\ud83d\udcf2 Telegram \u2014 Sends the formatted report to your chat\n\n\u2705 Why this approach:\n- TinyFish goal is simple plain English \u2014 no rigid schema\n- AI handles any JSON structure \u2014 no brittle key matching\n- Clean, consistent Telegram output every time\n\n\ud83d\udd27 Requirements:\n\u2705 TinyFish API Key (https://agent.tinyfish.ai/api-keys)\n\u2705 OpenRouter API Key (https://openrouter.ai/keys)\n\u2705 Telegram Bot Token & Chat ID\n\n\ud83d\udee0 Customization:\n- Change URL and goal to scrape any site\n- Swap Telegram for Discord, Slack, email, or Notion\n- Change the AI system prompt to format differently"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-trigger",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-840, -260],
+      "parameters": {
+        "width": 260,
+        "height": 420,
+        "content": "Scheduled Trigger"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-tinyfish",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-500, -260],
+      "parameters": {
+        "color": 3,
+        "width": 320,
+        "height": 420,
+        "content": "TinyFish Web Agent\nSimple English goal. No schema needed."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-result",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-160, -260],
+      "parameters": {
+        "color": 5,
+        "width": 560,
+        "height": 420,
+        "content": "AI Format & Send to Telegram"
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          { "node": "TinyFish Extract", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "TinyFish Extract": {
+      "main": [
+        [
+          { "node": "If", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          { "node": "Format Report", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          { "node": "Telegram", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          { "node": "Format Report", "type": "ai_languageModel", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {}
+}

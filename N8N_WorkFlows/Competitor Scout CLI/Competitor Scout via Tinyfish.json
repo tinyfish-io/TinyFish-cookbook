@@ -1,0 +1,875 @@
+{
+  "name": "Competitor Scout via Tinyfish (Form)",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "={{ 'https://agent.tinyfish.ai/v1/runs/' + encodeURIComponent($json.run_id) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "tinyfishApi",
+        "options": {}
+      },
+      "id": "4b3b34dc-42cd-452d-9822-b311805181bb",
+      "name": "Get Tinyfish Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -992,
+        960
+      ],
+      "credentials": {
+        "tinyfishApi": {
+          "id": "fGW1Y2sIYgdmiJHf",
+          "name": "TinyFish Web Agent account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.allDone }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "737449b9-dca0-4fcd-b567-6d3688b6b145",
+      "name": "Check If Complete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -544,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "b61e99af-c396-4b54-bf29-bc32ad275a69",
+      "name": "Wait 3 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        1120
+      ],
+      "webhookId": "053ce8b5-6b4d-4292-bed4-eff9c30d8ff7"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluate Runs (aggregate across ALL incoming items)\nconst items = $input.all().map(i => i.json);\n\n// Flatten possible shapes into runs[]\n// Supports:\n// 1) Each item is a run object (your current case)\n// 2) One item is an array of runs\n// 3) One item has { data: [...] } or { runs: [...] }\nlet runs = [];\nfor (const x of items) {\n  if (Array.isArray(x)) {\n    runs.push(...x);\n  } else if (Array.isArray(x?.data)) {\n    runs.push(...x.data);\n  } else if (Array.isArray(x?.runs)) {\n    runs.push(...x.runs);\n  } else if (x && (x.run_id || x.status)) {\n    runs.push(x);\n  }\n}\n\n// De-dupe by run_id (helps if polling returns duplicates)\nconst seen = new Set();\nruns = runs.filter(r => {\n  const id = r?.run_id ?? r?.runId ?? JSON.stringify(r);\n  if (seen.has(id)) return false;\n  seen.add(id);\n  return true;\n});\n\nconst terminal = new Set([\"COMPLETED\",\"FAILED\",\"CANCELLED\"]);\nconst allDone =\n  runs.length > 0 &&\n  runs.every(r => terminal.has(String(r.status || \"\").toUpperCase()));\n\n// Preserve full raw input (all items) so nothing is lost\nreturn [{\n  json: {\n    raw: items,   // full original input across all items\n    runs,         // normalized array of runs\n    allDone\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        880
+      ],
+      "id": "48b7ff1f-bd98-409f-87ab-06f2796c5215",
+      "name": "Evaluate Runs"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rehydrate per-run items from aggregated Check-If-Complete payload\n// Input is usually ONE item with shape: { runs: [...], raw: [...], allDone: bool }\n\nconst inItem = $input.first().json;\n\n// Prefer runs, fall back to raw, then empty\nconst arr = Array.isArray(inItem.runs)\n  ? inItem.runs\n  : (Array.isArray(inItem.raw) ? inItem.raw : []);\n\n// Extract run IDs\nconst runIds = arr\n  .map(r => r?.run_id || r?.runId)\n  .filter(Boolean);\n\n// Optionally preserve aggregated context for later nodes\n// (useful if you want to carry question/competitors forward)\nconst ctx = {\n  // keep these if they exist upstream\n  question: inItem.question,\n  competitors: inItem.competitors,\n  byName: inItem.byName,\n};\n\nreturn runIds.map(runId => ({\n  json: {\n    ...ctx,\n    runId,\n    run_id: runId\n  }\n}));"
+      },
+      "id": "03078890-813e-4a81-b1ec-44c7bec6781d",
+      "name": "Rehydrate RunIds for Next Poll",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Competitive Research",
+        "formDescription": "Enter your competitors and research question to analyze their websites",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Competitors (one per line)",
+              "fieldType": "textarea",
+              "fieldName": "competitors",
+              "placeholder": "Enter each competitor as \"Name — URL\". Example:\nNotion — https://www.notion.com\nEvernote — https://evernote.com"
+            },
+            {
+              "fieldLabel": "What do you want to know about these competitors?",
+              "fieldName": "question",
+              "placeholder": "Example: What sign-in methods do my competitors support?"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "7119e58b-6a46-4012-964f-02441529c8ce",
+      "name": "Competitor Research Form1",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -2912,
+        960
+      ],
+      "webhookId": "21ff05c4-69cc-422e-ae98-2d2f4e327d34"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse competitors from form input\nconst formData = $input.first().json;\nconst competitorsText = (formData.competitors || '').trim();\nconst question = (formData.question || '').trim();\n\nfunction normalizeUrl(raw) {\n  if (!raw) return '';\n  let u = raw.trim();\n\n  // Remove trailing punctuation that often gets pasted\n  u = u.replace(/[),.;]+$/, '');\n\n  // If user pasted just domain or www., add scheme\n  if (!/^https?:\\/\\//i.test(u)) {\n    u = 'https://' + u;\n  }\n\n  // Basic sanity: if it's still not a domain-like string, return empty\n  // (optional, but helps avoid garbage)\n  const hostish = u.replace(/^https?:\\/\\//i, '');\n  if (!hostish.includes('.')) return '';\n\n  return u;\n}\n\nfunction splitNameAndUrl(line) {\n  // Remove bullets like \"- \" \"* \" \"• \"\n  const clean = line.replace(/^\\s*[-*•]\\s*/, '').trim();\n\n  // Prefer em dash delimiter\n  if (clean.includes('—')) {\n    const [name, ...rest] = clean.split('—');\n    return { name: name.trim(), url: rest.join('—').trim() };\n  }\n\n  // Fallback: hyphen delimiter (only split on \" - \" to avoid breaking names like \"Foo-Bar\")\n  if (clean.includes(' - ')) {\n    const [name, ...rest] = clean.split(' - ');\n    return { name: name.trim(), url: rest.join(' - ').trim() };\n  }\n\n  // Fallback: try to find a domain-like token anywhere in the line\n  const m = clean.match(/\\b((?:https?:\\/\\/)?(?:www\\.)?[a-z0-9.-]+\\.[a-z]{2,}(?:\\/\\S*)?)\\b/i);\n  if (m) {\n    const rawUrl = m[1];\n    const name = clean.replace(rawUrl, '').replace(/[-—\\s]+$/, '').trim();\n    return { name: name.trim(), url: rawUrl.trim() };\n  }\n\n  // If no URL found, treat whole line as name\n  return { name: clean, url: '' };\n}\n\nconst competitorLines = competitorsText\n  .split(/\\r?\\n/)\n  .map(s => s.trim())\n  .filter(Boolean);\n\nconst competitors = competitorLines.map((line, index) => {\n  const { name, url } = splitNameAndUrl(line);\n  return {\n    id: `competitor-${index + 1}`,\n    name,\n    url: normalizeUrl(url),\n    question\n  };\n});\n\nreturn competitors.map(c => ({ json: c }));"
+      },
+      "id": "4f54a568-fc15-4e5b-9347-25b7c56529b0",
+      "name": "Parse Competitors1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2688,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a numbered competitor list from all items\nconst items = $input.all();\n\nlet competitorList = '';\nlet question = '';\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i].json;\n  if (i === 0 && item.question) question = item.question;\n\n  if (item.name && item.url) {\n    competitorList += `${i + 1}. ${item.name} (${item.url})`;\n    if (i < items.length - 1) competitorList += '\\n';\n  }\n}\n\nreturn {\n  json: {\n    competitorList,\n    question\n  }\n};"
+      },
+      "id": "e2769327-0426-489f-bd87-f8b326247d6f",
+      "name": "Build Competitor List1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2464,
+        1024
+      ],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a competitive research planning assistant. Your job is to take a user's research question about their competitors and create specific, actionable browsing goals for an AI web agent to accomplish on each competitor's website.\n\nThe web agent will visit a URL and execute the goal you provide. It can navigate pages, click buttons, read content, and extract information.\n\nIMPORTANT:\n- \"Competitors\" means the companies listed below (the user's competitors), not the competitors of those companies.\n- Only use the provided competitor list. Do not invent new companies.\n- Goals must be specific and detailed so the agent knows exactly what to look for.\n- If the question is about pricing, direct it to the pricing page and extract plan details.\n- Ask the browsing agent to capture source URLs (including child pages it visits) where it finds evidence.\n\nYou may modify the competitor URL to point to a more specific page (e.g., /login, /pricing, /features) if that would help the agent find the information faster."
+            },
+            {
+              "content": "=Competitors:\n{{ $json.competitorList }}\n\nUser's research question: \"{{ $json.question }}\"\n\nFor each competitor, create a specific browsing goal for the web agent. Return a JSON object with a \"goals\" array where each item has:\n- \"competitor_name\": the competitor name from the list above\n- \"competitor_url\": the URL the agent should visit (use the provided URL or a specific subpage)\n- \"goal\": detailed instructions for the browsing agent\n\nReturn ONLY valid JSON. No markdown. No code fences."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {}
+          },
+          "temperature": 0.3
+        }
+      },
+      "id": "de119557-b35e-4f1d-858f-cfbc19882fbc",
+      "name": "Plan Research Goals1",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -2240,
+        1024
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "23Yaf2ltaQvXsEAM",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the OpenAI JSON response and extract goals (matches your OpenAI node schema)\nconst j = $input.first().json;\n\n// The JSON string is here:\n// j.output[0].content[0].text\nconst text =\n  j?.output?.[0]?.content?.find(c => c?.type === 'output_text')?.text\n  ?? j?.output?.[0]?.content?.[0]?.text\n  ?? null;\n\nif (!text || typeof text !== 'string') {\n  return [{\n    json: {\n      error: 'No output_text.text found in OpenAI response',\n      availableKeys: Object.keys(j || {}),\n      sample: j\n    }\n  }];\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  // In case the model wrapped JSON in ```json fences (just in case)\n  const stripped = text.replace(/```json\\s*|```/g, '').trim();\n  parsed = JSON.parse(stripped);\n}\n\nconst goals = Array.isArray(parsed?.goals) ? parsed.goals : [];\n\nreturn goals.map(g => ({\n  json: {\n    competitor_name: g.competitor_name || '',\n    competitor_url: g.competitor_url || '',\n    goal: g.goal || ''\n  }\n}));"
+      },
+      "id": "aa7719c3-33fa-4ed8-8c65-a37dbb830bde",
+      "name": "Parse Goals1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1888,
+        1024
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "name",
+              "field2": "competitor_name"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b77f9fe5-b351-4c40-9c07-34ac9b058ac3",
+      "name": "Match Competitors with Goals1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1664,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare Tinyfish run parameters from matched competitor and goal data\nconst item = $input.item.json;\n\nlet runUrl = item.competitor_url || item.url || '';\nif (runUrl && !runUrl.startsWith('http://') && !runUrl.startsWith('https://')) {\n  runUrl = 'https://' + runUrl;\n}\n\nlet runGoal = '';\nif (item.goal) {\n  runGoal = item.goal;\n} else {\n  const question = item.question || 'research this competitor';\n  const name = item.name || item.competitor_name || 'this competitor';\n  runGoal = `Find information relevant to: ${question} on ${name}'s website.`;\n}\n\nrunGoal += '\\n\\nWhen you find evidence, list the exact source URLs (including child pages you visited) in a \"sources\" list.';\n\nreturn {\n  json: {\n    id: item.id,\n    name: item.name || item.competitor_name,\n    url: item.url,\n    runUrl,\n    runGoal,\n    question: item.question\n  }\n};"
+      },
+      "id": "3dcda4f2-2aa7-4eee-95f5-8ff240737003",
+      "name": "Prepare Tinyfish Goal1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1440,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You are given research data from Tinyfish web agents that includes the research question, competitor name, url, goal for the agent, the agent research results. Please try to summarize the research results corresponding to each competitor despite the irrelavant data contained.\n\nResearch question: \"{{ $json.question }}\"\n\nData (JSON):\n{{ $json.researchPayloadText }}\n\nInstructions:\n- Use the data provided.\n  - Prefer runs whose goal mentions the competitor name OR whose sources include the competitor domain.\n- Produce:\n  1) Executive Summary (2-3 sentences)\n  2) Per-competitor answer to the research question\n  3) Comparison table (if applicable)\n  4) Key insights / opportunities\n- Do NOT fabricate sign-in methods."
+            },
+            {
+              "content": "=Research question: \"{{ $json.question }}\"\n\nCompetitor: {{ $json.name }}\n\nRaw data from browsing their website:\n{{ $json.tinyfish_result.result }}\n\nProvide a clear, concise summary of what was found regarding the research question."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "56103846-1da0-4ddf-a883-9469719c33be",
+      "name": "Summarize Competitor Result1",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        128,
+        864
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "23Yaf2ltaQvXsEAM",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate competitor context from \"Match Competitors with Goals\"\n// and Tinyfish run results from the current input (Check If Complete output).\n\n// 1) Pull ALL competitor+goal items (not just one)\nconst compItems = $(\"Match Competitors with Goals1\")?.all?.() ?? [];\nconst competitors = compItems.map((it) => {\n  const j = it.json ?? {};\n  return {\n    id: j.id ?? null,\n    name: j.name ?? j.competitor_name ?? \"\",\n    url: j.url ?? \"\",\n    runUrl: j.runUrl ?? j.competitor_url ?? j.url ?? \"\",\n    runGoal: j.runGoal ?? j.goal ?? \"\",\n    question: j.question ?? \"\",\n  };\n}).filter(c => c.name);\n\n// 2) Derive question (prefer the first non-empty)\nconst question =\n  competitors.find(c => c.question)?.question ??\n  \"\";\n\n// 3) Get ALL runs from current node input\n// Your Check If Complete input appears to be an array of run objects.\n// In n8n Code node, $input.all() returns items; each item has .json.\n// If your IF node passes the whole array as one item, it'll be in item.json.\n// Handle both shapes: [run, run] OR { data: [run, run] } OR single run.\nconst inItems = $input.all().map(i => i.json);\n\n// Flatten possible shapes into `runsRaw`\nlet runsRaw = [];\nfor (const x of inItems) {\n  if (Array.isArray(x)) {\n    runsRaw.push(...x);\n  } else if (Array.isArray(x?.data)) {\n    runsRaw.push(...x.data);\n  } else if (Array.isArray(x?.runs)) {\n    runsRaw.push(...x.runs);\n  } else if (x?.run_id || x?.status) {\n    runsRaw.push(x);\n  }\n}\n\n// 4) Normalize runs and extract useful fields\nconst runs = runsRaw.map((run) => {\n  const status = String(run.status ?? \"\").toUpperCase();\n  const resultObj = run.result ?? null;\n\n  const sources =\n    Array.isArray(resultObj?.sources) ? resultObj.sources :\n    Array.isArray(run.sources) ? run.sources :\n    null;\n\n  return {\n    run_id: run.run_id ?? null,\n    status,\n    goal: run.goal ?? \"\",\n    created_at: run.created_at ?? null,\n    started_at: run.started_at ?? null,\n    finished_at: run.finished_at ?? null,\n    error: run.error ?? null,\n    sources,\n    result: resultObj,\n    rawResultText: resultObj ? JSON.stringify(resultObj, null, 2) : \"\",\n  };\n});\n\n// 5) Optional: map results by competitor name if it exists in goal text\n// (best-effort only; you said matching is not required)\nconst byName = {};\nfor (const c of competitors) {\n  byName[c.name] = {\n    competitor: c,\n    runs: runs.filter(r => (r.goal || \"\").toLowerCase().includes(c.name.toLowerCase())),\n  };\n}\n\n// 6) Return ONE aggregated item for downstream OpenAI\nreturn [{\n  json: {\n    question,\n    competitors,\n    runs,\n    byName,\n    allDone: runs.length > 0 && runs.every(r => [\"COMPLETED\", \"FAILED\", \"CANCELLED\"].includes(r.status)),\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        784
+      ],
+      "id": "4468a599-8964-4beb-8d2a-ceaf0a2be104",
+      "name": "Normalize Tinyfish Run1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Research Payload Text\nconst root = $input.first().json;\n\n// Always take arrays directly (no matching, no filtering)\nconst competitors = Array.isArray(root.competitors) ? root.competitors : [];\nconst runs = Array.isArray(root.runs) ? root.runs : [];\n\n// Build a \"no-loss\" payload for the LLM\nconst payload = {\n  question: root.question ?? competitors?.[0]?.question ?? \"\",\n  allDone: root.allDone ?? null,\n  competitorCount: competitors.length,\n  runCount: runs.length,\n  competitors,  // FULL objects\n  runs,         // FULL objects\n  byName: root.byName ?? null, // optional, keep if present\n};\n\nreturn [{\n  json: {\n    question: payload.question,\n    competitors,\n    runs,\n    allDone: payload.allDone,\n    competitorCount: payload.competitorCount,\n    runCount: payload.runCount,\n    researchPayloadText: JSON.stringify(payload, null, 2),\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        864
+      ],
+      "id": "51acffb4-ac55-40d2-a0b1-081968e6f72d",
+      "name": "explode competitor runs1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        704,
+        784
+      ],
+      "id": "87c87d8a-c4a4-460e-83a6-c15a2b4b2232",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\n\n// The OpenAI node output you showed looks like:\n// [ { output: [ { content: [ { text: \"...\" } ] } ] } ]\n// But in n8n, we typically receive ONE item whose json has fields like `output`.\n\nconst output = root.output ?? root.data?.output ?? null;\n\nlet textParts = [];\n\nif (Array.isArray(output)) {\n  for (const msg of output) {\n    const content = msg?.content;\n    if (Array.isArray(content)) {\n      for (const c of content) {\n        if (typeof c?.text === 'string' && c.text.trim()) textParts.push(c.text);\n      }\n    }\n  }\n}\n\n// Fallbacks (some n8n OpenAI nodes return message/content directly)\nif (textParts.length === 0) {\n  const fallback = root.message?.content ?? root.message ?? root.text ?? root.output_text ?? '';\n  if (typeof fallback === 'string' && fallback.trim()) textParts = [fallback];\n}\n\nconst report = textParts.join('\\n\\n').trim();\n\nreturn [{\n  json: {\n    ...root,\n    report,\n    report_format: 'markdown'\n  }\n}];"
+      },
+      "id": "7c26ad07-87a0-47d7-baff-c64bca3398cb",
+      "name": "Extract Report (OpenAI Output)1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "q",
+              "name": "question",
+              "value": "={{ $json.question || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "r",
+              "name": "report_md",
+              "value": "={{ $json.report || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "c",
+              "name": "competitor_names",
+              "value": "={{ ($json.competitors || []).map(c => c.name).join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "ts",
+              "name": "created_at",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            },
+            {
+              "id": "run",
+              "name": "run_ids",
+              "value": "={{ ($json.runs || []).map(r => r.run_id).join(', ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6ea6fd2c-0e0c-46de-abed-36cc0f53433b",
+      "name": "Prepare Report Row1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1152,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\n\n// Heuristic: pick the item that has \"runs\" as research payload\nconst research = items.find(x => Array.isArray(x.runs) || Array.isArray(x.competitors)) || {};\n// pick the item that has reportMarkdown\nconst reportP = items.find(x => typeof x.report === \"string\") || {};\n\nreturn [{\n  json: {\n    ...research,\n    report: reportP.report || \"\",\n    generatedAt: new Date().toISOString(),\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        784
+      ],
+      "id": "ede6cfbb-1f76-4260-8a59-4b4dc6af6d0d",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "runAsync",
+        "url": "={{ $json.runUrl }}",
+        "goal": "={{ $json.runGoal }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-tinyfish.tinyfish",
+      "typeVersion": 1,
+      "position": [
+        -1232,
+        960
+      ],
+      "id": "4050c56d-2c74-430c-9815-348e46fef815",
+      "name": "TinyFish Web Agent1",
+      "credentials": {
+        "tinyfishApi": {
+          "id": "fGW1Y2sIYgdmiJHf",
+          "name": "TinyFish Web Agent account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1nGc78CeUheZWtn_iGUD3qNusK4ZlHUb-Dib5UorBd3k/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1nGc78CeUheZWtn_iGUD3qNusK4ZlHUb-Dib5UorBd3k/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "question",
+              "displayName": "question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "report_md",
+              "displayName": "report_md",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "competitor_names",
+              "displayName": "competitor_names",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "run_ids",
+              "displayName": "run_ids",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "baed8d37-3448-42ff-b7e1-a57da6f8af6c",
+      "name": "Append Report Row (Google Sheets)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1376,
+        944
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nQmUsFUpNzmxpeGQ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\n\nconst question = j.question || '';\nconst competitors = j.competitor_names\n  || (Array.isArray(j.competitors) ? j.competitors.map(c => c.name).join(', ') : '')\n  || '';\n\nconst report = j.report_md || j.reportMarkdown || '';\n\nconst createdAt = j.created_at || j.createdAt || new Date().toISOString();\nconst safe = (question || 'report')\n  .replace(/[^a-z0-9-_ ]/gi, '')\n  .slice(0, 60)\n  .trim()\n  .replace(/\\s+/g, '-');\n\nconst mdFilename = `competitive-research-${safe || 'report'}-${Date.now()}.md`;\n\nconst mdContent =\n`# Competitive Research\n\n**Question:** ${question}\n**Competitors:** ${competitors}\n**Created:** ${createdAt}\n\n---\n\n${report}\n`;\n\nreturn [{\n  json: {\n    mdFilename,\n    mdContent\n  }\n}];"
+      },
+      "id": "9c2e355b-78e5-4ca0-87b4-bdd1d32c9859",
+      "name": "Create Markdown File Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "binaryData": true,
+        "name": "={{ $binary.data.fileName }}",
+        "options": {}
+      },
+      "id": "c4d55a08-5894-4679-86bc-683b863cfad5",
+      "name": "Upload Markdown to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        1184
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "zeH0JO9qxbwVb0pH",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const baseName = ($json.mdFilename || `competitive-research-${Date.now()}`).trim();\n\n// Force .md extension\nconst filename = baseName.toLowerCase().endsWith('.md') ? baseName : `${baseName}.md`;\n\nconst md = $json.mdContent || '';\n\nconst binaryData = await this.helpers.prepareBinaryData(\n  Buffer.from(md, 'utf8'),\n  filename,\n  'text/markdown'\n);\n\nreturn [{\n  json: { mdFilename: filename }, // optional, safe to keep\n  binary: { data: binaryData }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        1184
+      ],
+      "id": "b904162a-2b96-482f-8be5-ff9854f73b98",
+      "name": "Convert to Binary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nconst content = JSON.stringify(data, null, 2);\nconst filename = `scout-results-${Date.now()}.json`;\n\nreturn [{\n  json: data,\n  binary: {\n    data: await this.helpers.prepareBinaryData(\n      Buffer.from(content, \"utf8\"),\n      filename,\n      \"application/json\"\n    )\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        784
+      ],
+      "id": "a36185b3-b397-4d19-9d6d-7b8113219dff",
+      "name": "Save as JSON"
+    }
+  ],
+  "pinData": {
+    "Competitor Research Form1": [
+      {
+        "json": {
+          "competitors": "Notion - www.notion.com\r\nServiceNow - www.servicenow.com",
+          "question": "What sign-in methods do my competitors use?",
+          "submittedAt": "2026-03-04T01:19:12.490-08:00",
+          "formMode": "test"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Get Tinyfish Status": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Complete": {
+      "main": [
+        [
+          {
+            "node": "Normalize Tinyfish Run1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rehydrate RunIds for Next Poll",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Get Tinyfish Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Runs": {
+      "main": [
+        [
+          {
+            "node": "Check If Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rehydrate RunIds for Next Poll": {
+      "main": [
+        [
+          {
+            "node": "Wait 3 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Competitor Research Form1": {
+      "main": [
+        [
+          {
+            "node": "Parse Competitors1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Competitors1": {
+      "main": [
+        [
+          {
+            "node": "Build Competitor List1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Match Competitors with Goals1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Competitor List1": {
+      "main": [
+        [
+          {
+            "node": "Plan Research Goals1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Research Goals1": {
+      "main": [
+        [
+          {
+            "node": "Parse Goals1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Goals1": {
+      "main": [
+        [
+          {
+            "node": "Match Competitors with Goals1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Match Competitors with Goals1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Tinyfish Goal1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Tinyfish Goal1": {
+      "main": [
+        [
+          {
+            "node": "TinyFish Web Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Competitor Result1": {
+      "main": [
+        [
+          {
+            "node": "Extract Report (OpenAI Output)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Tinyfish Run1": {
+      "main": [
+        [
+          {
+            "node": "explode competitor runs1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "explode competitor runs1": {
+      "main": [
+        [
+          {
+            "node": "Summarize Competitor Result1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Report (OpenAI Output)1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Prepare Report Row1": {
+      "main": [
+        [
+          {
+            "node": "Save as JSON",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append Report Row (Google Sheets)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Markdown File Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Report Row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TinyFish Web Agent1": {
+      "main": [
+        [
+          {
+            "node": "Get Tinyfish Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Markdown File Content": {
+      "main": [
+        [
+          {
+            "node": "Convert to Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Binary": {
+      "main": [
+        [
+          {
+            "node": "Upload Markdown to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedPerExecution": 6
+  },
+  "versionId": "89b8db9d-28e1-4fe6-bb09-94b14648b03c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e5e32c5f2ff1f80e7ad139e29e774db1914617b769b8544eb86000082273891d"
+  },
+  "id": "cwvxwiya1U6tHBXg",
+  "tags": []
+}

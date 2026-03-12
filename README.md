@@ -103,6 +103,7 @@ Pre-built n8n workflows using TinyFish — import the JSON and go.
 | [Competitor Scout](./N8N_WorkFlows/Competitor%20Scout%20CLI) | Research competitor feature decisions with OpenAI planning and TinyFish evidence collection |
 | [Web Research Agent](./N8N_WorkFlows/Web%20Research%20Agent) | Chatbot that scrapes any website with TinyFish and saves summarized reports to Notion |
 | [Daily Product Hunt Tracker](./N8N_WorkFlows/Daily%20Product%20Hunt%20Tracker) | Scheduled workflow delivering daily top 5 trending Product Hunt products to Telegram |
+| [Research Sentry (n8n)](./N8N_WorkFlows/n8n-research-sentry-tinyfish) | Webhook-driven academic research: GPT-4o intent + synthesis, parallel TinyFish scouts (ArXiv, PubMed, Semantic Scholar), optional Google Sheets |
 
 > More recipes added weekly!
 

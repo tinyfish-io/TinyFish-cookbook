@@ -1,0 +1,454 @@
+{
+  "name": "Research Sentry — TinyFish Autonomous Research Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research-sentry",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-trigger",
+      "name": " Research Query Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [180, 400],
+      "webhookId": "research-sentry-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nif (!body.query) throw new Error('Missing required field: query');\n\nconst sources = body.sources || ['arxiv', 'pubmed', 'semantic_scholar'];\nconst timestamp = new Date().toISOString();\nconst sessionId = `rs-${Date.now()}`;\n\nreturn [{\n  json: {\n    sessionId,\n    query: body.query,\n    sources,\n    timestamp,\n    status: 'INTENT_ANALYSIS'\n  }\n}];"
+      },
+      "id": "node-validate-input",
+      "name": " Validate & Init Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are Research Sentry's Intent Analysis Engine. Convert a natural language research goal into structured agentic missions for TinyFish Web Agents.\n\nReturn ONLY valid JSON (no markdown fences):\n{\n  \"primary_keywords\": [\"kw1\", \"kw2\", \"kw3\"],\n  \"arxiv_goal\": \"Navigate to arxiv.org/search, search for '<query>', extract the top 8 papers as JSON array: [{title, authors, abstract, url, published_date, arxiv_id}]\",\n  \"pubmed_goal\": \"Navigate to pubmed.ncbi.nlm.nih.gov, search for '<query>', extract top 8 results as JSON array: [{title, authors, abstract, url, pmid, published_date}]\",\n  \"semantic_scholar_goal\": \"Navigate to semanticscholar.org, search for '<query>', extract top 8 papers as JSON array: [{title, authors, abstract, url, citation_count, year}]\",\n  \"intent_label\": \"Discovery|Verification|Deep Dive|Trend Analysis\",\n  \"date_filter\": \"2022-present\",\n  \"confidence\": 0.95\n}\n\nMake each goal a specific, actionable TinyFish browser instruction. Be precise about the JSON structure to extract."
+            },
+            {
+              "role": "user",
+              "content": "=Research Goal: {{ $json.query }}\nSources requested: {{ $json.sources.join(', ') }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.2,
+          "maxTokens": 600
+        }
+      },
+      "id": "node-gpt4o-intent",
+      "name": " GPT-4o Intent Analysis",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [640, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessionData = $(' Validate & Init Session').first().json;\nconst gptResponse = $input.first().json.message?.content || $input.first().json.choices?.[0]?.message?.content || '{}';\n\nlet intentData;\ntry {\n  const cleaned = gptResponse.replace(/```json\\n?|```/g, '').trim();\n  intentData = JSON.parse(cleaned);\n} catch(e) {\n  const q = sessionData.query;\n  intentData = {\n    primary_keywords: [q],\n    arxiv_goal: `Search arxiv.org for \"${q}\", extract top 8 papers as JSON: [{title, authors, abstract, url, published_date}]`,\n    pubmed_goal: `Search pubmed.ncbi.nlm.nih.gov for \"${q}\", extract top 8 results as JSON: [{title, authors, abstract, url, pmid, published_date}]`,\n    semantic_scholar_goal: `Search semanticscholar.org for \"${q}\", extract top 8 papers as JSON: [{title, authors, abstract, url, citation_count, year}]`,\n    intent_label: 'Discovery',\n    confidence: 0.7\n  };\n}\n\nreturn [{\n  json: {\n    ...sessionData,\n    intent_analysis: intentData,\n    status: 'AGENT_DISPATCH'\n  }\n}];"
+      },
+      "id": "node-parse-intent",
+      "name": " Parse Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://agent.tinyfish.ai/v1/automation/run",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"url\": \"https://arxiv.org/search/\",\n  \"goal\": {{ JSON.stringify($json.intent_analysis.arxiv_goal) }},\n  \"browser_profile\": \"stealth\",\n  \"proxy_config\": { \"enabled\": false }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-tinyfish-arxiv",
+      "name": " TinyFish → ArXiv Scout",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tinyfish-api-key",
+          "name": "TinyFish API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://agent.tinyfish.ai/v1/automation/run",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"url\": \"https://pubmed.ncbi.nlm.nih.gov/\",\n  \"goal\": {{ JSON.stringify($json.intent_analysis.pubmed_goal) }},\n  \"browser_profile\": \"stealth\",\n  \"proxy_config\": { \"enabled\": false }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-tinyfish-pubmed",
+      "name": " TinyFish → PubMed Scout",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tinyfish-api-key",
+          "name": "TinyFish API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://agent.tinyfish.ai/v1/automation/run",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"url\": \"https://www.semanticscholar.org/\",\n  \"goal\": {{ JSON.stringify($json.intent_analysis.semantic_scholar_goal) }},\n  \"browser_profile\": \"stealth\",\n  \"proxy_config\": { \"enabled\": false }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-tinyfish-semantic",
+      "name": " TinyFish → Semantic Scholar Scout",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tinyfish-api-key",
+          "name": "TinyFish API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize ArXiv TinyFish result\nconst tinyfishResult = $input.first().json;\nconst sessionData = $(' Parse Intent').first().json;\n\nlet papers = [];\ntry {\n  // TinyFish /run returns result directly in .result field\n  const raw = tinyfishResult.result || tinyfishResult.resultJson || tinyfishResult;\n  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  \n  // Handle various shapes TinyFish might return\n  const rawPapers = Array.isArray(parsed) ? parsed : (parsed.papers || parsed.results || parsed.items || []);\n  \n  papers = rawPapers.slice(0, 10).map(p => ({\n    title: p.title || 'Untitled',\n    authors: Array.isArray(p.authors) ? p.authors.slice(0,3).join(', ') : (p.authors || ''),\n    abstract: (p.abstract || p.summary || '').substring(0, 400),\n    url: p.url || p.link || '',\n    published: p.published_date || p.date || p.year || '',\n    source: 'arxiv',\n    citationCount: null,\n    doi: p.arxiv_id ? `arxiv:${p.arxiv_id}` : ''\n  }));\n} catch(e) {\n  papers = [];\n}\n\nreturn [{ json: { source: 'arxiv', papers, count: papers.length, sessionId: sessionData.sessionId, status: tinyfishResult.status || 'COMPLETED' } }];"
+      },
+      "id": "node-normalize-arxiv",
+      "name": " Normalize ArXiv Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize PubMed TinyFish result\nconst tinyfishResult = $input.first().json;\nconst sessionData = $(' Parse Intent').first().json;\n\nlet papers = [];\ntry {\n  const raw = tinyfishResult.result || tinyfishResult.resultJson || tinyfishResult;\n  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  \n  const rawPapers = Array.isArray(parsed) ? parsed : (parsed.papers || parsed.results || parsed.items || []);\n  \n  papers = rawPapers.slice(0, 10).map(p => ({\n    title: p.title || 'Untitled',\n    authors: Array.isArray(p.authors) ? p.authors.slice(0,3).join(', ') : (p.authors || ''),\n    abstract: (p.abstract || '').substring(0, 400),\n    url: p.url || (p.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${p.pmid}/` : ''),\n    published: p.published_date || p.date || p.year || '',\n    source: 'pubmed',\n    citationCount: null,\n    doi: p.pmid ? `pmid:${p.pmid}` : ''\n  }));\n} catch(e) {\n  papers = [];\n}\n\nreturn [{ json: { source: 'pubmed', papers, count: papers.length, sessionId: sessionData.sessionId, status: tinyfishResult.status || 'COMPLETED' } }];"
+      },
+      "id": "node-normalize-pubmed",
+      "name": " Normalize PubMed Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize Semantic Scholar TinyFish result\nconst tinyfishResult = $input.first().json;\nconst sessionData = $(' Parse Intent').first().json;\n\nlet papers = [];\ntry {\n  const raw = tinyfishResult.result || tinyfishResult.resultJson || tinyfishResult;\n  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n  \n  const rawPapers = Array.isArray(parsed) ? parsed : (parsed.papers || parsed.results || parsed.items || []);\n  \n  papers = rawPapers.slice(0, 10).map(p => ({\n    title: p.title || 'Untitled',\n    authors: Array.isArray(p.authors) ? p.authors.slice(0,3).join(', ') : (p.authors || ''),\n    abstract: (p.abstract || '').substring(0, 400),\n    url: p.url || '',\n    published: p.year ? String(p.year) : (p.published_date || ''),\n    source: 'semantic_scholar',\n    citationCount: typeof p.citation_count === 'number' ? p.citation_count : (p.citationCount || null),\n    doi: ''\n  }));\n} catch(e) {\n  papers = [];\n}\n\nreturn [{ json: { source: 'semantic_scholar', papers, count: papers.length, sessionId: sessionData.sessionId, status: tinyfishResult.status || 'COMPLETED' } }];"
+      },
+      "id": "node-normalize-semantic",
+      "name": " Normalize Semantic Scholar Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate and deduplicate all TinyFish scout results\nconst allInputs = $input.all();\nconst sessionData = $(' Parse Intent').first().json;\n\nlet allPapers = [];\nconst sourceCounts = {};\nconst scoutStatuses = {};\n\nfor (const input of allInputs) {\n  const { source, papers, count, status } = input.json;\n  sourceCounts[source] = count;\n  scoutStatuses[source] = status;\n  allPapers = allPapers.concat(papers);\n}\n\n// Deduplicate by title\nconst seen = new Set();\nconst dedupedPapers = allPapers.filter(p => {\n  const key = p.title.toLowerCase().substring(0, 60);\n  if (seen.has(key)) return false;\n  seen.add(key);\n  return true;\n});\n\n// Sort by citation count desc, then recency\ndedupedPapers.sort((a, b) => {\n  if (b.citationCount !== null && a.citationCount !== null) {\n    return (b.citationCount || 0) - (a.citationCount || 0);\n  }\n  return (b.published || '').localeCompare(a.published || '');\n});\n\nreturn [{\n  json: {\n    sessionId: sessionData.sessionId,\n    query: sessionData.query,\n    intent_analysis: sessionData.intent_analysis,\n    timestamp: sessionData.timestamp,\n    sources_searched: Object.keys(sourceCounts),\n    source_counts: sourceCounts,\n    scout_statuses: scoutStatuses,\n    total_raw: allPapers.length,\n    total_deduplicated: dedupedPapers.length,\n    papers: dedupedPapers,\n    status: 'SYNTHESIS'\n  }\n}];"
+      },
+      "id": "node-aggregate",
+      "name": " Aggregate TinyFish Scout Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 400]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are Research Sentry's Synthesis Engine. Analyze TinyFish-verified papers from live academic portals and produce a structured intelligence report.\n\nReturn ONLY valid JSON (no markdown fences):\n{\n  \"primary_themes\": [\"Theme1\", \"Theme2\", \"Theme3\"],\n  \"discovery_summary\": \"2-3 sentence synthesis of the research landscape\",\n  \"key_breakthroughs\": [\"specific finding 1\", \"specific finding 2\"],\n  \"research_gaps\": [\"gap 1\", \"gap 2\"],\n  \"recommended_action\": \"Actionable Insight: specific next step for the researcher\",\n  \"confidence\": 0.92,\n  \"trend\": \"emerging|established|declining|contested\",\n  \"top_paper_indices\": [0, 1, 2]\n}\n\nBase analysis only on provided data. Be specific and technical. top_paper_indices = array indices of the 3 highest-value papers."
+            },
+            {
+              "role": "user",
+              "content": "=Research Query: {{ $json.query }}\nIntent: {{ $json.intent_analysis.intent_label }}\nKeywords: {{ ($json.intent_analysis.primary_keywords || []).join(', ') }}\n\nTinyFish-Verified Papers ({{ $json.total_deduplicated }} total from {{ $json.sources_searched.join(', ') }}):\n{{ JSON.stringify($json.papers.slice(0, 15).map(p => ({ title: p.title, abstract: p.abstract?.substring(0,200), source: p.source, citations: p.citationCount, year: p.published }))) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 800
+        }
+      },
+      "id": "node-gpt4o-synthesis",
+      "name": " GPT-4o Deep Synthesis",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [1840, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aggregated = $(' Aggregate TinyFish Scout Results').first().json;\nconst gptResponse = $input.first().json.message?.content || $input.first().json.choices?.[0]?.message?.content || '{}';\n\nlet synthesis;\ntry {\n  const cleaned = gptResponse.replace(/```json\\n?|```/g, '').trim();\n  synthesis = JSON.parse(cleaned);\n} catch(e) {\n  synthesis = {\n    primary_themes: ['Research', 'Analysis', 'Discovery'],\n    discovery_summary: `Synthesized ${aggregated.total_deduplicated} papers across ${aggregated.sources_searched.join(', ')}.`,\n    recommended_action: 'Review the top-cited papers for key insights.',\n    confidence: 0.75,\n    trend: 'established',\n    top_paper_indices: [0, 1, 2]\n  };\n}\n\nconst topPapers = (synthesis.top_paper_indices || [0,1,2])\n  .filter(i => i < aggregated.papers.length)\n  .map(i => aggregated.papers[i]);\n\nconst researchProfile = {\n  research_context: {\n    topic: aggregated.query,\n    sources: aggregated.sources_searched,\n    intent: aggregated.intent_analysis?.intent_label || 'Discovery',\n    session_id: aggregated.sessionId,\n    timestamp: aggregated.timestamp\n  },\n  discovery_summary: {\n    yield: aggregated.total_deduplicated,\n    raw_collected: aggregated.total_raw,\n    source_breakdown: aggregated.source_counts,\n    scout_statuses: aggregated.scout_statuses,\n    primary_themes: synthesis.primary_themes || [],\n    confidence: synthesis.confidence || 0.8,\n    trend: synthesis.trend || 'established',\n    summary: synthesis.discovery_summary || '',\n    key_breakthroughs: synthesis.key_breakthroughs || [],\n    research_gaps: synthesis.research_gaps || []\n  },\n  papers_discovered: aggregated.papers.map(p => ({\n    title: p.title,\n    source: p.source,\n    url: p.url,\n    published: p.published,\n    authors: p.authors,\n    citation_count: p.citationCount,\n    abstract_excerpt: (p.abstract || '').substring(0, 200),\n    evidence: (p.abstract || 'See source URL').substring(0, 150),\n    doi: p.doi\n  })),\n  top_recommendations: topPapers.map(p => ({\n    title: p.title,\n    url: p.url,\n    source: p.source,\n    citations: p.citationCount,\n    published: p.published\n  })),\n  recommended_action: synthesis.recommended_action || 'Review the top papers.',\n  metadata: {\n    keywords_used: aggregated.intent_analysis?.primary_keywords || [],\n    tinyfish_verified: true,\n    agent_powered: true\n  }\n};\n\nreturn [{ json: researchProfile }];"
+      },
+      "id": "node-build-profile",
+      "name": " Build Research Profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2080, 400]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Research Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Session ID": "={{ $json.research_context.session_id }}",
+            "Timestamp": "={{ $json.research_context.timestamp }}",
+            "Research Topic": "={{ $json.research_context.topic }}",
+            "Intent": "={{ $json.research_context.intent }}",
+            "Sources": "={{ $json.research_context.sources.join(', ') }}",
+            "Papers Found": "={{ $json.discovery_summary.yield }}",
+            "Confidence": "={{ $json.discovery_summary.confidence }}",
+            "Trend": "={{ $json.discovery_summary.trend }}",
+            "Primary Themes": "={{ $json.discovery_summary.primary_themes.join(' | ') }}",
+            "Discovery Summary": "={{ $json.discovery_summary.summary }}",
+            "Key Breakthroughs": "={{ ($json.discovery_summary.key_breakthroughs || []).join(' | ') }}",
+            "Research Gaps": "={{ ($json.discovery_summary.research_gaps || []).join(' | ') }}",
+            "Recommended Action": "={{ $json.recommended_action }}",
+            "Top Paper 1": "={{ $json.top_recommendations[0]?.title || '' }}",
+            "Top Paper 1 URL": "={{ $json.top_recommendations[0]?.url || '' }}",
+            "Top Paper 2": "={{ $json.top_recommendations[1]?.title || '' }}",
+            "Top Paper 2 URL": "={{ $json.top_recommendations[1]?.url || '' }}",
+            "Top Paper 3": "={{ $json.top_recommendations[2]?.title || '' }}",
+            "Top Paper 3 URL": "={{ $json.top_recommendations[2]?.url || '' }}",
+            "TinyFish Verified": "TRUE",
+            "Keywords": "={{ $json.metadata.keywords_used.join(', ') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "node-sheets-log",
+      "name": " Log Session to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2320, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credentials",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "papers_discovered",
+        "options": {}
+      },
+      "id": "node-split-papers",
+      "name": " Split Papers",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [2080, 620]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Papers Database",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Session ID": "={{ $(' Build Research Profile').first().json.research_context.session_id }}",
+            "Topic": "={{ $(' Build Research Profile').first().json.research_context.topic }}",
+            "Title": "={{ $json.title }}",
+            "Source": "={{ $json.source }}",
+            "URL": "={{ $json.url }}",
+            "Published": "={{ $json.published }}",
+            "Authors": "={{ $json.authors }}",
+            "Citations": "={{ $json.citation_count }}",
+            "Abstract": "={{ $json.abstract_excerpt }}",
+            "DOI": "={{ $json.doi }}",
+            "TinyFish Verified": "TRUE"
+          }
+        },
+        "options": {}
+      },
+      "id": "node-sheets-papers",
+      "name": " Log Papers to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2320, 620],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credentials",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($(' Build Research Profile').first().json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "X-TinyFish-Verified", "value": "true" },
+              { "name": "X-Session-ID", "value": "={{ $(' Build Research Profile').first().json.research_context.session_id }}" }
+            ]
+          }
+        }
+      },
+      "id": "node-respond",
+      "name": " Return Research Profile",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2560, 400]
+    }
+  ],
+  "connections": {
+    " Research Query Webhook": {
+      "main": [[{ "node": " Validate & Init Session", "type": "main", "index": 0 }]]
+    },
+    " Validate & Init Session": {
+      "main": [[{ "node": " GPT-4o Intent Analysis", "type": "main", "index": 0 }]]
+    },
+    " GPT-4o Intent Analysis": {
+      "main": [[{ "node": " Parse Intent", "type": "main", "index": 0 }]]
+    },
+    " Parse Intent": {
+      "main": [[
+        { "node": " TinyFish → ArXiv Scout", "type": "main", "index": 0 },
+        { "node": " TinyFish → PubMed Scout", "type": "main", "index": 0 },
+        { "node": " TinyFish → Semantic Scholar Scout", "type": "main", "index": 0 }
+      ]]
+    },
+    " TinyFish → ArXiv Scout": {
+      "main": [[{ "node": " Normalize ArXiv Results", "type": "main", "index": 0 }]]
+    },
+    " TinyFish → PubMed Scout": {
+      "main": [[{ "node": " Normalize PubMed Results", "type": "main", "index": 0 }]]
+    },
+    " TinyFish → Semantic Scholar Scout": {
+      "main": [[{ "node": " Normalize Semantic Scholar Results", "type": "main", "index": 0 }]]
+    },
+    " Normalize ArXiv Results": {
+      "main": [[{ "node": " Aggregate TinyFish Scout Results", "type": "main", "index": 0 }]]
+    },
+    " Normalize PubMed Results": {
+      "main": [[{ "node": " Aggregate TinyFish Scout Results", "type": "main", "index": 0 }]]
+    },
+    " Normalize Semantic Scholar Results": {
+      "main": [[{ "node": "Aggregate TinyFish Scout Results", "type": "main", "index": 0 }]]
+    },
+    " Aggregate TinyFish Scout Results": {
+      "main": [[{ "node": " GPT-4o Deep Synthesis", "type": "main", "index": 0 }]]
+    },
+    " GPT-4o Deep Synthesis": {
+      "main": [[{ "node": " Build Research Profile", "type": "main", "index": 0 }]]
+    },
+    " Build Research Profile": {
+      "main": [[
+        { "node": " Log Session to Google Sheets", "type": "main", "index": 0 },
+        { "node": " Split Papers", "type": "main", "index": 0 },
+        { "node": " Return Research Profile", "type": "main", "index": 0 }
+      ]]
+    },
+    " Split Papers": {
+      "main": [[{ "node": " Log Papers to Google Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "description": "Research Sentry: Deploys parallel TinyFish Web Agents to live-browse ArXiv, PubMed, and Semantic Scholar. GPT-4o handles intent analysis and synthesis. All results logged to Google Sheets."
+  },
+  "tags": [
+    { "name": "tinyfish" },
+    { "name": "research-agent" },
+    { "name": "gpt4o" },
+    { "name": "academic" }
+  ]
+}

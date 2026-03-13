@@ -1,0 +1,184 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-newspaper-accent: var(--newspaper-accent);
+  --color-newspaper-rule: var(--newspaper-rule);
+  --color-newspaper-red: var(--newspaper-red);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+:root {
+  --radius: 0.625rem;
+  /* Newspaper-inspired warm palette */
+  --background: #f4f1eb;
+  --foreground: #1a1a1a;
+  --card: #faf8f4;
+  --card-foreground: #1a1a1a;
+  --popover: #faf8f4;
+  --popover-foreground: #1a1a1a;
+  --primary: #2c2c2c;
+  --primary-foreground: #f4f1eb;
+  --secondary: #e8e3da;
+  --secondary-foreground: #2c2c2c;
+  --muted: #ece8e0;
+  --muted-foreground: #6b6560;
+  --accent: #e8e3da;
+  --accent-foreground: #2c2c2c;
+  --destructive: #8b2020;
+  --success: #3d6b4f;
+  --warning: #8b6914;
+  --border: #d4cdc2;
+  --input: #d4cdc2;
+  --ring: #2c2c2c;
+  --chart-1: #2c2c2c;
+  --chart-2: #8b4513;
+  --chart-3: #6b6560;
+  --chart-4: #8b6914;
+  --chart-5: #8b2020;
+  --sidebar: #f4f1eb;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #2c2c2c;
+  --sidebar-primary-foreground: #f4f1eb;
+  --sidebar-accent: #e8e3da;
+  --sidebar-accent-foreground: #2c2c2c;
+  --sidebar-border: #d4cdc2;
+  --sidebar-ring: #2c2c2c;
+  /* Newspaper-specific tokens */
+  --newspaper-accent: #8b4513;
+  --newspaper-rule: #2c2c2c;
+  --newspaper-red: #8b2020;
+}
+
+.dark {
+  --background: #1a1815;
+  --foreground: #e8e3da;
+  --card: #252220;
+  --card-foreground: #e8e3da;
+  --popover: #252220;
+  --popover-foreground: #e8e3da;
+  --primary: #e8e3da;
+  --primary-foreground: #1a1815;
+  --secondary: #2f2b28;
+  --secondary-foreground: #d4cdc2;
+  --muted: #2f2b28;
+  --muted-foreground: #a39e96;
+  --accent: #2f2b28;
+  --accent-foreground: #d4cdc2;
+  --destructive: #d4564a;
+  --success: #5fa87a;
+  --warning: #d4a520;
+  --border: #3d3935;
+  --input: #4a4540;
+  --ring: #e8e3da;
+  --chart-1: #e8e3da;
+  --chart-2: #c8865a;
+  --chart-3: #8a857f;
+  --chart-4: #d4a520;
+  --chart-5: #d4564a;
+  --sidebar: #1a1815;
+  --sidebar-foreground: #e8e3da;
+  --sidebar-primary: #e8e3da;
+  --sidebar-primary-foreground: #1a1815;
+  --sidebar-accent: #2f2b28;
+  --sidebar-accent-foreground: #d4cdc2;
+  --sidebar-border: #3d3935;
+  --sidebar-ring: #e8e3da;
+  --newspaper-accent: #c8865a;
+  --newspaper-rule: #e8e3da;
+  --newspaper-red: #d4564a;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Scroll margin for in-page anchor links so sticky nav doesn't hide targets */
+[id="overview"],
+[id="charts"],
+[id="recommendations"],
+[id="llm-citations"],
+[id="details"] {
+  scroll-margin-top: 6rem;
+}
+
+/* ─── Newspaper utility classes ─── */
+
+.newspaper-rule {
+  border: none;
+  border-top: 2px solid var(--newspaper-rule);
+  margin: 0;
+}
+
+.newspaper-rule-thin {
+  border: none;
+  border-top: 1px solid var(--newspaper-rule);
+  margin: 0;
+}
+
+.newspaper-rule-double {
+  border: none;
+  border-top: 3px double var(--newspaper-rule);
+  margin: 0;
+}
+
+.drop-cap::first-letter {
+  float: left;
+  font-family: var(--font-playfair), Georgia, serif;
+  font-size: 3.5em;
+  line-height: 0.8;
+  padding-right: 0.08em;
+  padding-top: 0.06em;
+  font-weight: 700;
+  color: var(--foreground);
+}

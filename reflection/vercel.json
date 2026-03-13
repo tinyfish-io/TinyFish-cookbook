@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/fetch-content",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/send-digests",
+      "schedule": "0 */12 * * *"
+    }
+  ]
+}

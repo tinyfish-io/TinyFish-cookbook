@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { TestCase, TestResult, TestEvent } from '@/types';
+import type { TestCase, TestResult } from '@/types';
 
 /**
  * Hook for localStorage with SSR support
@@ -41,78 +41,20 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
 }
 
 /**
- * Hook for managing test execution with SSE
+ * Hook for managing test execution via SSE streaming.
+ * 
+ * Each test case is executed individually via POST /api/execute-test which returns
+ * a streaming SSE response. The client manages parallelism (default 3 concurrent) 
+ * and updates results in real-time as events arrive.
  */
 export function useTestExecution(onComplete?: (finalResults: Map<string, TestResult>) => void) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState<Map<string, TestResult>>(new Map());
   const [error, setError] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortControllersRef = useRef<AbortController[]>([]);
+  const cancelledRef = useRef(false);
   const resultsRef = useRef<Map<string, TestResult>>(new Map());
-
-  // Define handleTestEvent before executeTests so it can be used as a dependency
-  const handleTestEvent = useCallback((event: TestEvent) => {
-    const { testCaseId, data } = event;
-
-    setResults((prev) => {
-      const newResults = new Map(prev);
-      const existing = newResults.get(testCaseId) || {
-        id: `result-${testCaseId}`,
-        testCaseId,
-        status: 'running' as const,
-        startedAt: Date.now(),
-      };
-
-      switch (event.type) {
-        case 'test_start':
-          newResults.set(testCaseId, {
-            ...existing,
-            status: 'running' as const,
-            startedAt: event.timestamp,
-          });
-          break;
-
-        case 'streaming_url':
-          newResults.set(testCaseId, {
-            ...existing,
-            streamingUrl: data?.streamingUrl,
-          });
-          break;
-
-        case 'step_progress':
-          newResults.set(testCaseId, {
-            ...existing,
-            currentStep: data?.currentStep,
-            totalSteps: data?.totalSteps,
-            currentStepDescription: data?.stepDescription,
-          });
-          break;
-
-        case 'test_complete':
-          if (data?.result) {
-            newResults.set(testCaseId, data.result);
-            // Also update the ref for immediate access
-            resultsRef.current.set(testCaseId, data.result);
-          }
-          break;
-
-        case 'test_error': {
-          const errorResult = {
-            ...existing,
-            status: 'error' as const,
-            error: data?.error,
-            completedAt: event.timestamp,
-          };
-          newResults.set(testCaseId, errorResult);
-          // Also update the ref for immediate access
-          resultsRef.current.set(testCaseId, errorResult);
-          break;
-        }
-      }
-
-      return newResults;
-    });
-  }, []);
+  const eventSourcesRef = useRef<EventSource[]>([]);
 
   const executeTests = useCallback(async (
     testCases: TestCase[],
@@ -125,71 +67,231 @@ export function useTestExecution(onComplete?: (finalResults: Map<string, TestRes
     setError(null);
     setResults(new Map());
     resultsRef.current = new Map();
+    abortControllersRef.current = [];
+    eventSourcesRef.current = [];
+    cancelledRef.current = false;
 
-    abortControllerRef.current = new AbortController();
+    // Mark all tests as pending
+    setResults(() => {
+      const initial = new Map<string, TestResult>();
+      for (const tc of testCases) {
+        initial.set(tc.id, {
+          id: `result-${tc.id}`,
+          testCaseId: tc.id,
+          status: 'pending',
+          startedAt: Date.now(),
+        });
+      }
+      return initial;
+    });
 
-    try {
-      const response = await fetch('/api/execute-tests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          testCases,
-          websiteUrl,
-          parallelLimit,
-        }),
-        signal: abortControllerRef.current.signal,
+    const executeSingle = async (testCase: TestCase) => {
+      if (cancelledRef.current) return;
+
+      const controller = new AbortController();
+      abortControllersRef.current.push(controller);
+
+      // Mark as running when starting
+      setResults((prev) => {
+        const next = new Map(prev);
+        next.set(testCase.id, {
+          id: `result-${testCase.id}`,
+          testCaseId: testCase.id,
+          status: 'running',
+          startedAt: Date.now(),
+        });
+        return next;
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const event: TestEvent = JSON.parse(line.slice(6));
-              handleTestEvent(event);
-            } catch (e) {
-              console.error('Failed to parse SSE event:', e);
-            }
+      return new Promise<void>((resolve, reject) => {
+        // Start the SSE stream
+        fetch('/api/execute-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ testCase, websiteUrl }),
+          signal: controller.signal,
+        })
+        .then(async (response) => {
+          if (!response.ok) {
+            const errBody = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+            throw new Error(errBody.error || `HTTP error ${response.status}`);
           }
+
+          if (!response.body) {
+            throw new Error('Response body is null');
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              if (cancelledRef.current) {
+                reader.cancel();
+                resolve();
+                return;
+              }
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() ?? '';
+
+              for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+
+                try {
+                  const eventData = JSON.parse(line.slice(6));
+                  
+                  switch (eventData.type) {
+                    case 'test_start':
+                      // Already marked as running above
+                      break;
+
+                    case 'streaming_url':
+                      // Update with streaming URL
+                      setResults((prev) => {
+                        const next = new Map(prev);
+                        const existing = next.get(testCase.id);
+                        if (existing) {
+                          next.set(testCase.id, {
+                            ...existing,
+                            streamingUrl: eventData.data.streamingUrl,
+                          });
+                        }
+                        return next;
+                      });
+                      break;
+
+                    case 'step_progress':
+                      // Update with step progress
+                      setResults((prev) => {
+                        const next = new Map(prev);
+                        const existing = next.get(testCase.id);
+                        if (existing) {
+                          next.set(testCase.id, {
+                            ...existing,
+                            currentStepDescription: eventData.data.stepDescription,
+                            currentStep: eventData.data.currentStep,
+                          });
+                        }
+                        return next;
+                      });
+                      break;
+
+                    case 'test_complete':
+                      // Final result
+                      const finalResult = eventData.data.result;
+                      setResults((prev) => {
+                        const next = new Map(prev);
+                        next.set(testCase.id, finalResult);
+                        return next;
+                      });
+                      resultsRef.current.set(testCase.id, finalResult);
+                      resolve();
+                      return;
+
+                    case 'test_error':
+                      // Error result
+                      const errorResult = eventData.data.result;
+                      setResults((prev) => {
+                        const next = new Map(prev);
+                        next.set(testCase.id, errorResult);
+                        return next;
+                      });
+                      resultsRef.current.set(testCase.id, errorResult);
+                      resolve();
+                      return;
+                  }
+                } catch (parseError) {
+                  console.error('Failed to parse SSE event:', parseError);
+                }
+              }
+            }
+
+            // Stream ended without completion
+            resolve();
+          } catch (streamError) {
+            reject(streamError);
+          }
+        })
+        .catch((fetchError) => {
+          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+            resolve();
+            return;
+          }
+
+          const errorMessage = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+          const errorResult: TestResult = {
+            id: `result-${testCase.id}`,
+            testCaseId: testCase.id,
+            status: 'error',
+            startedAt: Date.now(),
+            completedAt: Date.now(),
+            error: errorMessage,
+          };
+          
+          setResults((prev) => {
+            const next = new Map(prev);
+            next.set(testCase.id, errorResult);
+            return next;
+          });
+          resultsRef.current.set(testCase.id, errorResult);
+          reject(fetchError);
+        });
+      });
+    };
+
+    try {
+      // Execute with controlled parallelism
+      const queue = [...testCases];
+      const executing = new Set<Promise<void>>();
+
+      while (queue.length > 0 || executing.size > 0) {
+        if (cancelledRef.current) break;
+
+        while (queue.length > 0 && executing.size < parallelLimit) {
+          const tc = queue.shift()!;
+          const p = executeSingle(tc)
+            .catch((err) => {
+              console.error(`Test execution error for ${tc.id}:`, err);
+            })
+            .finally(() => { executing.delete(p); });
+          executing.add(p);
+        }
+
+        if (executing.size > 0) {
+          await Promise.race(executing);
         }
       }
 
-      // Pass the final results to onComplete
-      onComplete?.(resultsRef.current);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.log('Test execution cancelled');
-      } else {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        setError(message);
+      if (!cancelledRef.current) {
+        onComplete?.(resultsRef.current);
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setIsExecuting(false);
-      abortControllerRef.current = null;
+      abortControllersRef.current = [];
+      eventSourcesRef.current = [];
     }
-  }, [isExecuting, onComplete, handleTestEvent]);
+  }, [isExecuting, onComplete]);
 
   const cancelExecution = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    cancelledRef.current = true;
+    
+    // Abort all fetch requests
+    for (const controller of abortControllersRef.current) {
+      controller.abort();
+    }
+
+    // Close any event sources
+    for (const eventSource of eventSourcesRef.current) {
+      eventSource.close();
     }
   }, []);
 

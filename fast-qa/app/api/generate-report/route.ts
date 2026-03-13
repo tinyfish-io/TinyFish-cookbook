@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       },
       {
         error: failedTest.error,
-        extractedData: sanitizePII(JSON.stringify(failedTest.extractedData)),
+        extractedData: JSON.parse(sanitizePII(JSON.stringify(failedTest.extractedData)) || '{}') as Record<string, unknown>,
       },
       projectUrl
     );

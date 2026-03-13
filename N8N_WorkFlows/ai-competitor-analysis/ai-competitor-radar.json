@@ -1,0 +1,123 @@
+{
+  "name": "AI Product Idea Generator — Reddit → Product Hunt → Gemini",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a0000001-0000-0000-0000-000000000001",
+      "name": "Click to Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "runSse",
+        "url": "https://www.reddit.com/r/SaaS/top/?t=week",
+        "goal": "Extract the top 15 posts from this subreddit. For each post, identify the core problem or frustration the user is facing. Return as a JSON object: { painPoints: [{ title: string, upvotes: number, comments: number, problem: string, keywords: string }] } where 'problem' is a clear one-sentence description of the pain point, and 'keywords' is 2-3 search terms someone would use to find a solution to this problem.",
+        "options": {
+          "browserProfile": "stealth"
+        }
+      },
+      "id": "a0000001-0000-0000-0000-000000000002",
+      "name": "TinyFish: Reddit Pain Points",
+      "type": "n8n-nodes-tinyfish.tinyfish",
+      "typeVersion": 1,
+      "position": [300, 300],
+      "credentials": {
+        "tinyfishApi": {
+          "id": "",
+          "name": "TinyFish Web Agent API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "runSse",
+        "url": "https://www.producthunt.com",
+        "goal": "=I need you to search Product Hunt for existing products that solve these specific problems from Reddit:\n\n{{ JSON.stringify($json) }}\n\nFor EACH pain point above, use the search bar on Product Hunt to find if a product already exists that solves it. Search using the keywords provided.\n\nReturn a JSON object: { existingSolutions: [{ redditProblem: string, productName: string, productTagline: string, productUrl: string, howItSolves: string }], unsolvedProblems: [{ problem: string, keywords: string, whyUnsolved: string }] }\n\nIf no product exists for a pain point, add it to unsolvedProblems. Be thorough — search at least 5 of the top pain points.",
+        "options": {
+          "browserProfile": "stealth"
+        }
+      },
+      "id": "a0000001-0000-0000-0000-000000000003",
+      "name": "TinyFish: Search Product Hunt",
+      "type": "n8n-nodes-tinyfish.tinyfish",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "credentials": {
+        "tinyfishApi": {
+          "id": "",
+          "name": "TinyFish Web Agent API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "Gemini 2.5 Flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a startup product strategist. I ran two research steps:\n\nSTEP 1 — Scraped Reddit r/SaaS for real pain points people are complaining about this week:\n{{ JSON.stringify($('TinyFish: Reddit Pain Points').first().json, null, 2) }}\n\nSTEP 2 — Searched Product Hunt to see which of those pain points already have solutions, and which are UNSOLVED:\n{{ JSON.stringify($('TinyFish: Search Product Hunt').first().json, null, 2) }}\n\nNow give me:\n\n## 1. Already Solved (Skip These)\nList pain points that already have a good Product Hunt solution. One line each.\n\n## 2. Market Gaps (Build These)\nFor each UNSOLVED pain point, propose a specific product:\n- **Product Name**: A catchy name\n- **One-Liner**: What it does in one sentence\n- **Target User**: Who exactly would pay for this\n- **Revenue Model**: How it makes money (pricing, tiers)\n- **Why Now**: Why this is the right moment to build it\n- **Estimated Difficulty**: Easy/Medium/Hard to build as MVP\n\n## 3. Top Pick\nWhich single product idea has the best ratio of high demand + low competition + easy to build? Explain in 2-3 sentences why you'd bet on this one.\n\nBe specific. Use real data from the research above. No hand-waving.",
+              "role": "user"
+            }
+          ]
+        },
+        "simplify": true,
+        "jsonOutput": false,
+        "options": {
+          "systemMessage": "You are a veteran startup advisor with 20 years of experience building and investing in SaaS products. You only recommend ideas backed by evidence. You are blunt, specific, and never give generic advice. Every recommendation must reference actual data from the research provided.",
+          "maxOutputTokens": 3000,
+          "temperature": 0.5
+        }
+      },
+      "id": "a0000001-0000-0000-0000-000000000005",
+      "name": "Gemini: Product Ideas",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [900, 300],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini (PaLM) API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Click to Run": {
+      "main": [
+        [
+          { "node": "TinyFish: Reddit Pain Points", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "TinyFish: Reddit Pain Points": {
+      "main": [
+        [
+          { "node": "TinyFish: Search Product Hunt", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "TinyFish: Search Product Hunt": {
+      "main": [
+        [
+          { "node": "Gemini: Product Ideas", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0
+}

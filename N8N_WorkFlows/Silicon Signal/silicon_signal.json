@@ -1,0 +1,568 @@
+{
+  "name": "SiliconSignal — Semiconductor Supply Chain Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "SiliconSignal — Part Scan Request",
+        "formDescription": "Enter semiconductor part numbers to scan for lifecycle status, lead times, and logistics risk.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Part Numbers (one per line)",
+              "fieldType": "textarea",
+              "fieldName": "part_numbers",
+              "placeholder": "Enter each part as \"Part Number — Manufacturer\". Example:\nSTM32F407VGT6 — STMicroelectronics\nATmega328P — Microchip\nNE555 — Texas Instruments"
+            },
+            {
+              "fieldLabel": "Alert Threshold (Lead Time weeks)",
+              "fieldName": "lead_time_threshold",
+              "fieldType": "number",
+              "placeholder": "e.g. 12"
+            },
+            {
+              "fieldLabel": "Notes / Context (optional)",
+              "fieldName": "notes",
+              "fieldType": "textarea",
+              "placeholder": "Any special context, e.g. production volumes, alternate parts to check"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "form-trigger-001",
+      "name": "SiliconSignal Scan Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [-2800, 960],
+      "webhookId": "siliconsignal-form-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse part numbers from form input\nconst formData = $input.first().json;\nconst partsText = (formData.part_numbers || '').trim();\nconst leadTimeThreshold = parseInt(formData.lead_time_threshold || '12', 10);\nconst notes = (formData.notes || '').trim();\n\nfunction normalizePartLine(line) {\n  const clean = line.replace(/^\\s*[-*•]\\s*/, '').trim();\n  if (clean.includes('—')) {\n    const [part, ...rest] = clean.split('—');\n    return { part_number: part.trim(), manufacturer: rest.join('—').trim() };\n  }\n  if (clean.includes(' - ')) {\n    const [part, ...rest] = clean.split(' - ');\n    return { part_number: part.trim(), manufacturer: rest.join(' - ').trim() };\n  }\n  return { part_number: clean, manufacturer: '' };\n}\n\nconst lines = partsText.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);\n\nconst parts = lines.map((line, index) => {\n  const { part_number, manufacturer } = normalizePartLine(line);\n  return {\n    id: `part-${index + 1}`,\n    part_number,\n    manufacturer,\n    lead_time_threshold: leadTimeThreshold,\n    notes\n  };\n});\n\nreturn parts.map(p => ({ json: p }));"
+      },
+      "id": "parse-parts-001",
+      "name": "Parse Part Numbers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2560, 960]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a numbered part list for LLM planning\nconst items = $input.all();\nlet partList = '';\nlet leadTimeThreshold = 12;\nlet notes = '';\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i].json;\n  if (i === 0) {\n    leadTimeThreshold = item.lead_time_threshold || 12;\n    notes = item.notes || '';\n  }\n  if (item.manufacturer) {\n    partList += `${i + 1}. ${item.part_number} (${item.manufacturer})`;\n  } else {\n    partList += `${i + 1}. ${item.part_number}`;\n  }\n  if (i < items.length - 1) partList += '\\n';\n}\n\nreturn { json: { partList, leadTimeThreshold, notes } };"
+      },
+      "id": "build-part-list-001",
+      "name": "Build Part List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2320, 1024],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a semiconductor supply chain analyst assistant. Your job is to create specific, actionable browsing goals for an AI web agent to extract lifecycle status, lead times, availability, and pricing from distributor and foundry websites for each part number provided.\n\nThe web agent can navigate pages, click buttons, read content, and extract information from live pages.\n\nIMPORTANT:\n- Only use the provided part list. Do not invent new parts.\n- Goals must be specific: direct the agent to DigiKey, Mouser, Arrow, or direct manufacturer pages.\n- Ask the agent to extract: lifecycle status (Active/NRND/Obsolete), lead time (weeks), stock quantity, unit price (1ku), and MOQ.\n- Ask the agent to note any NRND (Not Recommended for New Designs) or EOL (End of Life) notices.\n- Ask the agent to capture the exact source URL where each data point was found.\n- Prefer DigiKey as primary source, Mouser as secondary."
+            },
+            {
+              "content": "=Parts to scan:\n{{ $json.partList }}\n\nLead time alert threshold: {{ $json.leadTimeThreshold }} weeks\nContext: {{ $json.notes }}\n\nFor each part, create a specific browsing goal for the web agent. Return a JSON object with a \"goals\" array where each item has:\n- \"part_number\": the part number from the list\n- \"manufacturer\": manufacturer name if known, else empty string\n- \"scan_url\": the URL the agent should start at (DigiKey or Mouser search URL for the part)\n- \"goal\": detailed instructions for what to extract\n\nReturn ONLY valid JSON. No markdown. No code fences."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "plan-scan-goals-001",
+      "name": "Plan Scan Goals",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [-2096, 1024],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds-001",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the OpenAI JSON response and extract scan goals\nconst j = $input.first().json;\n\nconst text =\n  j?.output?.[0]?.content?.find(c => c?.type === 'output_text')?.text\n  ?? j?.output?.[0]?.content?.[0]?.text\n  ?? null;\n\nif (!text || typeof text !== 'string') {\n  return [{ json: { error: 'No output_text found in OpenAI response', sample: j } }];\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  const stripped = text.replace(/```json\\s*|```/g, '').trim();\n  parsed = JSON.parse(stripped);\n}\n\nconst goals = Array.isArray(parsed?.goals) ? parsed.goals : [];\n\nreturn goals.map(g => ({\n  json: {\n    part_number: g.part_number || '',\n    manufacturer: g.manufacturer || '',\n    scan_url: g.scan_url || '',\n    goal: g.goal || ''\n  }\n}));"
+      },
+      "id": "parse-goals-001",
+      "name": "Parse Scan Goals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1840, 1024],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "part_number",
+              "field2": "part_number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "match-parts-goals-001",
+      "name": "Match Parts with Goals",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [-1600, 960]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare TinyFish run parameters for each part scan\nconst item = $input.item.json;\n\nlet runUrl = item.scan_url || '';\nif (!runUrl) {\n  const encodedPart = encodeURIComponent(item.part_number);\n  runUrl = `https://www.digikey.com/en/products/result?keywords=${encodedPart}`;\n}\n\nif (runUrl && !runUrl.startsWith('http://') && !runUrl.startsWith('https://')) {\n  runUrl = 'https://' + runUrl;\n}\n\nlet runGoal = item.goal || '';\nif (!runGoal) {\n  runGoal = `Search for part number ${item.part_number}${item.manufacturer ? ' by ' + item.manufacturer : ''} on DigiKey. Extract: lifecycle status (Active/NRND/Obsolete), lead time in weeks, stock quantity, unit price at 1000 units, and MOQ. Note any NRND or EOL notices. List exact source URLs for each data point.`;\n}\n\nrunGoal += '\\n\\nReturn findings in a structured format with clear labels for: lifecycle_status, lead_time_weeks, stock_quantity, unit_price_1ku, moq, nrnd_notice (true/false), eol_notice (true/false), sources (list of URLs).';\n\nreturn {\n  json: {\n    id: item.id,\n    part_number: item.part_number,\n    manufacturer: item.manufacturer,\n    lead_time_threshold: item.lead_time_threshold,\n    notes: item.notes,\n    runUrl,\n    runGoal\n  }\n};"
+      },
+      "id": "prepare-tinyfish-001",
+      "name": "Prepare TinyFish Goal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1376, 960]
+    },
+    {
+      "parameters": {
+        "operation": "runAsync",
+        "url": "={{ $json.runUrl }}",
+        "goal": "={{ $json.runGoal }}",
+        "options": {}
+      },
+      "id": "tinyfish-agent-001",
+      "name": "TinyFish Web Agent",
+      "type": "n8n-nodes-tinyfish.tinyfish",
+      "typeVersion": 1,
+      "position": [-1152, 960],
+      "credentials": {
+        "tinyfishApi": {
+          "id": "tinyfish-creds-001",
+          "name": "TinyFish Web Agent account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://agent.tinyfish.ai/v1/runs/' + encodeURIComponent($json.run_id) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "tinyfishApi",
+        "options": {}
+      },
+      "id": "get-tinyfish-status-001",
+      "name": "Get TinyFish Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-928, 960],
+      "credentials": {
+        "tinyfishApi": {
+          "id": "tinyfish-creds-001",
+          "name": "TinyFish Web Agent account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluate Runs — aggregate across ALL incoming items\nconst items = $input.all().map(i => i.json);\n\nlet runs = [];\nfor (const x of items) {\n  if (Array.isArray(x)) {\n    runs.push(...x);\n  } else if (Array.isArray(x?.data)) {\n    runs.push(...x.data);\n  } else if (Array.isArray(x?.runs)) {\n    runs.push(...x.runs);\n  } else if (x && (x.run_id || x.status)) {\n    runs.push(x);\n  }\n}\n\nconst seen = new Set();\nruns = runs.filter(r => {\n  const id = r?.run_id ?? r?.runId ?? JSON.stringify(r);\n  if (seen.has(id)) return false;\n  seen.add(id);\n  return true;\n});\n\nconst terminal = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);\nconst allDone =\n  runs.length > 0 &&\n  runs.every(r => terminal.has(String(r.status || '').toUpperCase()));\n\nreturn [{ json: { raw: items, runs, allDone } }];"
+      },
+      "id": "evaluate-runs-001",
+      "name": "Evaluate Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-704, 880],
+      "id": "evaluate-runs-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-done-001",
+              "leftValue": "={{ $json.allDone }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "check-complete-001",
+      "name": "Check If Complete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [-480, 880]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rehydrate per-run items from aggregated payload\nconst inItem = $input.first().json;\n\nconst arr = Array.isArray(inItem.runs)\n  ? inItem.runs\n  : (Array.isArray(inItem.raw) ? inItem.raw : []);\n\nconst runIds = arr.map(r => r?.run_id || r?.runId).filter(Boolean);\n\nreturn runIds.map(runId => ({\n  json: { runId, run_id: runId }\n}));"
+      },
+      "id": "rehydrate-run-ids-001",
+      "name": "Rehydrate RunIds for Next Poll",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-256, 1056]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "wait-001",
+      "name": "Wait 3 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [0, 1120],
+      "webhookId": "siliconsignal-wait-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize TinyFish runs and merge with part context\nconst compItems = $(\"Match Parts with Goals\")?.all?.() ?? [];\nconst parts = compItems.map(it => {\n  const j = it.json ?? {};\n  return {\n    id: j.id ?? null,\n    part_number: j.part_number ?? '',\n    manufacturer: j.manufacturer ?? '',\n    lead_time_threshold: j.lead_time_threshold ?? 12,\n    notes: j.notes ?? '',\n    runUrl: j.runUrl ?? '',\n    runGoal: j.runGoal ?? j.goal ?? ''\n  };\n}).filter(p => p.part_number);\n\nconst inItems = $input.all().map(i => i.json);\nlet runsRaw = [];\nfor (const x of inItems) {\n  if (Array.isArray(x)) runsRaw.push(...x);\n  else if (Array.isArray(x?.data)) runsRaw.push(...x.data);\n  else if (Array.isArray(x?.runs)) runsRaw.push(...x.runs);\n  else if (x?.run_id || x?.status) runsRaw.push(x);\n}\n\nconst runs = runsRaw.map(run => {\n  const status = String(run.status ?? '').toUpperCase();\n  const resultObj = run.result ?? null;\n  return {\n    run_id: run.run_id ?? null,\n    status,\n    goal: run.goal ?? '',\n    created_at: run.created_at ?? null,\n    finished_at: run.finished_at ?? null,\n    error: run.error ?? null,\n    result: resultObj,\n    rawResultText: resultObj ? JSON.stringify(resultObj, null, 2) : ''\n  };\n});\n\nreturn [{\n  json: {\n    parts,\n    runs,\n    allDone: runs.length > 0 && runs.every(r => ['COMPLETED', 'FAILED', 'CANCELLED'].includes(r.status))\n  }\n}];"
+      },
+      "id": "normalize-runs-001",
+      "name": "Normalize TinyFish Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-256, 784]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build full research payload for LLM risk assessment\nconst root = $input.first().json;\nconst parts = Array.isArray(root.parts) ? root.parts : [];\nconst runs = Array.isArray(root.runs) ? root.runs : [];\n\nconst payload = {\n  allDone: root.allDone ?? null,\n  partCount: parts.length,\n  runCount: runs.length,\n  parts,\n  runs\n};\n\nreturn [{\n  json: {\n    parts,\n    runs,\n    allDone: payload.allDone,\n    partCount: payload.partCount,\n    runCount: payload.runCount,\n    researchPayloadText: JSON.stringify(payload, null, 2)\n  }\n}];"
+      },
+      "id": "explode-part-runs-001",
+      "name": "Explode Part Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, 864]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a semiconductor supply chain risk analyst. You are given raw web scraping results from distributor and foundry pages for a set of semiconductor parts. Your task is to parse the results and produce a structured risk assessment report.\n\nFor each part, extract or infer:\n- lifecycle_status: Active | NRND | Obsolete | Unknown\n- lead_time_weeks: integer or null\n- stock_quantity: integer or null\n- unit_price_1ku: float (USD) or null\n- moq: integer or null\n- nrnd_notice: boolean\n- eol_notice: boolean\n- logistics_risk_score: 0–100 integer\n- logistics_risk_level: LOW | MEDIUM | HIGH | CRITICAL\n- risk_reasoning: concise 1–2 sentence explanation\n- sources: list of URLs where data was found\n\nRisk scoring guide:\n- CRITICAL (80–100): EOL/Obsolete, or lead time > 26 weeks, or zero stock\n- HIGH (60–79): NRND, or lead time > 16 weeks, or very low stock\n- MEDIUM (40–59): lead time 8–16 weeks, moderate stock\n- LOW (0–39): Active lifecycle, lead time < 8 weeks, healthy stock\n\nAlso produce:\n1. Executive Summary (2–3 sentences covering overall supply chain posture)\n2. Per-part structured metrics\n3. A prioritized action list (which parts need immediate attention and why)\n\nReturn a valid JSON object. No markdown. No code fences."
+            },
+            {
+              "content": "=Raw scan data (JSON):\n{{ $json.researchPayloadText }}\n\nProduce the full risk assessment JSON as described in the system prompt."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "assess-risk-001",
+      "name": "Assess Logistics Risk",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [256, 864],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds-001",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and parse the structured risk assessment from OpenAI output\nconst j = $input.first().json;\n\nconst text =\n  j?.output?.[0]?.content?.find(c => c?.type === 'output_text')?.text\n  ?? j?.output?.[0]?.content?.[0]?.text\n  ?? null;\n\nif (!text) {\n  return [{ json: { error: 'No output_text in risk assessment response', raw: j } }];\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  const stripped = text.replace(/```json\\s*|```/g, '').trim();\n  try {\n    parsed = JSON.parse(stripped);\n  } catch (e2) {\n    return [{ json: { error: 'Failed to parse JSON', rawText: text } }];\n  }\n}\n\nreturn [{ json: { riskAssessment: parsed, rawText: text } }];"
+      },
+      "id": "extract-risk-report-001",
+      "name": "Extract Risk Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [512, 864]
+    },
+    {
+      "parameters": {},
+      "id": "merge-report-001",
+      "name": "Merge Report Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [768, 784]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine run metadata with risk report\nconst items = $input.all().map(i => i.json);\n\nconst runData = items.find(x => Array.isArray(x.runs) || Array.isArray(x.parts)) || {};\nconst reportData = items.find(x => x.riskAssessment) || {};\n\nconst assessment = reportData.riskAssessment || {};\nconst parts = Array.isArray(runData.parts) ? runData.parts : [];\n\nreturn [{\n  json: {\n    ...runData,\n    riskAssessment: assessment,\n    generatedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "combine-report-001",
+      "name": "Combine Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1024, 784]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "scan-ts",
+              "name": "scanned_at",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            },
+            {
+              "id": "part-list",
+              "name": "parts_scanned",
+              "value": "={{ ($json.parts || []).map(p => p.part_number).join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "exec-summary",
+              "name": "executive_summary",
+              "value": "={{ $json.riskAssessment?.executive_summary || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "high-risk",
+              "name": "high_risk_parts",
+              "value": "={{ ($json.riskAssessment?.parts || []).filter(p => ['HIGH','CRITICAL'].includes(p.logistics_risk_level)).map(p => p.part_number).join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "action-list",
+              "name": "action_items",
+              "value": "={{ JSON.stringify($json.riskAssessment?.action_list || []) }}",
+              "type": "string"
+            },
+            {
+              "id": "full-json",
+              "name": "full_report_json",
+              "value": "={{ JSON.stringify($json.riskAssessment || {}) }}",
+              "type": "string"
+            },
+            {
+              "id": "run-ids",
+              "name": "run_ids",
+              "value": "={{ ($json.runs || []).map(r => r.run_id).join(', ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-report-row-001",
+      "name": "Prepare Report Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1280, 784]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            { "id": "scanned_at", "displayName": "scanned_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "parts_scanned", "displayName": "parts_scanned", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "executive_summary", "displayName": "executive_summary", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "high_risk_parts", "displayName": "high_risk_parts", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "action_items", "displayName": "action_items", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "full_report_json", "displayName": "full_report_json", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "run_ids", "displayName": "run_ids", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "append-sheet-001",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1504, 960],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds-001",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Markdown report content\nconst j = $json;\n\nconst parts = j.parts_scanned || '';\nconst summary = j.executive_summary || '';\nconst highRisk = j.high_risk_parts || 'None';\nconst createdAt = j.scanned_at || new Date().toISOString();\n\nlet actionItems = [];\ntry { actionItems = JSON.parse(j.action_items || '[]'); } catch (e) {}\n\nlet fullReport = {};\ntry { fullReport = JSON.parse(j.full_report_json || '{}'); } catch (e) {}\n\nconst partRows = Array.isArray(fullReport.parts)\n  ? fullReport.parts.map(p => {\n      const risk = p.logistics_risk_level || 'UNKNOWN';\n      const emoji = risk === 'CRITICAL' ? '' : risk === 'HIGH' ? '' : risk === 'MEDIUM' ? '' : '';\n      return `### ${emoji} ${p.part_number}${p.manufacturer ? ` (${p.manufacturer})` : ''}\n- **Lifecycle**: ${p.lifecycle_status || 'Unknown'}\n- **Lead Time**: ${p.lead_time_weeks != null ? p.lead_time_weeks + ' weeks' : '—'}\n- **Stock**: ${p.stock_quantity != null ? p.stock_quantity.toLocaleString() : '—'}\n- **Price (1ku)**: ${p.unit_price_1ku != null ? '$' + p.unit_price_1ku.toFixed(2) : '—'}\n- **MOQ**: ${p.moq != null ? p.moq : '—'}\n- **NRND Notice**: ${p.nrnd_notice ? ' Yes' : 'No'}\n- **EOL Notice**: ${p.eol_notice ? ' Yes' : 'No'}\n- **Risk Score**: ${p.logistics_risk_score || '—'} / 100 — **${risk}**\n- **Reasoning**: ${p.risk_reasoning || '—'}\n- **Sources**: ${Array.isArray(p.sources) ? p.sources.map(s => `[${s}](${s})`).join(', ') : '—'}`;\n    }).join('\\n\\n')\n  : '';\n\nconst actionMd = actionItems.length\n  ? actionItems.map((a, i) => `${i + 1}. ${a}`).join('\\n')\n  : '_No immediate actions required._';\n\nconst safe = (parts || 'scan').replace(/[^a-z0-9-_ ,]/gi, '').slice(0, 60).trim().replace(/[\\s,]+/g, '-');\nconst mdFilename = `siliconsignal-report-${safe}-${Date.now()}.md`;\n\nconst mdContent =\n`# SiliconSignal — Supply Chain Risk Report\n\n**Parts Scanned:** ${parts}\n**Generated:** ${createdAt}\n\n---\n\n## Executive Summary\n\n${summary}\n\n---\n\n##  High / Critical Risk Parts\n\n${highRisk || 'None identified.'}\n\n---\n\n## Per-Part Risk Assessment\n\n${partRows || '_No part data available._'}\n\n---\n\n##  Action Items\n\n${actionMd}\n`;\n\nreturn [{ json: { mdFilename, mdContent } }];"
+      },
+      "id": "create-md-content-001",
+      "name": "Create Markdown Report Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1504, 1200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const baseName = ($json.mdFilename || `siliconsignal-report-${Date.now()}`).trim();\nconst filename = baseName.toLowerCase().endsWith('.md') ? baseName : `${baseName}.md`;\nconst md = $json.mdContent || '';\n\nconst binaryData = await this.helpers.prepareBinaryData(\n  Buffer.from(md, 'utf8'),\n  filename,\n  'text/markdown'\n);\n\nreturn [{ json: { mdFilename: filename }, binary: { data: binaryData } }];"
+      },
+      "id": "convert-binary-001",
+      "name": "Convert to Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1728, 1200]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "binaryData": true,
+        "name": "={{ $binary.data.fileName }}",
+        "options": {}
+      },
+      "id": "upload-drive-001",
+      "name": "Upload Report to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [1952, 1200],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-creds-001",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nconst content = JSON.stringify(data, null, 2);\nconst filename = `siliconsignal-scan-${Date.now()}.json`;\n\nreturn [{\n  json: data,\n  binary: {\n    data: await this.helpers.prepareBinaryData(\n      Buffer.from(content, 'utf8'),\n      filename,\n      'application/json'\n    )\n  }\n}];"
+      },
+      "id": "save-json-001",
+      "name": "Save as JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1504, 784]
+    }
+  ],
+  "connections": {
+    "SiliconSignal Scan Form": {
+      "main": [[{ "node": "Parse Part Numbers", "type": "main", "index": 0 }]]
+    },
+    "Parse Part Numbers": {
+      "main": [[
+        { "node": "Build Part List", "type": "main", "index": 0 },
+        { "node": "Match Parts with Goals", "type": "main", "index": 0 }
+      ]]
+    },
+    "Build Part List": {
+      "main": [[{ "node": "Plan Scan Goals", "type": "main", "index": 0 }]]
+    },
+    "Plan Scan Goals": {
+      "main": [[{ "node": "Parse Scan Goals", "type": "main", "index": 0 }]]
+    },
+    "Parse Scan Goals": {
+      "main": [[{ "node": "Match Parts with Goals", "type": "main", "index": 1 }]]
+    },
+    "Match Parts with Goals": {
+      "main": [[{ "node": "Prepare TinyFish Goal", "type": "main", "index": 0 }]]
+    },
+    "Prepare TinyFish Goal": {
+      "main": [[{ "node": "TinyFish Web Agent", "type": "main", "index": 0 }]]
+    },
+    "TinyFish Web Agent": {
+      "main": [[{ "node": "Get TinyFish Status", "type": "main", "index": 0 }]]
+    },
+    "Get TinyFish Status": {
+      "main": [[{ "node": "Evaluate Runs", "type": "main", "index": 0 }]]
+    },
+    "Evaluate Runs": {
+      "main": [[{ "node": "Check If Complete", "type": "main", "index": 0 }]]
+    },
+    "Check If Complete": {
+      "main": [
+        [{ "node": "Normalize TinyFish Runs", "type": "main", "index": 0 }],
+        [{ "node": "Rehydrate RunIds for Next Poll", "type": "main", "index": 0 }]
+      ]
+    },
+    "Rehydrate RunIds for Next Poll": {
+      "main": [[{ "node": "Wait 3 Seconds", "type": "main", "index": 0 }]]
+    },
+    "Wait 3 Seconds": {
+      "main": [[{ "node": "Get TinyFish Status", "type": "main", "index": 0 }]]
+    },
+    "Normalize TinyFish Runs": {
+      "main": [[
+        { "node": "Explode Part Runs", "type": "main", "index": 0 },
+        { "node": "Merge Report Data", "type": "main", "index": 0 }
+      ]]
+    },
+    "Explode Part Runs": {
+      "main": [[{ "node": "Assess Logistics Risk", "type": "main", "index": 0 }]]
+    },
+    "Assess Logistics Risk": {
+      "main": [[{ "node": "Extract Risk Report", "type": "main", "index": 0 }]]
+    },
+    "Extract Risk Report": {
+      "main": [[{ "node": "Merge Report Data", "type": "main", "index": 1 }]]
+    },
+    "Merge Report Data": {
+      "main": [[{ "node": "Combine Report", "type": "main", "index": 0 }]]
+    },
+    "Combine Report": {
+      "main": [[{ "node": "Prepare Report Row", "type": "main", "index": 0 }]]
+    },
+    "Prepare Report Row": {
+      "main": [[
+        { "node": "Save as JSON", "type": "main", "index": 0 },
+        { "node": "Append to Google Sheets", "type": "main", "index": 0 },
+        { "node": "Create Markdown Report Content", "type": "main", "index": 0 }
+      ]]
+    },
+    "Create Markdown Report Content": {
+      "main": [[{ "node": "Convert to Binary", "type": "main", "index": 0 }]]
+    },
+    "Convert to Binary": {
+      "main": [[{ "node": "Upload Report to Google Drive", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedPerExecution": 10
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "siliconsignal-workflow-v1"
+  },
+  "id": "siliconsignal-workflow-001",
+  "tags": ["semiconductor", "supply-chain", "tinyfish", "risk"]
+}

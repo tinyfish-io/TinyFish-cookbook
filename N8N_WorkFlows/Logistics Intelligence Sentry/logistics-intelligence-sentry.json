@@ -1,0 +1,516 @@
+{
+  "name": "Logistics Intelligence Sentry via TinyFish",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Logistics Intelligence Sentry",
+        "formDescription": "Track port congestion, carrier advisories, and operational risks in real-time",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Origin Port(s) (one per line)",
+              "fieldType": "textarea",
+              "fieldName": "origin_ports",
+              "placeholder": "Port of Los Angeles — https://www.portoflosangeles.org\nPort of Long Beach — https://polb.com\nPort of Rotterdam — https://www.portofrotterdam.com"
+            },
+            {
+              "fieldLabel": "Carrier(s) to monitor (one per line)",
+              "fieldType": "textarea",
+              "fieldName": "carriers",
+              "placeholder": "Maersk — https://www.maersk.com\nMSC — https://www.msc.com\nEvergreen — https://www.evergreen-line.com"
+            },
+            {
+              "fieldLabel": "Freight Mode",
+              "fieldType": "dropdown",
+              "fieldName": "freight_mode",
+              "fieldOptions": {
+                "values": [
+                  { "option": "Sea Freight" },
+                  { "option": "Air Freight" },
+                  { "option": "Rail Freight" },
+                  { "option": "Multi-modal" }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Risk Intelligence Question",
+              "fieldName": "risk_question",
+              "placeholder": "Example: Are there any port congestion alerts, vessel backlogs, or carrier service suspensions affecting my shipments this week?"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "form-trigger-001",
+      "name": "Logistics Sentry Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [-2912, 960],
+      "webhookId": "logistics-sentry-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse ports and carriers from form input\nconst formData = $input.first().json;\nconst portsText = (formData.origin_ports || '').trim();\nconst carriersText = (formData.carriers || '').trim();\nconst freightMode = (formData.freight_mode || 'Sea Freight').trim();\nconst riskQuestion = (formData.risk_question || '').trim();\n\nfunction normalizeUrl(raw) {\n  if (!raw) return '';\n  let u = raw.trim().replace(/[),.;]+$/, '');\n  if (!/^https?:\\/\\//i.test(u)) u = 'https://' + u;\n  const hostish = u.replace(/^https?:\\/\\//i, '');\n  if (!hostish.includes('.')) return '';\n  return u;\n}\n\nfunction splitNameAndUrl(line) {\n  const clean = line.replace(/^\\s*[-*•]\\s*/, '').trim();\n  if (clean.includes('—')) {\n    const [name, ...rest] = clean.split('—');\n    return { name: name.trim(), url: rest.join('—').trim() };\n  }\n  if (clean.includes(' - ')) {\n    const [name, ...rest] = clean.split(' - ');\n    return { name: name.trim(), url: rest.join(' - ').trim() };\n  }\n  const m = clean.match(/\\b((?:https?:\\/\\/)?(?:www\\.)?[a-z0-9.-]+\\.[a-z]{2,}(?:\\/\\S*)?)\\b/i);\n  if (m) {\n    const rawUrl = m[1];\n    const name = clean.replace(rawUrl, '').replace(/[-—\\s]+$/, '').trim();\n    return { name: name.trim(), url: rawUrl.trim() };\n  }\n  return { name: clean, url: '' };\n}\n\nconst portLines = portsText.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);\nconst carrierLines = carriersText.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);\n\nconst ports = portLines.map((line, i) => {\n  const { name, url } = splitNameAndUrl(line);\n  return { id: `port-${i + 1}`, name, url: normalizeUrl(url), type: 'port', freightMode, riskQuestion };\n});\n\nconst carriers = carrierLines.map((line, i) => {\n  const { name, url } = splitNameAndUrl(line);\n  return { id: `carrier-${i + 1}`, name, url: normalizeUrl(url), type: 'carrier', freightMode, riskQuestion };\n});\n\nconst allTargets = [...ports, ...carriers];\nreturn allTargets.map(t => ({ json: t }));"
+      },
+      "id": "parse-targets-001",
+      "name": "Parse Logistics Targets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2688, 960]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a consolidated target list for GPT planning\nconst items = $input.all();\nlet portList = '';\nlet carrierList = '';\nlet riskQuestion = '';\nlet freightMode = '';\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i].json;\n  if (i === 0) { riskQuestion = item.riskQuestion; freightMode = item.freightMode; }\n  if (item.type === 'port') portList += `- ${item.name} (${item.url})\\n`;\n  if (item.type === 'carrier') carrierList += `- ${item.name} (${item.url})\\n`;\n}\n\nreturn { json: { portList: portList.trim(), carrierList: carrierList.trim(), riskQuestion, freightMode } };"
+      },
+      "id": "build-target-list-001",
+      "name": "Build Target List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2464, 1024],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "modelId": { "__rl": true, "mode": "id", "value": "gpt-4o" },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a logistics intelligence planning assistant. Your job is to create specific, actionable browsing goals for a web agent to discover real-time operational risks from logistics websites.\n\nThe web agent navigates live pages, reads alerts, finds congestion data, dwell times, vessel counts, service advisories, and route suspensions.\n\nIMPORTANT:\n- Only use the provided port and carrier list.\n- Goals must be specific: instruct the agent to look for congestion alerts, wait times, vessel backlogs, service disruptions, port closures, typhoon/weather alerts, and carrier route suspensions.\n- Ask the agent to capture the exact source URLs where evidence is found.\n- Direct agents to specific sub-pages like /alerts, /port-conditions, /service-updates, /news if helpful.\n- For ports: look for berth availability, congestion indices, gate hours, vessel wait times.\n- For carriers: look for service alerts, route suspensions, booking advisories, surcharge notices."
+            },
+            {
+              "content": "=Ports to monitor:\n{{ $json.portList }}\n\nCarriers to monitor:\n{{ $json.carrierList }}\n\nFreight mode: {{ $json.freightMode }}\n\nRisk question: \"{{ $json.riskQuestion }}\"\n\nFor each port and carrier, create a specific browsing goal. Return a JSON object with a \"goals\" array where each item has:\n- \"target_name\": the port or carrier name\n- \"target_type\": \"port\" or \"carrier\"\n- \"target_url\": the URL to visit (use provided URL or a specific /alerts or /service-updates subpage)\n- \"goal\": detailed instructions for the browsing agent including what specific data to extract\n\nReturn ONLY valid JSON. No markdown. No code fences."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": { "temperature": 0.2 }
+      },
+      "id": "plan-scout-goals-001",
+      "name": "Plan Scout Goals",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [-2240, 1024],
+      "credentials": {
+        "openAiApi": { "id": "YOUR_OPENAI_CREDENTIAL_ID", "name": "OpenAi account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse GPT goals for logistics targets\nconst j = $input.first().json;\n\nconst text =\n  j?.output?.[0]?.content?.find(c => c?.type === 'output_text')?.text\n  ?? j?.output?.[0]?.content?.[0]?.text\n  ?? null;\n\nif (!text || typeof text !== 'string') {\n  return [{ json: { error: 'No output_text found', sample: j } }];\n}\n\nlet parsed;\ntry { parsed = JSON.parse(text); }\ncatch (e) {\n  const stripped = text.replace(/```json\\s*|```/g, '').trim();\n  parsed = JSON.parse(stripped);\n}\n\nconst goals = Array.isArray(parsed?.goals) ? parsed.goals : [];\n\nreturn goals.map(g => ({\n  json: {\n    target_name: g.target_name || '',\n    target_type: g.target_type || 'unknown',\n    target_url: g.target_url || '',\n    goal: g.goal || ''\n  }\n}));"
+      },
+      "id": "parse-goals-001",
+      "name": "Parse Scout Goals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1888, 1024],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [{ "field1": "name", "field2": "target_name" }]
+        },
+        "options": {}
+      },
+      "id": "match-targets-goals-001",
+      "name": "Match Targets with Goals",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [-1664, 960]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare TinyFish run parameters for each logistics target\nconst item = $input.item.json;\n\nlet runUrl = item.target_url || item.url || '';\nif (runUrl && !runUrl.startsWith('http://') && !runUrl.startsWith('https://')) {\n  runUrl = 'https://' + runUrl;\n}\n\nlet runGoal = '';\nif (item.goal) {\n  runGoal = item.goal;\n} else {\n  const riskQuestion = item.riskQuestion || 'identify any operational risks or alerts';\n  const name = item.name || item.target_name || 'this logistics target';\n  const type = item.type || item.target_type || 'target';\n  if (type === 'port') {\n    runGoal = `Visit ${name} website and extract: (1) current congestion alerts or notices, (2) vessel wait times or berth availability, (3) gate hours and any closures, (4) any severe weather or operational disruptions. Relevant to: ${riskQuestion}`;\n  } else {\n    runGoal = `Visit ${name} website and extract: (1) active service advisories or suspensions, (2) route disruptions or delays, (3) booking surcharges or capacity alerts, (4) any weather or geopolitical risk notices. Relevant to: ${riskQuestion}`;\n  }\n}\n\nrunGoal += '\\n\\nWhen you find evidence, list the exact source URLs (including child pages visited) in a \"sources\" section, and provide a risk level assessment: LOW, MEDIUM, HIGH, or CRITICAL based on what you found.';\n\nreturn {\n  json: {\n    id: item.id,\n    name: item.name || item.target_name,\n    type: item.type || item.target_type,\n    url: item.url,\n    runUrl,\n    runGoal,\n    riskQuestion: item.riskQuestion,\n    freightMode: item.freightMode\n  }\n};"
+      },
+      "id": "prepare-tinyfish-goal-001",
+      "name": "Prepare TinyFish Goal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1440, 960]
+    },
+    {
+      "parameters": {
+        "operation": "runAsync",
+        "url": "={{ $json.runUrl }}",
+        "goal": "={{ $json.runGoal }}",
+        "options": {}
+      },
+      "id": "tinyfish-agent-001",
+      "name": "TinyFish Web Agent",
+      "type": "n8n-nodes-tinyfish.tinyfish",
+      "typeVersion": 1,
+      "position": [-1232, 960],
+      "credentials": {
+        "tinyfishApi": { "id": "YOUR_TINYFISH_CREDENTIAL_ID", "name": "TinyFish Web Agent account" }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://agent.tinyfish.ai/v1/runs/' + encodeURIComponent($json.run_id) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "tinyfishApi",
+        "options": {}
+      },
+      "id": "get-tinyfish-status-001",
+      "name": "Get TinyFish Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-992, 960],
+      "credentials": {
+        "tinyfishApi": { "id": "YOUR_TINYFISH_CREDENTIAL_ID", "name": "TinyFish Web Agent account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluate all logistics scouting runs\nconst items = $input.all().map(i => i.json);\n\nlet runs = [];\nfor (const x of items) {\n  if (Array.isArray(x)) runs.push(...x);\n  else if (Array.isArray(x?.data)) runs.push(...x.data);\n  else if (Array.isArray(x?.runs)) runs.push(...x.runs);\n  else if (x && (x.run_id || x.status)) runs.push(x);\n}\n\nconst seen = new Set();\nruns = runs.filter(r => {\n  const id = r?.run_id ?? r?.runId ?? JSON.stringify(r);\n  if (seen.has(id)) return false;\n  seen.add(id);\n  return true;\n});\n\nconst terminal = new Set([\"COMPLETED\", \"FAILED\", \"CANCELLED\"]);\nconst allDone = runs.length > 0 && runs.every(r => terminal.has(String(r.status || '').toUpperCase()));\n\nreturn [{ json: { raw: items, runs, allDone } }];"
+      },
+      "id": "evaluate-runs-001",
+      "name": "Evaluate Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-768, 880]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.allDone }}",
+              "rightValue": "true",
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "check-if-complete-001",
+      "name": "Check If Complete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [-544, 880]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "wait-3s-001",
+      "name": "Wait 3 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-96, 1120],
+      "webhookId": "logistics-wait-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rehydrate run IDs for next poll iteration\nconst inItem = $input.first().json;\nconst arr = Array.isArray(inItem.runs) ? inItem.runs : (Array.isArray(inItem.raw) ? inItem.raw : []);\nconst runIds = arr.map(r => r?.run_id || r?.runId).filter(Boolean);\nconst ctx = { riskQuestion: inItem.riskQuestion, freightMode: inItem.freightMode };\n\nreturn runIds.map(runId => ({ json: { ...ctx, runId, run_id: runId } }));"
+      },
+      "id": "rehydrate-runids-001",
+      "name": "Rehydrate RunIds for Next Poll",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 1056]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize TinyFish runs and extract logistics intelligence signals\nconst inItems = $input.all().map(i => i.json);\n\n// Pull all target context from upstream\nconst compItems = $(\"Match Targets with Goals\")?.all?.() ?? [];\nconst targets = compItems.map((it) => {\n  const j = it.json ?? {};\n  return {\n    id: j.id ?? null,\n    name: j.name ?? j.target_name ?? '',\n    type: j.type ?? j.target_type ?? 'unknown',\n    url: j.url ?? '',\n    runUrl: j.runUrl ?? j.target_url ?? j.url ?? '',\n    runGoal: j.runGoal ?? j.goal ?? '',\n    riskQuestion: j.riskQuestion ?? '',\n    freightMode: j.freightMode ?? ''\n  };\n}).filter(t => t.name);\n\nconst riskQuestion = targets.find(t => t.riskQuestion)?.riskQuestion ?? '';\nconst freightMode = targets.find(t => t.freightMode)?.freightMode ?? '';\n\n// Flatten runs from input\nlet runsRaw = [];\nfor (const x of inItems) {\n  if (Array.isArray(x)) runsRaw.push(...x);\n  else if (Array.isArray(x?.data)) runsRaw.push(...x.data);\n  else if (Array.isArray(x?.runs)) runsRaw.push(...x.runs);\n  else if (x?.run_id || x?.status) runsRaw.push(x);\n}\n\nconst runs = runsRaw.map((run) => {\n  const status = String(run.status ?? '').toUpperCase();\n  const resultObj = run.result ?? null;\n  const sources = Array.isArray(resultObj?.sources) ? resultObj.sources : Array.isArray(run.sources) ? run.sources : null;\n\n  // Attempt to extract risk level from result text\n  const resultText = resultObj ? JSON.stringify(resultObj) : '';\n  let detectedRiskLevel = 'UNKNOWN';\n  if (/CRITICAL/i.test(resultText)) detectedRiskLevel = 'CRITICAL';\n  else if (/HIGH/i.test(resultText)) detectedRiskLevel = 'HIGH';\n  else if (/MEDIUM/i.test(resultText)) detectedRiskLevel = 'MEDIUM';\n  else if (/LOW/i.test(resultText)) detectedRiskLevel = 'LOW';\n\n  return {\n    run_id: run.run_id ?? null,\n    status,\n    goal: run.goal ?? '',\n    created_at: run.created_at ?? null,\n    finished_at: run.finished_at ?? null,\n    error: run.error ?? null,\n    sources,\n    result: resultObj,\n    detectedRiskLevel,\n    rawResultText: resultObj ? JSON.stringify(resultObj, null, 2) : ''\n  };\n});\n\n// Map runs by target name\nconst byName = {};\nfor (const t of targets) {\n  byName[t.name] = {\n    target: t,\n    runs: runs.filter(r => (r.goal || '').toLowerCase().includes(t.name.toLowerCase()))\n  };\n}\n\nreturn [{ json: { riskQuestion, freightMode, targets, runs, byName, allDone: runs.length > 0 && runs.every(r => ['COMPLETED','FAILED','CANCELLED'].includes(r.status)) } }];"
+      },
+      "id": "normalize-runs-001",
+      "name": "Normalize Logistics Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 784]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build structured logistics intelligence payload\nconst root = $input.first().json;\nconst targets = Array.isArray(root.targets) ? root.targets : [];\nconst runs = Array.isArray(root.runs) ? root.runs : [];\n\n// Compute overall risk level from all detected signals\nconst riskLevels = runs.map(r => r.detectedRiskLevel).filter(l => l !== 'UNKNOWN');\nconst riskPriority = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };\nconst overallRisk = riskLevels.length > 0\n  ? Object.keys(riskPriority).find(k => riskPriority[k] === Math.max(...riskLevels.map(l => riskPriority[l] || 0)))\n  : 'UNKNOWN';\n\nconst payload = {\n  riskQuestion: root.riskQuestion ?? '',\n  freightMode: root.freightMode ?? '',\n  overallRisk,\n  targetCount: targets.length,\n  runCount: runs.length,\n  allDone: root.allDone ?? null,\n  targets,\n  runs,\n  byName: root.byName ?? null\n};\n\nreturn [{\n  json: {\n    riskQuestion: payload.riskQuestion,\n    freightMode: payload.freightMode,\n    overallRisk,\n    targets,\n    runs,\n    allDone: payload.allDone,\n    targetCount: payload.targetCount,\n    runCount: payload.runCount,\n    intelligencePayloadText: JSON.stringify(payload, null, 2)\n  }\n}];"
+      },
+      "id": "build-intelligence-payload-001",
+      "name": "Build Intelligence Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-96, 864]
+    },
+    {
+      "parameters": {
+        "modelId": { "__rl": true, "mode": "id", "value": "gpt-4o" },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You are a logistics risk intelligence analyst. You receive raw data from TinyFish web agents that have scouted port and carrier websites for operational signals.\n\nRisk question: \"{{ $json.riskQuestion }}\"\nFreight mode: \"{{ $json.freightMode }}\"\nOverall detected risk level: {{ $json.overallRisk }}\n\nYour job is to synthesize the raw scouting data into a structured intelligence report.\n\nInstructions:\n- Ignore irrelevant scraped content.\n- Focus on: congestion alerts, vessel wait times, service suspensions, surcharges, weather disruptions, geopolitical risks, port closures.\n- For each port and carrier, provide a concise risk assessment with specific findings and evidence URLs.\n- Produce:\n  1) Executive Risk Summary (2-3 sentences with overall risk level: LOW/MEDIUM/HIGH/CRITICAL)\n  2) Port Intelligence (per-port findings)\n  3) Carrier Intelligence (per-carrier findings)\n  4) Risk Comparison Table\n  5) Recommended Actions\n- Do NOT fabricate data. If no risk signals were found, state that clearly.\n- Always cite source URLs where evidence was found."
+            },
+            {
+              "content": "=Risk question: \"{{ $json.riskQuestion }}\"\nFreight mode: {{ $json.freightMode }}\n\nRaw intelligence data from scouting agents:\n{{ $json.intelligencePayloadText }}\n\nProvide a comprehensive logistics risk intelligence report."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": { "temperature": 0.2 }
+      },
+      "id": "synthesize-risk-report-001",
+      "name": "Synthesize Risk Report",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [128, 864],
+      "credentials": {
+        "openAiApi": { "id": "YOUR_OPENAI_CREDENTIAL_ID", "name": "OpenAi account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the risk report text from OpenAI output\nconst j = $input.first().json;\n\nconst output = j.output ?? j.data?.output ?? null;\nlet textParts = [];\n\nif (Array.isArray(output)) {\n  for (const msg of output) {\n    const content = msg?.content;\n    if (Array.isArray(content)) {\n      for (const c of content) {\n        if (typeof c?.text === 'string' && c.text.trim()) textParts.push(c.text);\n      }\n    }\n  }\n}\n\nif (textParts.length === 0) {\n  const fallback = j.message?.content ?? j.message ?? j.text ?? j.output_text ?? '';\n  if (typeof fallback === 'string' && fallback.trim()) textParts = [fallback];\n}\n\nconst report = textParts.join('\\n\\n').trim();\n\nreturn [{ json: { ...j, report, report_format: 'markdown' } }];"
+      },
+      "id": "extract-report-001",
+      "name": "Extract Risk Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 864]
+    },
+    {
+      "parameters": {},
+      "id": "merge-report-001",
+      "name": "Merge Intelligence",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [704, 784]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine intelligence payload + report into final output\nconst items = $input.all().map(i => i.json);\nconst intelligence = items.find(x => Array.isArray(x.runs) || Array.isArray(x.targets)) || {};\nconst reportPart = items.find(x => typeof x.report === 'string') || {};\n\nreturn [{\n  json: {\n    ...intelligence,\n    report: reportPart.report || '',\n    overallRisk: intelligence.overallRisk || 'UNKNOWN',\n    generatedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "build-final-output-001",
+      "name": "Build Final Intelligence Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [928, 784]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "q", "name": "risk_question", "value": "={{ $json.riskQuestion || '' }}", "type": "string" },
+            { "id": "r", "name": "report_md", "value": "={{ $json.report || '' }}", "type": "string" },
+            { "id": "risk", "name": "overall_risk", "value": "={{ $json.overallRisk || 'UNKNOWN' }}", "type": "string" },
+            { "id": "fm", "name": "freight_mode", "value": "={{ $json.freightMode || '' }}", "type": "string" },
+            { "id": "t", "name": "target_names", "value": "={{ ($json.targets || []).map(t => t.name).join(', ') }}", "type": "string" },
+            { "id": "ts", "name": "created_at", "value": "={{ new Date().toISOString() }}", "type": "string" },
+            { "id": "run", "name": "run_ids", "value": "={{ ($json.runs || []).map(r => r.run_id).join(', ') }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-report-row-001",
+      "name": "Prepare Report Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1152, 784]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEETS_URL",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEETS_URL",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            { "id": "risk_question", "displayName": "risk_question", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "report_md", "displayName": "report_md", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "overall_risk", "displayName": "overall_risk", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "freight_mode", "displayName": "freight_mode", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "target_names", "displayName": "target_names", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "created_at", "displayName": "created_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "run_ids", "displayName": "run_ids", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "append-sheets-001",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1376, 944],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Markdown intelligence report file\nconst j = $json;\nconst question = j.risk_question || '';\nconst freightMode = j.freight_mode || '';\nconst targets = j.target_names || '';\nconst overallRisk = j.overall_risk || 'UNKNOWN';\nconst report = j.report_md || '';\nconst createdAt = j.created_at || new Date().toISOString();\n\nconst riskEmoji = { CRITICAL: '🔴', HIGH: '🟠', MEDIUM: '🟡', LOW: '🟢', UNKNOWN: '⚪' };\nconst emoji = riskEmoji[overallRisk] || '⚪';\n\nconst safe = (question || 'logistics-report').replace(/[^a-z0-9-_ ]/gi, '').slice(0, 60).trim().replace(/\\s+/g, '-');\nconst mdFilename = `logistics-intelligence-${safe || 'report'}-${Date.now()}.md`;\n\nconst mdContent = `# Logistics Intelligence Report ${emoji}\n\n**Risk Question:** ${question}  \n**Freight Mode:** ${freightMode}  \n**Overall Risk Level:** ${overallRisk}  \n**Monitored Targets:** ${targets}  \n**Generated:** ${createdAt}  \n\n---\n\n${report}\n`;\n\nreturn [{ json: { mdFilename, mdContent } }];"
+      },
+      "id": "create-markdown-001",
+      "name": "Create Markdown Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1376, 1184]
+    },
+    {
+      "parameters": {
+        "jsCode": "const baseName = ($json.mdFilename || `logistics-report-${Date.now()}`).trim();\nconst filename = baseName.toLowerCase().endsWith('.md') ? baseName : `${baseName}.md`;\nconst md = $json.mdContent || '';\n\nconst binaryData = await this.helpers.prepareBinaryData(\n  Buffer.from(md, 'utf8'),\n  filename,\n  'text/markdown'\n);\n\nreturn [{ json: { mdFilename: filename }, binary: { data: binaryData } }];"
+      },
+      "id": "convert-binary-001",
+      "name": "Convert to Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1584, 1184]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "binaryData": true,
+        "name": "={{ $binary.data.fileName }}",
+        "options": {}
+      },
+      "id": "upload-drive-001",
+      "name": "Upload Report to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [1776, 1184],
+      "credentials": {
+        "googleDriveOAuth2Api": { "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID", "name": "Google Drive account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Save complete intelligence payload as JSON\nconst data = $json;\nconst content = JSON.stringify(data, null, 2);\nconst filename = `logistics-intelligence-${Date.now()}.json`;\n\nreturn [{\n  json: data,\n  binary: {\n    data: await this.helpers.prepareBinaryData(\n      Buffer.from(content, 'utf8'),\n      filename,\n      'application/json'\n    )\n  }\n}];"
+      },
+      "id": "save-json-001",
+      "name": "Save as JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1376, 784]
+    }
+  ],
+  "pinData": {
+    "Logistics Sentry Form": [
+      {
+        "json": {
+          "origin_ports": "Port of Los Angeles — https://www.portoflosangeles.org\r\nPort of Long Beach — https://polb.com",
+          "carriers": "Maersk — https://www.maersk.com\r\nEvergreen — https://www.evergreen-line.com",
+          "freight_mode": "Sea Freight",
+          "risk_question": "Are there any port congestion alerts, vessel backlogs, or carrier service disruptions affecting West Coast shipments this week?",
+          "submittedAt": "2026-03-14T01:00:00.000Z",
+          "formMode": "test"
+        },
+        "pairedItem": { "item": 0 }
+      }
+    ]
+  },
+  "connections": {
+    "Logistics Sentry Form": {
+      "main": [[{ "node": "Parse Logistics Targets", "type": "main", "index": 0 }]]
+    },
+    "Parse Logistics Targets": {
+      "main": [[
+        { "node": "Build Target List", "type": "main", "index": 0 },
+        { "node": "Match Targets with Goals", "type": "main", "index": 0 }
+      ]]
+    },
+    "Build Target List": {
+      "main": [[{ "node": "Plan Scout Goals", "type": "main", "index": 0 }]]
+    },
+    "Plan Scout Goals": {
+      "main": [[{ "node": "Parse Scout Goals", "type": "main", "index": 0 }]]
+    },
+    "Parse Scout Goals": {
+      "main": [[{ "node": "Match Targets with Goals", "type": "main", "index": 1 }]]
+    },
+    "Match Targets with Goals": {
+      "main": [[{ "node": "Prepare TinyFish Goal", "type": "main", "index": 0 }]]
+    },
+    "Prepare TinyFish Goal": {
+      "main": [[{ "node": "TinyFish Web Agent", "type": "main", "index": 0 }]]
+    },
+    "TinyFish Web Agent": {
+      "main": [[{ "node": "Get TinyFish Status", "type": "main", "index": 0 }]]
+    },
+    "Get TinyFish Status": {
+      "main": [[{ "node": "Evaluate Runs", "type": "main", "index": 0 }]]
+    },
+    "Evaluate Runs": {
+      "main": [[{ "node": "Check If Complete", "type": "main", "index": 0 }]]
+    },
+    "Check If Complete": {
+      "main": [
+        [{ "node": "Normalize Logistics Runs", "type": "main", "index": 0 }],
+        [{ "node": "Rehydrate RunIds for Next Poll", "type": "main", "index": 0 }]
+      ]
+    },
+    "Rehydrate RunIds for Next Poll": {
+      "main": [[{ "node": "Wait 3 Seconds", "type": "main", "index": 0 }]]
+    },
+    "Wait 3 Seconds": {
+      "main": [[{ "node": "Get TinyFish Status", "type": "main", "index": 0 }]]
+    },
+    "Normalize Logistics Runs": {
+      "main": [[
+        { "node": "Build Intelligence Payload", "type": "main", "index": 0 },
+        { "node": "Merge Intelligence", "type": "main", "index": 0 }
+      ]]
+    },
+    "Build Intelligence Payload": {
+      "main": [[{ "node": "Synthesize Risk Report", "type": "main", "index": 0 }]]
+    },
+    "Synthesize Risk Report": {
+      "main": [[{ "node": "Extract Risk Report", "type": "main", "index": 0 }]]
+    },
+    "Extract Risk Report": {
+      "main": [[{ "node": "Merge Intelligence", "type": "main", "index": 1 }]]
+    },
+    "Merge Intelligence": {
+      "main": [[{ "node": "Build Final Intelligence Output", "type": "main", "index": 0 }]]
+    },
+    "Build Final Intelligence Output": {
+      "main": [[{ "node": "Prepare Report Row", "type": "main", "index": 0 }]]
+    },
+    "Prepare Report Row": {
+      "main": [[
+        { "node": "Save as JSON", "type": "main", "index": 0 },
+        { "node": "Append to Google Sheets", "type": "main", "index": 0 },
+        { "node": "Create Markdown Report", "type": "main", "index": 0 }
+      ]]
+    },
+    "Create Markdown Report": {
+      "main": [[{ "node": "Convert to Binary", "type": "main", "index": 0 }]]
+    },
+    "Convert to Binary": {
+      "main": [[{ "node": "Upload Report to Drive", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedPerExecution": 8
+  },
+  "versionId": "logistics-sentry-v1-2026",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "logistics-intelligence-sentry"
+  },
+  "id": "logistics-sentry-001",
+  "tags": ["logistics", "tinyfish", "risk-intelligence", "supply-chain"]
+}

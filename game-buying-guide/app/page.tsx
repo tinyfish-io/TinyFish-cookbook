@@ -17,15 +17,20 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-background">
-      {/* Header Section */}
-      <div className="border-b border-border bg-card/50">
-        <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
+      {/* Hero / Header */}
+      <div className="relative border-b border-border overflow-hidden">
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-background to-background" />
+          <div className="absolute -top-24 left-1/2 h-64 w-[48rem] -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 py-10 md:py-14">
           <SearchForm onSearch={search} isLoading={isLoading} />
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-10">
         {/* Error State */}
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -54,9 +59,11 @@ export default function HomePage() {
         {/* Empty State */}
         {!hasResults && !isLoading && !error && (
           <div className="text-center py-16">
-            <div className="max-w-md mx-auto">
-              <h2 className="text-xl font-semibold text-foreground mb-2">Ready to find the best deal?</h2>
-              <p className="text-muted-foreground">
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground mb-3">
+                Ready to find the best deal?
+              </h2>
+              <p className="text-muted-foreground text-base md:text-lg leading-relaxed">
                 Enter a game title above and our AI agents will analyze prices across multiple platforms to help you
                 decide whether to buy now or wait for a better deal.
               </p>
@@ -82,8 +89,8 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-border mt-auto">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <p className="text-center text-sm text-muted-foreground">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <p className="text-center text-sm text-muted-foreground leading-relaxed">
             GamePulse uses AI-powered browser agents to analyze real-time pricing data. Prices and availability may
             vary.
           </p>

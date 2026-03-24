@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autonomous Watchdog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050a0f;
+    --surface: #0a1520;
+    --border: #0f2d3d;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --green: #00ff88;
+    --red: #ff3b3b;
+    --yellow: #ffd60a;
+    --text: #c8e6f0;
+    --muted: #4a7a90;
+    --glow: 0 0 20px rgba(0,229,255,0.3);
+    --glow2: 0 0 20px rgba(255,107,53,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Exo 2', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image: 
+      radial-gradient(ellipse at 20% 50%, rgba(0,100,150,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(255,107,53,0.05) 0%, transparent 50%),
+      linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+  }
+
+  /* HEADER */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(10,21,32,0.8);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .logo-icon svg { filter: drop-shadow(0 0 8px var(--accent)); }
+
+  .logo-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    font-family: 'Share Tech Mono', monospace;
+    margin-top: -4px;
+  }
+
+  .status-bar {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  .stat-chip {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--muted);
+  }
+
+  .stat-chip .val {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .pulse-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  /* MAIN LAYOUT */
+  main {
+    display: grid;
+    grid-template-columns: 30% 70%;
+    grid-template-rows: 1fr;
+    gap: 0;
+    height: calc(100vh - 65px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .panel-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ADD MONITOR FORM */
+  .add-form {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,229,255,0.02);
+  }
+
+  .form-row { margin-bottom: 10px; }
+
+  .form-row label {
+    display: block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+
+  .form-row input, .form-row textarea, .form-row select {
+    width: 100%;
+    background: rgba(0,229,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    resize: none;
+  }
+
+  .form-row input:focus, .form-row textarea:focus, .form-row select:focus {
+    border-color: var(--accent);
+    box-shadow: var(--glow);
+  }
+
+  .form-row select option { background: var(--surface); }
+
+  .api-key-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,107,53,0.05);
+    border: 1px solid rgba(255,107,53,0.2);
+    border-radius: 4px;
+    padding: 8px 10px;
+  }
+
+  .api-key-row input {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    flex: 1;
+    color: var(--accent2);
+    padding: 0;
+    font-size: 11px;
+  }
+
+  .api-key-row input:focus { box-shadow: none; border: none; }
+
+  .key-icon { color: var(--accent2); font-size: 12px; }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    width: 100%;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #0097b2);
+    color: #000;
+    font-weight: 700;
+  }
+
+  .btn-primary:hover {
+    box-shadow: var(--glow);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4; cursor: not-allowed; transform: none;
+  }
+
+  .btn-danger {
+    background: rgba(255,59,59,0.1);
+    color: var(--red);
+    border: 1px solid rgba(255,59,59,0.2);
+    width: auto;
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+
+  .btn-danger:hover { background: rgba(255,59,59,0.2); }
+
+  .btn-check {
+    background: rgba(0,229,255,0.08);
+    color: var(--accent);
+    border: 1px solid rgba(0,229,255,0.2);
+    width: auto;
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+
+  .btn-check:hover { background: rgba(0,229,255,0.15); }
+
+  .btn-stop {
+    background: rgba(255,214,10,0.08);
+    color: var(--yellow);
+    border: 1px solid rgba(255,214,10,0.2);
+    width: auto;
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+
+  .btn-stop:hover { background: rgba(255,214,10,0.18); }
+
+  .btn-edit {
+    background: rgba(0,255,136,0.07);
+    color: var(--green);
+    border: 1px solid rgba(0,255,136,0.2);
+    width: auto;
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+
+  .btn-edit:hover { background: rgba(0,255,136,0.15); }
+
+  /* MONITORS LIST */
+  .monitors-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .monitors-list::-webkit-scrollbar { width: 4px; }
+  .monitors-list::-webkit-scrollbar-track { background: transparent; }
+  .monitors-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .monitor-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(10,21,32,0.4);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .monitor-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--muted);
+    transition: background 0.2s;
+  }
+
+  .monitor-card.active::before { background: var(--green); }
+  .monitor-card.alert::before { background: var(--red); animation: flash-border 1s infinite; }
+  .monitor-card.checking::before { background: var(--yellow); }
+  .monitor-card.selected { border-color: var(--accent); background: rgba(0,229,255,0.04); }
+
+  @keyframes flash-border {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .monitor-card:hover { border-color: rgba(0,229,255,0.3); }
+
+  .monitor-top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .monitor-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .monitor-url {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+
+  .monitor-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .badge-active { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.2); }
+  .badge-alert { background: rgba(255,59,59,0.1); color: var(--red); border: 1px solid rgba(255,59,59,0.2); animation: flash-badge 1s infinite; }
+  .badge-checking { background: rgba(255,214,10,0.1); color: var(--yellow); border: 1px solid rgba(255,214,10,0.2); }
+  .badge-idle { background: rgba(74,122,144,0.1); color: var(--muted); border: 1px solid rgba(74,122,144,0.2); }
+
+  @keyframes flash-badge {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .monitor-meta {
+    display: flex; gap: 10px; align-items: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+  }
+
+  .monitor-actions { display: flex; gap: 4px; margin-top: 8px; }
+
+  /* MAIN CONTENT */
+  .content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TOP BAR */
+  .content-header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    min-height: 56px;
+  }
+
+  .monitor-detail-name {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  .monitor-detail-url {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ALERTS + LOGS SPLIT */
+  .content-body {
+    display: grid;
+    grid-template-rows: 1fr 220px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ALERT FEED */
+  .alert-feed {
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+
+  .alert-feed::-webkit-scrollbar { width: 4px; }
+  .alert-feed::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    text-align: center;
+    gap: 12px;
+  }
+
+  .empty-icon { font-size: 48px; opacity: 0.3; }
+
+  .empty-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .empty-sub { font-size: 12px; opacity: 0.6; }
+
+  /* EVENT CARD */
+  .event-card {
+    border-left: 2px solid var(--border);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    background: rgba(10,21,32,0.6);
+    border-radius: 0 6px 6px 0;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .event-card.event-alert { border-left-color: var(--red); background: rgba(255,59,59,0.04); }
+  .event-card.event-ok { border-left-color: var(--green); }
+  .event-card.event-info { border-left-color: var(--accent); }
+
+  .event-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .event-type {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  .event-alert .event-type { background: rgba(255,59,59,0.15); color: var(--red); }
+  .event-ok .event-type { background: rgba(0,255,136,0.1); color: var(--green); }
+  .event-info .event-type { background: rgba(0,229,255,0.1); color: var(--accent); }
+
+  .event-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .event-body {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .event-result {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(0,229,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* LIVE LOG */
+  .live-log {
+    border-top: 1px solid var(--border);
+    background: rgba(5,10,15,0.8);
+  }
+
+  .log-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .log-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .log-blink {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: blink 1s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .log-body {
+    padding: 8px 16px;
+    height: 160px;
+    overflow-y: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  .log-body::-webkit-scrollbar { width: 3px; }
+  .log-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-line {
+    padding: 2px 0;
+    display: flex; gap: 10px;
+    animation: fadeLog 0.2s ease;
+  }
+
+  @keyframes fadeLog {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .log-ts { color: var(--muted); min-width: 80px; }
+  .log-msg { color: var(--text); }
+  .log-line.log-err .log-msg { color: var(--red); }
+  .log-line.log-warn .log-msg { color: var(--yellow); }
+  .log-line.log-ok .log-msg { color: var(--green); }
+  .log-line.log-accent .log-msg { color: var(--accent); }
+
+  /* NOTIFICATION TOAST */
+  #toast-container {
+    position: fixed;
+    top: 80px; right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 360px;
+  }
+
+  .toast {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    box-shadow: 0 4px 30px rgba(0,0,0,0.5), var(--glow);
+    animation: toastIn 0.3s ease;
+    border-left: 3px solid var(--accent);
+  }
+
+  .toast.toast-alert { border-left-color: var(--red); box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 0 20px rgba(255,59,59,0.2); }
+  .toast.toast-ok { border-left-color: var(--green); }
+
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .toast-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .toast-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .toast-alert .toast-title { color: var(--red); }
+
+  .toast-body { font-size: 12px; color: var(--text); }
+
+  /* WELCOME */
+  .welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    color: var(--muted);
+    text-align: center;
+    padding: 40px;
+  }
+
+  .welcome-icon { font-size: 64px; opacity: 0.15; }
+  .welcome-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .welcome-sub { font-size: 13px; max-width: 400px; line-height: 1.6; opacity: 0.5; }
+
+  /* SCHEDULER INDICATOR */
+  .next-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .progress-ring {
+    width: 16px; height: 16px;
+    position: relative;
+  }
+
+  .progress-ring svg { transform: rotate(-90deg); }
+
+  .progress-ring circle {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear;
+  }
+
+  .progress-ring .track {
+    stroke: var(--border);
+    transition: none;
+  }
+
+  /* INTERVAL BADGE */
+  .interval-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    background: rgba(0,229,255,0.06);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 3px;
+    color: var(--accent);
+  }
+
+  /* API KEY SECTION */
+  .api-section {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,107,53,0.02);
+  }
+
+  .section-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="14" stroke="#00e5ff" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <circle cx="16" cy="16" r="8" fill="rgba(0,229,255,0.1)" stroke="#00e5ff" stroke-width="1.5"/>
+        <circle cx="16" cy="16" r="3" fill="#00e5ff"/>
+        <line x1="16" y1="2" x2="16" y2="8" stroke="#00e5ff" stroke-width="1.5"/>
+        <line x1="16" y1="24" x2="16" y2="30" stroke="#00e5ff" stroke-width="1.5"/>
+        <line x1="2" y1="16" x2="8" y2="16" stroke="#00e5ff" stroke-width="1.5"/>
+        <line x1="24" y1="16" x2="30" y2="16" stroke="#00e5ff" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">Watchdog</div>
+      <div class="logo-sub">autonomous monitor &bull; tinyfish powered</div>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="stat-chip"><div class="pulse-dot"></div><span>SYSTEM ONLINE</span></div>
+    <div class="stat-chip">MONITORS: <span class="val" id="hdr-monitors">0</span></div>
+    <div class="stat-chip">ALERTS: <span class="val" id="hdr-alerts">0</span></div>
+    <div class="stat-chip">CHECKS: <span class="val" id="hdr-checks">0</span></div>
+  </div>
+</header>
+
+<main>
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <!-- API KEY -->
+    <div class="api-section">
+      <div class="section-label">🔑 TinyFish API Key</div>
+      <div class="api-key-row">
+        <span class="key-icon">⬡</span>
+        <input type="password" id="api-key" placeholder="tf-xxxxxxxxxxxxxxxx" />
+      </div>
+    </div>
+
+    <!-- ADD FORM -->
+    <div class="add-form">
+      <div class="panel-header" style="padding:0 0 10px; border:none">
+        <span class="panel-title">+ New Monitor</span>
+      </div>
+      <div class="form-row">
+        <label>Monitor Name</label>
+        <input type="text" id="inp-name" placeholder="e.g. Competitor Pricing" value="Trump X Posts" />
+      </div>
+      <div class="form-row">
+        <label>Target URL</label>
+        <input type="text" id="inp-url" placeholder="https://example.com" value="https://x.com/realDonaldTrump" />
+      </div>
+      <div class="form-row">
+        <label>What to Watch For (Goal)</label>
+        <textarea id="inp-goal" rows="3" placeholder="e.g. Check if the price of the Pro plan has changed from $49/mo. Alert if it's different.">Did Trump post any new posts on X today? Alert if there is at least one new post.</textarea>
+      </div>
+      <div class="form-row">
+        <label>Check Interval</label>
+        <select id="inp-interval">
+          <option value="60">Every 1 minute (demo)</option>
+          <option value="300">Every 5 minutes</option>
+          <option value="900">Every 15 minutes</option>
+          <option value="1800">Every 30 minutes</option>
+          <option value="3600">Every hour</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="form-submit-btn" onclick="submitMonitorForm()">
+        ⊕ DEPLOY WATCHDOG
+      </button>
+    </div>
+
+    <!-- MONITORS LIST -->
+    <div class="panel-header">
+      <span class="panel-title">Active Monitors</span>
+      <span class="interval-badge" id="monitors-count">0 ACTIVE</span>
+    </div>
+    <div class="monitors-list" id="monitors-list">
+      <div style="padding:20px; text-align:center; color:var(--muted); font-size:12px; font-family:'Share Tech Mono',monospace;">
+        No monitors deployed yet
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+    <div class="content-header" id="content-header">
+      <div class="welcome-header" style="color:var(--muted); font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:2px;">
+        SELECT A MONITOR TO VIEW EVENTS
+      </div>
+    </div>
+
+    <div class="content-body">
+      <div class="alert-feed" id="alert-feed">
+        <div class="welcome">
+          <div class="welcome-icon">◎</div>
+          <div class="welcome-title">No Monitor Selected</div>
+          <div class="welcome-sub">Deploy a watchdog to start proactively monitoring websites. You'll be notified the moment something changes.</div>
+        </div>
+      </div>
+
+      <!-- LIVE LOG -->
+      <div class="live-log">
+        <div class="log-header">
+          <div class="log-blink"></div>
+          <span class="log-title">Live System Log</span>
+        </div>
+        <div class="log-body" id="log-body">
+          <div class="log-line log-accent">
+            <span class="log-ts">SYSTEM</span>
+            <span class="log-msg">Autonomous Watchdog initialized. Ready to deploy monitors.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast-container"></div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let monitors = [];
+let selectedId = null;
+let totalChecks = 0;
+let totalAlerts = 0;
+let editingId = null;
+
+// ============================================================
+// MONITOR MANAGEMENT
+// ============================================================
+function submitMonitorForm() {
+  if (editingId) {
+    saveMonitorEdit();
+  } else {
+    addMonitor();
+  }
+}
+
+function addMonitor() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const name = document.getElementById('inp-name').value.trim();
+  const url = document.getElementById('inp-url').value.trim();
+  const goal = document.getElementById('inp-goal').value.trim();
+  const interval = parseInt(document.getElementById('inp-interval').value);
+
+  if (!apiKey) { showToast('API Key Required', 'Enter your TinyFish API key above.', 'info'); return; }
+  if (!name || !url || !goal) { showToast('Incomplete Form', 'Fill in all fields to deploy a monitor.', 'info'); return; }
+
+  const id = 'mon_' + Date.now();
+  const monitor = {
+    id, name, url, goal, interval,
+    status: 'idle',
+    stopped: false,
+    events: [],
+    lastChecked: null,
+    nextCheck: null,
+    timerId: null,
+    countdownId: null,
+    secondsLeft: interval,
+  };
+
+  monitors.push(monitor);
+  renderMonitorsList();
+  selectMonitor(id);
+  log('ok', `Monitor "${name}" deployed → ${url}`);
+  log('accent', `Will check every ${formatInterval(interval)} | Goal: "${goal.substring(0,60)}..."`);
+
+  // Clear form
+  document.getElementById('inp-name').value = '';
+  document.getElementById('inp-url').value = '';
+  document.getElementById('inp-goal').value = '';
+
+  // Kick off
+  runCheck(id);
+  scheduleNext(id);
+
+  updateHeader();
+}
+
+function editMonitor(id) {
+  const m = getMonitor(id);
+  if (!m) return;
+  editingId = id;
+  document.getElementById('inp-name').value = m.name;
+  document.getElementById('inp-url').value = m.url;
+  document.getElementById('inp-goal').value = m.goal;
+  document.getElementById('inp-interval').value = m.interval;
+  document.getElementById('form-submit-btn').textContent = '✎ UPDATE MONITOR';
+  document.getElementById('inp-name').focus();
+  log('accent', `Editing monitor "${m.name}" — modify fields and click Update`);
+}
+
+function cancelEdit() {
+  editingId = null;
+  document.getElementById('inp-name').value = '';
+  document.getElementById('inp-url').value = '';
+  document.getElementById('inp-goal').value = '';
+  document.getElementById('form-submit-btn').textContent = '⊕ DEPLOY WATCHDOG';
+}
+
+function saveMonitorEdit() {
+  const m = getMonitor(editingId);
+  if (!m) { cancelEdit(); return; }
+
+  const name = document.getElementById('inp-name').value.trim();
+  const url = document.getElementById('inp-url').value.trim();
+  const goal = document.getElementById('inp-goal').value.trim();
+  const interval = parseInt(document.getElementById('inp-interval').value);
+
+  if (!name || !url || !goal) { showToast('Incomplete Form', 'Fill in all fields.', 'info'); return; }
+
+  const intervalChanged = interval !== m.interval;
+
+  m.name = name;
+  m.url = url;
+  m.goal = goal;
+  m.interval = interval;
+
+  // Restart scheduling if interval changed and monitor is running
+  if (intervalChanged && !m.stopped) {
+    clearTimeout(m.timerId);
+    clearInterval(m.countdownId);
+    m.secondsLeft = interval;
+    scheduleNext(m.id);
+  }
+
+  log('ok', `Monitor "${name}" updated`);
+  cancelEdit();
+  renderMonitorsList();
+  if (selectedId === m.id) updateContentHeader();
+  updateHeader();
+}
+
+function stopMonitor(id) {
+  const m = getMonitor(id);
+  if (!m) return;
+  clearTimeout(m.timerId);
+  clearInterval(m.countdownId);
+  m.stopped = true;
+  m.status = 'idle';
+  m.secondsLeft = 0;
+  renderMonitorCard(id);
+  if (selectedId === id) updateContentHeader();
+  log('warn', `Monitor "${m.name}" stopped`);
+}
+
+function resumeMonitor(id) {
+  const m = getMonitor(id);
+  if (!m) return;
+  m.stopped = false;
+  log('ok', `Monitor "${m.name}" resumed`);
+  runCheck(id);
+  scheduleNext(id);
+}
+
+function scheduleNext(id) {
+  const m = getMonitor(id);
+  if (!m) return;
+  clearTimeout(m.timerId);
+  clearInterval(m.countdownId);
+  m.secondsLeft = m.interval;
+
+  // Countdown timer
+  m.countdownId = setInterval(() => {
+    const mon = getMonitor(id);
+    if (!mon) { clearInterval(m.countdownId); return; }
+    mon.secondsLeft = Math.max(0, mon.secondsLeft - 1);
+    if (selectedId === id) updateContentHeader();
+    renderMonitorCard(id);
+  }, 1000);
+
+  m.timerId = setTimeout(() => {
+    runCheck(id);
+    scheduleNext(id);
+  }, m.interval * 1000);
+}
+
+async function runCheck(id) {
+  const m = getMonitor(id);
+  if (!m) return;
+
+  const apiKey = document.getElementById('api-key').value.trim();
+  if (!apiKey) {
+    log('err', `[${m.name}] No API key — skipping check`);
+    return;
+  }
+
+  m.status = 'checking';
+  m.lastChecked = new Date();
+  renderMonitorCard(id);
+  if (selectedId === id) updateContentHeader();
+
+  log('accent', `[${m.name}] Running check → ${m.url}`);
+  totalChecks++;
+  updateHeader();
+
+  try {
+    // Call TinyFish SSE endpoint — collect streamed events
+    const result = await callTinyFish(apiKey, m.url, m.goal);
+
+    m.lastChecked = new Date();
+    const event = processResult(m, result);
+    m.events.unshift(event);
+    m.status = event.type === 'alert' ? 'alert' : 'active';
+
+    if (event.type === 'alert') {
+      totalAlerts++;
+      m.lastAlertTime = new Date();
+      showToast(`🚨 ALERT: ${m.name}`, event.summary, 'alert');
+      log('err', `[${m.name}] ⚡ ALERT TRIGGERED: ${event.summary.substring(0,80)}`);
+    } else {
+      log('ok', `[${m.name}] ✓ Check passed — no events detected`);
+    }
+
+    renderMonitorCard(id);
+    if (selectedId === id) renderEventFeed();
+    updateHeader();
+
+  } catch (err) {
+    m.status = 'active';
+    log('err', `[${m.name}] Check failed: ${err.message}`);
+    const event = {
+      id: Date.now(),
+      type: 'info',
+      time: new Date(),
+      summary: `Check error: ${err.message}`,
+      rawResult: null
+    };
+    m.events.unshift(event);
+    if (selectedId === id) renderEventFeed();
+    renderMonitorCard(id);
+  }
+}
+
+async function callTinyFish(apiKey, url, goal) {
+  // Use SSE streaming endpoint
+  const response = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey,
+    },
+    body: JSON.stringify({
+      url,
+      goal: goal + '\n\nIMPORTANT: At the end of your response, output a JSON object with these fields:\n- "changed": boolean (true if you detected the event/change the user cares about)\n- "summary": string (1-2 sentence plain English summary of what you found)\n- "details": string (any specific values, prices, statuses you observed)',
+      proxy_config: { enabled: false }
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`TinyFish API ${response.status}: ${errText.substring(0,120)}`);
+  }
+
+  // Collect SSE events
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let finalResult = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split('\n');
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === 'COMPLETE' || data.status === 'COMPLETED') {
+            finalResult = data;
+          }
+          if (data.result) finalResult = data;
+          if (data.type === 'text' || data.content) {
+            fullText += (data.content || data.text || '');
+          }
+        } catch {}
+      }
+    }
+  }
+
+  return { finalResult, fullText };
+}
+
+function processResult(monitor, { finalResult, fullText }) {
+  // Try to extract JSON from result
+  let changed = false;
+  let summary = '';
+  let details = '';
+
+  const resultText = finalResult?.result
+    ? (typeof finalResult.result === 'string' ? finalResult.result : JSON.stringify(finalResult.result))
+    : fullText || '';
+
+  // Try to parse embedded JSON
+  const jsonMatch = resultText.match(/\{[\s\S]*"changed"[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      changed = !!parsed.changed;
+      summary = parsed.summary || '';
+      details = parsed.details || '';
+    } catch {}
+  }
+
+  // Fallback heuristics if no JSON
+  if (!summary) {
+    summary = resultText.substring(0, 200).replace(/\{[\s\S]*\}/, '').trim() || 'Check completed.';
+    // Detect alert keywords
+    const alertWords = ['changed', 'different', 'increased', 'decreased', 'new', 'added', 'removed', 'alert', 'violation', 'out of stock', 'unavailable'];
+    changed = alertWords.some(w => resultText.toLowerCase().includes(w));
+  }
+
+  return {
+    id: Date.now(),
+    type: changed ? 'alert' : 'ok',
+    time: new Date(),
+    summary: summary || (changed ? 'Change detected!' : 'No changes detected.'),
+    details: details || resultText.substring(0, 500)
+  };
+}
+
+function removeMonitor(id) {
+  const m = getMonitor(id);
+  if (!m) return;
+  clearTimeout(m.timerId);
+  clearInterval(m.countdownId);
+  monitors = monitors.filter(x => x.id !== id);
+  if (selectedId === id) {
+    selectedId = null;
+    renderWelcome();
+  }
+  renderMonitorsList();
+  log('warn', `Monitor "${m.name}" removed`);
+  updateHeader();
+}
+
+async function checkNow(id) {
+  const m = getMonitor(id);
+  if (!m || m.status === 'checking') return;
+  clearTimeout(m.timerId);
+  clearInterval(m.countdownId);
+  await runCheck(id);
+  scheduleNext(id);
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+function renderMonitorsList() {
+  const container = document.getElementById('monitors-list');
+  if (monitors.length === 0) {
+    container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--muted); font-size:12px; font-family:\'Share Tech Mono\',monospace;">No monitors deployed yet</div>';
+    document.getElementById('monitors-count').textContent = '0 ACTIVE';
+    return;
+  }
+
+  document.getElementById('monitors-count').textContent = `${monitors.length} ACTIVE`;
+  container.innerHTML = monitors.map(m => renderMonitorCardHTML(m)).join('');
+}
+
+function renderMonitorCard(id) {
+  const el = document.querySelector(`[data-monitor-id="${id}"]`);
+  if (!el) { renderMonitorsList(); return; }
+  const m = getMonitor(id);
+  if (!m) return;
+  el.outerHTML = renderMonitorCardHTML(m);
+}
+
+function renderMonitorCardHTML(m) {
+  const isStopped = !!m.stopped;
+  const statusLabel = isStopped ? 'STOPPED' : ({ idle: 'IDLE', active: 'OK', alert: '⚡ ALERT' + (m.lastAlertTime ? ' ' + formatTime(m.lastAlertTime) : ''), checking: 'SCANNING...' }[m.status] || m.status);
+  const badgeClass = isStopped ? 'badge-idle' : ({ idle: 'badge-idle', active: 'badge-active', alert: 'badge-alert', checking: 'badge-checking' }[m.status] || 'badge-idle');
+  const cardClass = isStopped ? '' : ({ active: 'active', alert: 'alert', checking: 'checking' }[m.status] || '');
+  const isSelected = selectedId === m.id;
+
+  return `
+    <div class="monitor-card ${cardClass} ${isSelected ? 'selected' : ''}"
+         data-monitor-id="${m.id}"
+         onclick="selectMonitor('${m.id}')">
+      <div class="monitor-top">
+        <div>
+          <div class="monitor-name">${escHtml(m.name)}</div>
+          <div class="monitor-url">${escHtml(m.url)}</div>
+        </div>
+        <div class="monitor-badge ${badgeClass}">${statusLabel}</div>
+      </div>
+      <div class="monitor-meta">
+        <span>⏱ ${formatInterval(m.interval)}</span>
+        <span>🔔 ${m.events.filter(e=>e.type==='alert').length} alerts</span>
+        ${!isStopped && m.status === 'checking' ? '<span style="color:var(--yellow)">Scanning...</span>'
+          : (!isStopped && m.secondsLeft) ? `<span>Next: ${formatSeconds(m.secondsLeft)}</span>` : ''}
+      </div>
+      <div class="monitor-actions">
+        <button class="btn btn-check" onclick="event.stopPropagation(); checkNow('${m.id}')">↻ Check Now</button>
+        <button class="btn btn-edit" onclick="event.stopPropagation(); editMonitor('${m.id}')">✎ Edit</button>
+        ${isStopped
+          ? `<button class="btn btn-stop" onclick="event.stopPropagation(); resumeMonitor('${m.id}')">▶ Resume</button>`
+          : `<button class="btn btn-stop" onclick="event.stopPropagation(); stopMonitor('${m.id}')">⏸ Stop</button>`
+        }
+        <button class="btn btn-danger" onclick="event.stopPropagation(); removeMonitor('${m.id}')">✕ Remove</button>
+      </div>
+    </div>
+  `;
+}
+
+function selectMonitor(id) {
+  selectedId = id;
+  renderMonitorsList();
+  updateContentHeader();
+  renderEventFeed();
+}
+
+function updateContentHeader() {
+  const container = document.getElementById('content-header');
+  const m = getMonitor(selectedId);
+  if (!m) {
+    container.innerHTML = '<div style="color:var(--muted);font-family:Share Tech Mono,monospace;font-size:12px;letter-spacing:2px;">SELECT A MONITOR TO VIEW EVENTS</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div>
+      <div class="monitor-detail-name">${escHtml(m.name)}</div>
+      <div class="monitor-detail-url">${escHtml(m.url)}</div>
+    </div>
+    <div class="next-check">
+      <div class="progress-ring">
+        <svg width="16" height="16">
+          <circle class="track" cx="8" cy="8" r="6" />
+          <circle cx="8" cy="8" r="6"
+            stroke-dasharray="${2*Math.PI*6}"
+            stroke-dashoffset="${2*Math.PI*6 * (1 - (m.interval - m.secondsLeft) / m.interval)}"
+          />
+        </svg>
+      </div>
+      <span>${m.status === 'checking' ? 'SCANNING...' : `Next check: ${formatSeconds(m.secondsLeft)}`}</span>
+      <span class="interval-badge">${formatInterval(m.interval)}</span>
+    </div>
+  `;
+}
+
+function renderEventFeed() {
+  const feed = document.getElementById('alert-feed');
+  const m = getMonitor(selectedId);
+  if (!m) { renderWelcome(); return; }
+
+  if (m.events.length === 0) {
+    feed.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">◎</div>
+        <div class="empty-title">Watching...</div>
+        <div class="empty-sub">Waiting for first check to complete. Events will appear here.</div>
+      </div>
+    `;
+    return;
+  }
+
+  feed.innerHTML = m.events.map(ev => `
+    <div class="event-card event-${ev.type}">
+      <div class="event-header">
+        <span class="event-type">${ev.type === 'alert' ? '⚡ ALERT' : ev.type === 'ok' ? '✓ OK' : 'ℹ INFO'}</span>
+        <span class="event-time">${formatTime(ev.time)}</span>
+      </div>
+      <div class="event-body">${escHtml(ev.summary)}</div>
+      ${ev.details ? `<div class="event-result">${escHtml(ev.details)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderWelcome() {
+  document.getElementById('alert-feed').innerHTML = `
+    <div class="welcome">
+      <div class="welcome-icon">◎</div>
+      <div class="welcome-title">No Monitor Selected</div>
+      <div class="welcome-sub">Deploy a watchdog to start proactively monitoring websites. You'll be notified the moment something changes.</div>
+    </div>
+  `;
+}
+
+function updateHeader() {
+  document.getElementById('hdr-monitors').textContent = monitors.length;
+  document.getElementById('hdr-alerts').textContent = totalAlerts;
+  document.getElementById('hdr-checks').textContent = totalChecks;
+}
+
+// ============================================================
+// LOGGING
+// ============================================================
+function log(level, msg) {
+  const body = document.getElementById('log-body');
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const line = document.createElement('div');
+  line.className = `log-line log-${level}`;
+  line.innerHTML = `<span class="log-ts">${ts}</span><span class="log-msg">${escHtml(msg)}</span>`;
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+
+  // Keep max 200 lines
+  while (body.children.length > 200) body.removeChild(body.firstChild);
+}
+
+// ============================================================
+// TOASTS
+// ============================================================
+function showToast(title, body, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `
+    <div class="toast-header">
+      <span class="toast-title">${escHtml(title)}</span>
+    </div>
+    <div class="toast-body">${escHtml(body)}</div>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 5000);
+
+  // Browser notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '' });
+  }
+}
+
+// Request notification permission
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function getMonitor(id) { return monitors.find(m => m.id === id); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatInterval(s) {
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${s/60}m`;
+  return `${s/3600}h`;
+}
+function formatSeconds(s) {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s/60), sec = s%60;
+  return `${m}m ${sec}s`;
+}
+function formatTime(d) {
+  return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+</script>
+</body>
+</html>

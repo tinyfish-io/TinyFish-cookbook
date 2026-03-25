@@ -1,4 +1,5 @@
 # Wing Scout - Super Bowl LX War Room
+**Live Demo: https://wings-command.up.railway.app/**
 
 **Flavor-first, mesmerizing, hyper-local chicken wing tracker for Super Bowl LX (Feb 8, 2026).**
 

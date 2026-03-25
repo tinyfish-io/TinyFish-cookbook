@@ -88,17 +88,17 @@ payload = {
 
 async with session.post(MINO_API_URL, json=payload, headers=headers) as response:
     async for chunk in response.content.iter_any():
-        # SSE events: streamingUrl, status updates, resultJson
+        # SSE events: streaming_url, status updates, result_json
         pass
 ```
 
 ### SSE Event Flow
 
 ```
-data: {"streamingUrl":"https://tf-xxx.lax1-tinyfish.unikraft.app/stream/0"}
+data: {"streaming_url":"https://tf-xxx.lax1-tinyfish.unikraft.app/stream/0"}
 data: {"type":"STATUS","message":"Navigating to Best Buy..."}
 data: {"type":"STATUS","message":"Extracting Open-Box products..."}
-data: {"type":"COMPLETE","resultJson":[{"name":"iPhone 16","sale_price":"$604.99",...}]}
+data: {"type":"COMPLETE","result_json":[{"name":"iPhone 16","sale_price":"$604.99",...}]}
 ```
 
 ## 📁 Project Structure

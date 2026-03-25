@@ -448,19 +448,19 @@ async def search_live(
                                     try:
                                         event = json.loads(line[6:])
                                         
-                                        if event.get("streamingUrl") and not streaming_url_sent:
+                                        if event.get("streaming_url") and not streaming_url_sent:
                                             await event_queue.put({
                                                 "type": "session_start",
                                                 "site": site_key,
                                                 "site_name": site_config["name"],
-                                                "streamingUrl": event["streamingUrl"],
+                                                "streaming_url": event["streaming_url"],
                                                 "searchUrl": search_url
                                             })
                                             streaming_url_sent = True
                                         
                                         # Extract result from various fields
-                                        if event.get("resultJson"):
-                                            result_data = event["resultJson"]
+                                        if event.get("result_json"):
+                                            result_data = event["result_json"]
                                         elif event.get("result"):
                                             result_data = event["result"]
                                         elif event.get("data") and isinstance(event.get("data"), (list, dict)):
@@ -484,8 +484,8 @@ async def search_live(
                         if buffer.strip().startswith("data: "):
                             try:
                                 event = json.loads(buffer.strip()[6:])
-                                if event.get("resultJson"):
-                                    result_data = event["resultJson"]
+                                if event.get("result_json"):
+                                    result_data = event["result_json"]
                                 elif event.get("result"):
                                     result_data = event["result"]
                             except:

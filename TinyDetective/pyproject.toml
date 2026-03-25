@@ -1,0 +1,18 @@
+[project]
+name = "tinydetective"
+version = "0.1.0"
+description = "TinyDetective counterfeit research backend and tooling"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.116.0",
+    "pydantic>=2.11.0",
+    "uvicorn>=0.35.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.uv]
+package = false

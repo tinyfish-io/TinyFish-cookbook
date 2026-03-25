@@ -88,6 +88,7 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when traveling for conventions or events |
 | [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world |
 | [tenders-finder](./tenders-finder) | AI-powered Singapore government tender discovery tool scraping multiple tender portals in parallel |
+| [TinyDetective](./TinyDetective) | Brand protection for Vietnam's ecommerce industry, using TinyFish agent swarms for parallel counterfeit detection & reporting |
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
 | [tutor-finder](./tutor-finder) | AI-powered tutor discovery platform for competitive exams across multiple platforms |
 | [viet-bike-scout](./viet-bike-scout) | Motorbike rental price comparison tool across Vietnamese cities using parallel browser agents |
@@ -220,6 +221,5 @@ This repository is a community-driven space for sharing derivatives, code sample
 ---
 
 <img src="https://github.com/user-attachments/assets/2cf004f0-0065-4f21-9835-12ac693964f1" width="100%" />
-
 
 

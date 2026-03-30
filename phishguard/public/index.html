@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhishGuard — Threat Intelligence Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🎣</div>
+      <div>
+        <div class="brand-title"><span>PHISH</span>GUARD</div>
+        <div class="brand-sub">Threat Intelligence Scanner</div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="status-dot"></span>
+      <span id="health-label">Checking service…</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="eyebrow">Threat Analysis Module</div>
+    <h1>DETECT <span>PHISHING</span> SITES FAST.</h1>
+    <p class="lead">
+      This tool integrates TinyFish, VirusTotal, and WHOIS/RDAP, then merges the evidence into a single report.<br>The TinyFish browser stream opens automatically in a modal and closes automatically when the remote browser session completes.
+    </p>
+
+    <div class="card">
+      <div class="input-grid">
+        <div class="field">
+          <label for="target-url">Target URL</label>
+          <input id="target-url" type="text" placeholder="https://suspicious-site.com/login" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn-primary" id="scan-btn">SCAN TARGET</button>
+      </div>
+      <div class="hero-banner" style="margin-top:16px;">
+        <div class="hero-banner-title">Live Agent-Backed Threat Intelligence</div>
+        <div class="hero-banner-sub">Real-time browser automation, reputation checks, domain intelligence, redirect tracing, and JSON export inside one dashboard.</div>
+      </div>
+      <div class="capabilities" style="margin-top:12px;">
+        <div class="cap-chip"><b>TinyFish</b> live agent</div>
+        <div class="cap-chip"><b>VirusTotal</b> reputation</div>
+        <div class="cap-chip"><b>WHOIS/RDAP</b> lookup</div>
+        <div class="cap-chip"><b>JSON</b> evidence export</div>
+      </div>
+
+      <div class="status-bar" id="status-bar">
+        <span class="spinner"></span>
+        <span id="status-text">Scanning…</span>
+        <span class="pill" id="source-pill">Waiting for results</span>
+      </div>
+
+      <div class="step-strip">
+        <div class="step-chip" id="step-1">1 · Agent Init</div>
+        <div class="step-chip" id="step-2">2 · Browser Stream</div>
+        <div class="step-chip" id="step-3">3 · Reputation Checks</div>
+        <div class="step-chip" id="step-4">4 · Final Verdict</div>
+      </div>
+
+      <div class="error-box" id="error-box"></div>
+    </div>
+
+    <section class="results" id="results">
+      <div class="summary-strip">
+        <div class="summary-tile"><div class="summary-label">Verdict</div><div class="summary-value" id="summary-verdict">—</div></div>
+        <div class="summary-tile"><div class="summary-label">Domain</div><div class="summary-value" id="summary-domain">—</div></div>
+        <div class="summary-tile"><div class="summary-label">Final URL</div><div class="summary-value" id="summary-final-url">—</div></div>
+        <div class="summary-tile"><div class="summary-label">VT Flags</div><div class="summary-value" id="summary-vt">—</div></div>
+        <div class="summary-tile"><div class="summary-label">Stream</div><div class="summary-value" id="summary-stream">—</div></div>
+      </div>
+
+      <div class="top-grid">
+        <div class="card">
+          <div class="section-title">Risk Score</div>
+          <div class="score-wrap">
+            <div class="gauge-shell">
+              <svg class="gauge-svg" viewBox="0 0 220 130">
+                <defs>
+                  <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#2dff98"/>
+                    <stop offset="50%" stop-color="#ffd44a"/>
+                    <stop offset="100%" stop-color="#ff3131"/>
+                  </linearGradient>
+                </defs>
+                <path d="M 22 110 A 88 88 0 0 1 198 110" fill="none" stroke="#2a1818" stroke-width="14" stroke-linecap="round"/>
+                <path id="gauge-fill" d="M 22 110 A 88 88 0 0 1 198 110" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="276.5"/>
+              </svg>
+              <div class="gauge-center">
+                <div class="score-value" id="score-value">0</div>
+                <div class="score-sub">composite score</div>
+              </div>
+            </div>
+            <div class="verdict suspicious" id="verdict">Pending</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Threat Indicators</div>
+          <div class="badge-grid" id="badge-grid"></div>
+        </div>
+      </div>
+
+      <div class="mid-grid">
+        <div class="card">
+          <div class="section-title">WHOIS / RDAP</div>
+          <table class="kv" id="whois-table"></table>
+        </div>
+
+        <div class="card">
+          <div class="section-title">VirusTotal</div>
+          <div id="vt-summary" class="small muted">No scan yet.</div>
+          <div class="vt-mini">
+            <div class="vt-mini-box">
+              <div class="vt-mini-num" id="vt-malicious" style="color:var(--red)">0</div>
+              <div class="vt-mini-label">Malicious</div>
+            </div>
+            <div class="vt-mini-box">
+              <div class="vt-mini-num" id="vt-suspicious" style="color:var(--orange)">0</div>
+              <div class="vt-mini-label">Suspicious</div>
+            </div>
+            <div class="vt-mini-box">
+              <div class="vt-mini-num" id="vt-clean" style="color:var(--green)">0</div>
+              <div class="vt-mini-label">Clean</div>
+            </div>
+            <div class="vt-mini-box">
+              <div class="vt-mini-num" id="vt-total">0</div>
+              <div class="vt-mini-label">Total</div>
+            </div>
+          </div>
+          <div class="engine-list" id="vt-engines"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Brand Impersonation</div>
+          <div class="brand-banner" id="brand-banner"></div>
+          <div id="brand-box" class="small muted">No scan yet.</div>
+        </div>
+      </div>
+
+      <div class="bottom-grid">
+        <div class="card">
+          <div class="section-title">Redirect Chain</div>
+          <div class="redirects" id="redirects"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Evidence Timeline</div>
+          <div class="timeline" id="timeline"></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-secondary" id="reset-btn">New Scan</button>
+        <button class="btn-copy" id="copy-btn">Copy URL</button>
+        <button class="btn-export" id="export-btn">Export JSON Report</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="stream-modal" class="stream-modal">
+    <div class="stream-modal-backdrop" id="stream-modal-backdrop"></div>
+
+    <div class="stream-modal-panel">
+      <div class="stream-modal-header">
+        <div class="stream-modal-title">Live TinyFish Browser Stream</div>
+          <div class="stream-modal-sub">Remote browser attached</div>
+        <div class="stream-modal-live">● LIVE</div>
+          <button id="stream-modal-close" class="stream-modal-close" type="button">✕</button>
+      </div>
+
+      <div class="stream-modal-body">
+        <div id="stream-modal-empty" class="muted small">
+          Waiting for TinyFish live stream…
+        </div>
+
+        <iframe
+          id="stream-modal-frame"
+          title="TinyFish Live Stream"
+          sandbox="allow-scripts allow-forms"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

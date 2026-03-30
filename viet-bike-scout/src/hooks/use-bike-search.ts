@@ -119,6 +119,15 @@ function normalizeShop(raw: unknown): BikeShop {
   };
 }
 
+function markStreamingPreviewDone(
+  previews: StreamingPreview[],
+  siteUrl: string,
+): StreamingPreview[] {
+  return previews.map((preview) =>
+    preview.siteUrl === siteUrl ? { ...preview, done: true } : preview
+  );
+}
+
 export function useBikeSearch(): {
   state: SearchState;
   search: (city: string, useCache?: boolean) => void;
@@ -213,6 +222,9 @@ export function useBikeSearch(): {
                 const MAX_IFRAMES_PER_SEARCH = 5;
                 setState((prev) => {
                   const url = String(event.siteUrl || '');
+                  const streamingUrl = String(event.streaming_url || '');
+
+                  if (!streamingUrl) return prev;
                   // Dedup: skip if we already have a streaming URL for this site
                   if (prev.streamingUrls.some(s => s.siteUrl === url)) return prev;
                   // Hard cap: don't accumulate more than MAX_IFRAMES_PER_SEARCH
@@ -223,7 +235,7 @@ export function useBikeSearch(): {
                       ...prev.streamingUrls,
                       {
                         siteUrl: url,
-                        streamingUrl: String(event.streamingUrl || ''),
+                        streamingUrl,
                         done: false,
                       },
                     ],
@@ -240,8 +252,17 @@ export function useBikeSearch(): {
                     ...prev.progress,
                     completed: prev.progress.completed + 1,
                   },
-                  streamingUrls: prev.streamingUrls.map(s =>
-                    s.siteUrl === String(event.siteUrl || '') ? { ...s, done: true } : s
+                  streamingUrls: markStreamingPreviewDone(
+                    prev.streamingUrls,
+                    String(event.siteUrl || ''),
+                  ),
+                }));
+              } else if (event.type === 'STREAMING_DONE') {
+                setState((prev) => ({
+                  ...prev,
+                  streamingUrls: markStreamingPreviewDone(
+                    prev.streamingUrls,
+                    String(event.siteUrl || ''),
                   ),
                 }));
               } else if (event.type === 'SEARCH_COMPLETE') {
@@ -254,10 +275,14 @@ export function useBikeSearch(): {
                   progress: { ...prev.progress, total },
                   elapsed,
                   cachedCount,
+                  streamingUrls: prev.streamingUrls.map((preview) => ({
+                    ...preview,
+                    done: true,
+                  })),
                 }));
+              }
             }
           }
-        }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {
             // User aborted, don't set error

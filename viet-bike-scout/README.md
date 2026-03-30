@@ -118,7 +118,7 @@ Results are cached in Supabase with a 6-hour TTL, keyed by `(city, website)`. Th
 
 ## Live browser agent iframes
 
-When a live scrape is running, TinyFish returns a `streamingUrl` for each agent — a real browser session you can watch in an iframe. Up to 5 active agent windows are shown per search (deduped by site, capped to prevent browser overload). Done iframes are automatically removed from the DOM to free memory. A collapse button lets you minimize the grid.
+When a live scrape is running, TinyFish returns a `streaming_url` for each agent — a real browser session you can watch in an iframe. Up to 5 active agent windows are shown per search (deduped by site, capped to prevent browser overload). Done iframes are automatically removed from the DOM to free memory. A collapse button lets you minimize the grid.
 
 ---
 

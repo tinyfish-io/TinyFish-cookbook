@@ -69,7 +69,7 @@ export function PlatformCard({ agent }: PlatformCardProps) {
               src={agent.streamingUrl}
               className="h-full w-full"
               title={`${agent.platformName} live view`}
-              sandbox="allow-same-origin"
+              sandbox="allow-same-origin allow-scripts allow-forms"
             />
             <div className="absolute bottom-2 left-2">
               <Badge variant="secondary" className="text-xs">

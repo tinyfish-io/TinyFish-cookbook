@@ -92,9 +92,7 @@ If you encounter a geo-restriction or region block, mention that in the message.
 
     try {
       for await (const chunk of minoResponse.body as any) {
-        controller.enqueue(
-          encoder.encode(decoder.decode(chunk, { stream: true }))
-        )
+        controller.enqueue(encoder.encode(decoder.decode(chunk, { stream: true })))
       }
     } catch (error) {
       console.error('Error streaming Mino response:', error)

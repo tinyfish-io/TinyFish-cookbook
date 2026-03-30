@@ -60,8 +60,8 @@ async function runTinyFishSseForSite(
       const event = JSON.parse(line.slice(6));
 
       // Forward live browser iframe URL to client
-      if (event.streamingUrl) {
-        enqueue({ type: "STREAMING_URL", siteUrl: url, streamingUrl: event.streamingUrl });
+      if (event.streaming_url) {
+        enqueue({ type: "STREAMING_URL", siteUrl: url, streaming_url: event.streaming_url });
       }
       if (event.status === "COMPLETED") {
         resultJson = event.resultJson;

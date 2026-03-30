@@ -57,40 +57,33 @@ export function useAnimeSearch() {
               try {
                 const data = JSON.parse(line.slice(6))
 
-                if (data.streamingUrl) {
+                if (data.type === 'STREAMING_URL' && data.streaming_url) {
                   updateAgent(platform.id, {
                     status: 'browsing',
-                    streamingUrl: data.streamingUrl,
+                    streamingUrl: data.streaming_url,
                     statusMessage: 'Browsing platform...',
                   })
                 }
 
-                if (data.type === 'STATUS' && data.message) {
-                  updateAgent(platform.id, { statusMessage: data.message })
+                if (data.type === 'PROGRESS' && data.purpose) {
+                  updateAgent(platform.id, { statusMessage: data.purpose })
                 }
 
                 if (data.type === 'COMPLETE') {
-                  let result = {
-                    available: false,
-                    message: 'Check completed',
+                  if (data.status === 'failed') {
+                    updateAgent(platform.id, {
+                      status: 'error',
+                      statusMessage: data.error?.message ?? 'Automation failed',
+                      streamingUrl: undefined,
+                    })
+                  } else {
+                    updateAgent(platform.id, {
+                      status: 'complete',
+                      result: data.result,
+                      statusMessage: undefined,
+                      streamingUrl: undefined,
+                    })
                   }
-
-                  if (data.resultJson) {
-                    try {
-                      result = typeof data.resultJson === 'string' 
-                        ? JSON.parse(data.resultJson) 
-                        : data.resultJson
-                    } catch {
-                      // Use default result if parsing fails
-                    }
-                  }
-
-                  updateAgent(platform.id, {
-                    status: 'complete',
-                    result,
-                    statusMessage: undefined,
-                    streamingUrl: undefined,
-                  })
                 }
 
                 if (data.type === 'ERROR') {

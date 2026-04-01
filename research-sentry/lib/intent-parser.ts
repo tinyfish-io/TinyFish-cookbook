@@ -1,10 +1,12 @@
 import OpenAI from 'openai';
 import { SearchCriteria } from './types';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+function getOpenAI() {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+}
 
 export async function parseSearchIntent(query: string): Promise<SearchCriteria> {
-    const res = await openai.chat.completions.create({
+    const res = await getOpenAI().chat.completions.create({
         model: 'gpt-4o',
         messages: [
             {

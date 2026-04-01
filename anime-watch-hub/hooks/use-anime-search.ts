@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { MinoAgentState } from '@/lib/types'
+import { TinyFishAgentState } from '@/lib/types'
 
 interface DiscoveredPlatform {
   id: string
@@ -12,10 +12,10 @@ interface DiscoveredPlatform {
 export function useAnimeSearch() {
   const [isSearching, setIsSearching] = useState(false)
   const [isDiscovering, setIsDiscovering] = useState(false)
-  const [agents, setAgents] = useState<MinoAgentState[]>([])
+  const [agents, setAgents] = useState<TinyFishAgentState[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const updateAgent = useCallback((platformId: string, updates: Partial<MinoAgentState>) => {
+  const updateAgent = useCallback((platformId: string, updates: Partial<TinyFishAgentState>) => {
     setAgents((prev) =>
       prev.map((agent) =>
         agent.platformId === platformId ? { ...agent, ...updates } : agent
@@ -25,7 +25,7 @@ export function useAnimeSearch() {
 
   const checkPlatform = useCallback(
     async (animeTitle: string, platform: DiscoveredPlatform) => {
-      updateAgent(platform.id, { status: 'connecting', statusMessage: 'Connecting to Mino agent...' })
+      updateAgent(platform.id, { status: 'connecting', statusMessage: 'Connecting to TinyFish agent...' })
 
       try {
         const response = await fetch('/api/check-platform', {
@@ -57,29 +57,29 @@ export function useAnimeSearch() {
               try {
                 const data = JSON.parse(line.slice(6))
 
-                if (data.streamingUrl) {
+                if (data.streaming_url) {
                   updateAgent(platform.id, {
                     status: 'browsing',
-                    streamingUrl: data.streamingUrl,
+                    streamingUrl: data.streaming_url,
                     statusMessage: 'Browsing platform...',
                   })
                 }
 
-                if (data.type === 'STATUS' && data.message) {
-                  updateAgent(platform.id, { statusMessage: data.message })
+                if (data.purpose) {
+                  updateAgent(platform.id, { statusMessage: data.purpose })
                 }
 
-                if (data.type === 'COMPLETE') {
+                if (data.status === 'COMPLETED') {
                   let result = {
                     available: false,
                     message: 'Check completed',
                   }
 
-                  if (data.resultJson) {
+                  if (data.result_json) {
                     try {
-                      result = typeof data.resultJson === 'string' 
-                        ? JSON.parse(data.resultJson) 
-                        : data.resultJson
+                      result = typeof data.result_json === 'string'
+                        ? JSON.parse(data.result_json)
+                        : data.result_json
                     } catch {
                       // Use default result if parsing fails
                     }
@@ -93,7 +93,7 @@ export function useAnimeSearch() {
                   })
                 }
 
-                if (data.type === 'ERROR') {
+                if (data.status === 'FAILED') {
                   updateAgent(platform.id, {
                     status: 'error',
                     statusMessage: data.message || 'An error occurred',
@@ -129,7 +129,7 @@ export function useAnimeSearch() {
       setAgents([])
 
       try {
-        // Step 1: Discover platform URLs using Gemini
+        // Step 1: Discover platform URLs using OpenAI
         const discoverResponse = await fetch('/api/discover-platforms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -151,7 +151,7 @@ export function useAnimeSearch() {
         }
 
         // Initialize agents for each platform
-        const initialAgents: MinoAgentState[] = platforms.map((p: DiscoveredPlatform) => ({
+        const initialAgents: TinyFishAgentState[] = platforms.map((p: DiscoveredPlatform) => ({
           platformId: p.id,
           platformName: p.name,
           url: p.searchUrl,
@@ -159,7 +159,7 @@ export function useAnimeSearch() {
         }))
         setAgents(initialAgents)
 
-        // Step 2: Check each platform in parallel using Mino
+        // Step 2: Check each platform in parallel using TinyFish
         await Promise.all(platforms.map((platform: DiscoveredPlatform) => checkPlatform(animeTitle, platform)))
       } catch (err) {
         console.error('Search error:', err)

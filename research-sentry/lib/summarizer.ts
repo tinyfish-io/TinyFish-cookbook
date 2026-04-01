@@ -1,7 +1,9 @@
 import OpenAI from 'openai';
 import { ResearchPaper } from './types';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+function getOpenAI() {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+}
 
 export async function generatePaperSummary(paper: ResearchPaper, length: 'short' | 'medium' | 'long' = 'medium') {
     const words = length === 'short' ? 100 : length === 'medium' ? 300 : 600;
@@ -21,7 +23,7 @@ export async function generatePaperSummary(paper: ResearchPaper, length: 'short'
   Be concrete and professional.
   `;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
         model: 'gpt-4o',
         messages: [{ role: 'user', content: prompt }],
     });
@@ -30,7 +32,7 @@ export async function generatePaperSummary(paper: ResearchPaper, length: 'short'
 }
 
 export async function synthesizeSpeech(text: string) {
-    const mp3 = await openai.audio.speech.create({
+    const mp3 = await getOpenAI().audio.speech.create({
         model: 'tts-1',
         voice: 'alloy',
         input: text,

@@ -201,7 +201,7 @@ export function CompareDashboard({ scholarships, onClose }: CompareDashboardProp
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-orange-200 p-4">
         <div className="container mx-auto flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Powered by <span className="font-bold text-orange-500">mino.ai</span>
+            Powered by <span className="font-bold text-orange-500">tinyfish.ai</span>
           </p>
           <Button
             variant="outline"

@@ -26,7 +26,7 @@ export interface RetailerStatus {
   error?: string
 }
 
-// Gemini's deal analysis result
+// AI deal analysis result
 export interface DealAnalysis {
   bestRetailer: string
   reason: string
@@ -87,10 +87,10 @@ export interface TinyFishRequest {
 }
 
 export interface TinyFishSSEEvent {
-  type: 'STEP' | 'COMPLETE' | 'ERROR'
-  status?: string
-  step?: string
+  status?: 'COMPLETED' | 'FAILED'
+  purpose?: string
   message?: string
-  streamingUrl?: string
-  resultJson?: ProductData
+  error?: string
+  streaming_url?: string
+  result_json?: ProductData
 }

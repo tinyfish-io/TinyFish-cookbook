@@ -98,15 +98,3 @@ export const DEFAULT_RETAILERS: RetailerConfig[] = [
   }
 ]
 
-export function buildSearchUrl(retailer: RetailerConfig, searchTerm: string): string {
-  const encodedTerm = encodeURIComponent(searchTerm)
-
-  // Handle special cases where the search term is part of the path
-  if (!retailer.searchQueryParam) {
-    return `${retailer.baseSearchUrl}${encodedTerm}`
-  }
-
-  const url = new URL(retailer.baseSearchUrl)
-  url.searchParams.set(retailer.searchQueryParam, searchTerm)
-  return url.toString()
-}

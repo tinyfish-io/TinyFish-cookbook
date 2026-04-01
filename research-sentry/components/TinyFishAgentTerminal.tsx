@@ -1,9 +1,22 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+/**
+ * TinyFishAgentTerminal
+ *
+ * Displays live TinyFish agent activity in a terminal-style UI.
+ * This component is purely presentational -- it renders log entries
+ * passed in via the `logs` prop. The parent component is responsible
+ * for feeding real-time data (e.g. from an SSE stream or polling).
+ *
+ * When no logs have arrived yet it shows an "Initializing" state.
+ * Once all processing is done (indicated by the `isComplete` prop)
+ * the pulsing "AGENT_BUSY" indicator disappears.
+ */
+
+import { useEffect, useRef } from 'react';
 import { Terminal, Globe, Search, ClipboardList, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 
-interface AgentLog {
+export interface AgentLog {
     id: string;
     message: string;
     type: 'info' | 'success' | 'error' | 'browser';
@@ -11,46 +24,14 @@ interface AgentLog {
 }
 
 interface TinyFishAgentTerminalProps {
-    topic?: string;
-    sources?: string[];
+    /** Array of log entries to display. */
+    logs: AgentLog[];
+    /** When true the busy indicator is hidden. */
+    isComplete?: boolean;
 }
 
-export default function TinyFishAgentTerminal({ topic = "research", sources = ["arxiv"] }: TinyFishAgentTerminalProps) {
-    const [logs, setLogs] = useState<AgentLog[]>([]);
+export default function TinyFishAgentTerminal({ logs, isComplete = false }: TinyFishAgentTerminalProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const sequence = [
-            { message: "TinyFish Agent initialized. Connecting to secure browser instance...", type: 'info' },
-            { message: `Targeting [${sources.join(', ')}] for primary discovery layer.`, type: 'info' },
-            { message: `Navigating to: https://${sources[0]}.org/search`, type: 'browser' },
-            { message: "Stealth browser profile 'Research-L1' applied.", type: 'info' },
-            { message: `Injecting agentic intent: "Search for ${topic}..."`, type: 'browser' },
-            { message: "Discovery portal active. Monitoring DOM for result stability...", type: 'browser' },
-            { message: `Successfully extracted ${Math.floor(Math.random() * 5 + 5)} papers via TinyFish Web Automation.`, type: 'success' },
-            { message: "Compiling findings into deduplication engine...", type: 'info' },
-            { message: "Moving to secondary research nodes...", type: 'browser' },
-            { message: "Agentic discovery cycle complete. Delivering payload.", type: 'success' }
-        ];
-
-        let i = 0;
-        const interval = setInterval(() => {
-            if (i < sequence.length) {
-                const log: AgentLog = {
-                    id: Math.random().toString(36),
-                    message: sequence[i].message,
-                    type: sequence[i].type as any,
-                    timestamp: Date.now()
-                };
-                setLogs(prev => [...prev, log]);
-                i++;
-            } else {
-                clearInterval(interval);
-            }
-        }, 1800);
-
-        return () => clearInterval(interval);
-    }, [topic, sources]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -71,12 +52,14 @@ export default function TinyFishAgentTerminal({ topic = "research", sources = ["
                     <div className="h-4 w-[1px] bg-slate-700 mx-2" />
                     <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs font-bold tracking-widest">
                         <Terminal className="w-3.5 h-3.5" />
-                        TINYFISH-AGENT-X1-LOGS
+                        TINYFISH-AGENT-LOGS
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] text-emerald-500/70 font-bold uppercase tracking-tighter">Live Stream</span>
+                    <div className={`w-2 h-2 rounded-full ${isComplete ? 'bg-emerald-700' : 'bg-emerald-500 animate-pulse'}`} />
+                    <span className="text-[10px] text-emerald-500/70 font-bold uppercase tracking-tighter">
+                        {isComplete ? 'Complete' : 'Live Stream'}
+                    </span>
                 </div>
             </div>
 
@@ -117,7 +100,7 @@ export default function TinyFishAgentTerminal({ topic = "research", sources = ["
                     </div>
                 ))}
 
-                {logs.length > 0 && logs.length < 10 && (
+                {logs.length > 0 && !isComplete && (
                     <div className="flex gap-2 items-center text-emerald-500/50 pl-[87px]">
                         <Loader2 className="w-3 h-3 animate-spin" />
                         <span className="text-[10px] animate-pulse">AGENT_BUSY_PROCESSING...</span>

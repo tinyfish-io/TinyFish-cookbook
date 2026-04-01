@@ -450,7 +450,7 @@ export default function LegoFinderPage() {
             <span className="text-display font-bold">Lego Restock Hunter</span>
           </div>
           <p className="text-sm text-white/50">
-            Powered by TinyFish AI + Gemini. Not affiliated with LEGO Group.
+            Powered by TinyFish AI + OpenAI. Not affiliated with LEGO Group.
           </p>
         </div>
       </footer>

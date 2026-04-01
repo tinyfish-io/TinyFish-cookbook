@@ -1,4 +1,4 @@
-# Anime Watch Hub - Mino API Integration Documentation
+# Anime Watch Hub - TinyFish API Integration Documentation
 
 ## Product Architecture Overview
 
@@ -13,7 +13,7 @@ Anime Watch Hub is an application that helps users find where a specific anime i
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        STAGE 1: PLATFORM DISCOVERY                           │
-│                           (Gemini API - 1 call)                              │
+│                           (OpenAI API - 1 call)                              │
 │                                                                              │
 │  Input: Anime title                                                          │
 │  Output: Array of platform search URLs                                       │
@@ -27,12 +27,13 @@ Anime Watch Hub is an application that helps users find where a specific anime i
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    STAGE 2: PARALLEL AVAILABILITY CHECK                      │
-│                      (Mino API - 6-8 concurrent calls)                       │
+│                   (TinyFish API - 6-8 concurrent calls)                      │
 │                                                                              │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐        │
-│  │ Mino Agent 1 │ │ Mino Agent 2 │ │ Mino Agent 3 │ │ Mino Agent N │        │
-│  │ Crunchyroll  │ │   Netflix    │ │ Prime Video  │ │     ...      │        │
-│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘        │
+│  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌──────────────┐ │
+│  │ TinyFish       │ │ TinyFish       │ │ TinyFish       │ │ TinyFish     │ │
+│  │ Agent 1        │ │ Agent 2        │ │ Agent 3        │ │ Agent N      │ │
+│  │ Crunchyroll    │ │ Netflix        │ │ Prime Video    │ │ ...          │ │
+│  └────────────────┘ └────────────────┘ └────────────────┘ └──────────────┘ │
 │         │                │                │                │                 │
 │         ▼                ▼                ▼                ▼                 │
 │      SSE Stream       SSE Stream       SSE Stream       SSE Stream           │
@@ -56,24 +57,24 @@ Anime Watch Hub is an application that helps users find where a specific anime i
 
 | Stage | API | Calls Per Search | Purpose |
 |-------|-----|------------------|---------|
-| 1 | Gemini API | 1 | Generate platform-specific search URLs |
-| 2 | Mino API | 6-8 (parallel) | Browse each platform and verify availability |
+| 1 | OpenAI API | 1 | Generate platform-specific search URLs |
+| 2 | TinyFish API | 6-8 (parallel) | Browse each platform and verify availability |
 
-**Total API calls per search: 7-9 calls** (1 Gemini + 6-8 Mino)
+**Total API calls per search: 7-9 calls** (1 OpenAI + 6-8 TinyFish)
 
 ---
 
 ## API Relationships
 
-### 1. Gemini API (Platform Discovery)
+### 1. OpenAI API (Platform Discovery)
 - **When called**: Once at the start of each search
 - **Purpose**: Generates intelligent search URLs for each streaming platform
-- **Output feeds into**: Mino API calls (provides URLs for browser automation)
+- **Output feeds into**: TinyFish API calls (provides URLs for browser automation)
 
-### 2. Mino API (Browser Automation)  
+### 2. TinyFish API (Browser Automation)
 - **When called**: Once per platform, all in parallel
 - **Purpose**: Spawns browser agents that navigate to search URLs and verify anime availability
-- **Depends on**: Gemini API output (search URLs)
+- **Depends on**: OpenAI API output (search URLs)
 - **Returns**: Real-time SSE stream with browsing progress and final availability result
 
 ---
@@ -92,59 +93,35 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   const { animeTitle } = await request.json();
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
 
-  const prompt = `You are an expert at finding where anime is legally available to stream.
+  const prompt = `For the anime titled "${animeTitle}", provide streaming platform URLs...`;
 
-For the anime titled "${animeTitle}", provide a JSON array of streaming platform URLs where this specific anime might be available.
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Return only valid JSON." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+    }),
+  });
 
-Focus on these major platforms:
-- Crunchyroll (crunchyroll.com)
-- Netflix (netflix.com)
-- Amazon Prime Video (amazon.com/Prime-Video)
-- Hulu (hulu.com)
-- Funimation (funimation.com)
-- HIDIVE (hidive.com)
-- Disney+ (disneyplus.com)
-- Max/HBO Max (max.com)
-
-For each platform, construct the SEARCH URL where someone would search for this anime.
-
-Return ONLY a valid JSON array with this exact structure:
-[
-  {
-    "id": "platform-id",
-    "name": "Platform Name",
-    "searchUrl": "https://platform.com/search?q=anime+title"
-  }
-]`;
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json",
-        },
-      }),
-    }
-  );
-
-  const geminiData = await response.json();
-  const platforms = JSON.parse(
-    geminiData.candidates[0].content.parts[0].text
-  );
+  const data = await response.json();
+  const platforms = JSON.parse(data.choices[0].message.content);
 
   return NextResponse.json({ platforms });
 }
 ```
 
-#### 2. Mino Browser Automation Route (`/api/check-platform`)
+#### 2. TinyFish Browser Automation Route (`/api/check-platform`)
 
 ```typescript
 // POST /api/check-platform
@@ -183,8 +160,8 @@ Return a JSON object with these fields:
 
 If the anime is NOT found or not available, set available to false and explain why in the message.`;
 
-  // Call Mino API with SSE
-  const minoResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
+  // Call TinyFish API with SSE
+  const tinyFishResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -197,7 +174,7 @@ If the anime is NOT found or not available, set available to false and explain w
   });
 
   // Stream the response back to client
-  return new Response(minoResponse.body, {
+  return new Response(tinyFishResponse.body, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -210,18 +187,18 @@ If the anime is NOT found or not available, set available to false and explain w
 #### 3. Client-Side Orchestration
 
 ```typescript
-// Orchestrate parallel Mino calls from the client
+// Orchestrate parallel TinyFish calls from the client
 async function searchAnime(animeTitle: string) {
-  // Step 1: Get platform URLs from Gemini
+  // Step 1: Get platform URLs from OpenAI (GPT-4o Mini)
   const discoverResponse = await fetch('/api/discover-platforms', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ animeTitle }),
   });
-  
+
   const { platforms } = await discoverResponse.json();
-  
-  // Step 2: Check all platforms in parallel with Mino
+
+  // Step 2: Check all platforms in parallel with TinyFish
   await Promise.all(
     platforms.map((platform) => checkPlatformWithSSE(animeTitle, platform))
   );
@@ -251,17 +228,17 @@ async function checkPlatformWithSSE(animeTitle: string, platform: Platform) {
     for (const line of lines) {
       if (line.startsWith('data: ')) {
         const data = JSON.parse(line.slice(6));
-        
+
         // Handle different event types
-        if (data.streamingUrl) {
+        if (data.streaming_url) {
           // Live browser preview URL available
-          console.log('Browser stream:', data.streamingUrl);
+          console.log('Browser stream:', data.streaming_url);
         }
-        if (data.type === 'STATUS') {
-          console.log('Status update:', data.message);
+        if (data.purpose) {
+          console.log('Status update:', data.purpose);
         }
-        if (data.type === 'COMPLETE') {
-          console.log('Result:', data.resultJson);
+        if (data.status === 'COMPLETED') {
+          console.log('Result:', data.result_json);
         }
       }
     }
@@ -271,7 +248,7 @@ async function checkPlatformWithSSE(animeTitle: string, platform: Platform) {
 
 ### cURL Examples
 
-#### 1. Discover Platforms (Gemini)
+#### 1. Discover Platforms (OpenAI)
 
 ```bash
 curl -X POST https://your-app.vercel.app/api/discover-platforms \
@@ -279,7 +256,7 @@ curl -X POST https://your-app.vercel.app/api/discover-platforms \
   -d '{"animeTitle": "Attack on Titan"}'
 ```
 
-#### 2. Check Single Platform (Mino)
+#### 2. Check Single Platform (TinyFish)
 
 ```bash
 curl -X POST https://your-app.vercel.app/api/check-platform \
@@ -291,7 +268,7 @@ curl -X POST https://your-app.vercel.app/api/check-platform \
   }'
 ```
 
-#### 3. Direct Mino API Call
+#### 3. Direct TinyFish API Call
 
 ```bash
 curl -X POST https://agent.tinyfish.ai/v1/automation/run-sse \
@@ -307,7 +284,7 @@ curl -X POST https://agent.tinyfish.ai/v1/automation/run-sse \
 
 ## Goal (Prompt)
 
-The following is the exact natural language prompt sent to the Mino API for each platform check:
+The following is the exact natural language prompt sent to the TinyFish API for each platform check:
 
 ```
 You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
@@ -346,7 +323,7 @@ If you encounter a geo-restriction or region block, mention that in the message.
 
 ## Sample Output
 
-### Gemini API Response (Platform Discovery)
+### OpenAI API Response (Platform Discovery)
 
 ```json
 {
@@ -385,26 +362,24 @@ If you encounter a geo-restriction or region block, mention that in the message.
 }
 ```
 
-### Mino API SSE Stream Response
+### TinyFish API SSE Stream Response
 
-The Mino API returns a Server-Sent Events (SSE) stream. Here's a simulated sequence of events:
+The TinyFish API returns a Server-Sent Events (SSE) stream. Here's a simulated sequence of events:
 
 ```
-data: {"type":"CONNECTED","sessionId":"sess_abc123"}
+data: {"streaming_url":"https://agent.tinyfish.ai/stream/sess_abc123"}
 
-data: {"streamingUrl":"https://mino.ai/stream/sess_abc123"}
+data: {"purpose":"Navigating to search page..."}
 
-data: {"type":"STATUS","message":"Navigating to search page..."}
+data: {"purpose":"Page loaded, dismissing cookie banner..."}
 
-data: {"type":"STATUS","message":"Page loaded, dismissing cookie banner..."}
+data: {"purpose":"Searching for Attack on Titan..."}
 
-data: {"type":"STATUS","message":"Searching for Attack on Titan..."}
+data: {"purpose":"Analyzing search results..."}
 
-data: {"type":"STATUS","message":"Analyzing search results..."}
+data: {"purpose":"Found matching anime series..."}
 
-data: {"type":"STATUS","message":"Found matching anime series..."}
-
-data: {"type":"COMPLETE","resultJson":"{\"available\":true,\"watchUrl\":\"https://www.crunchyroll.com/series/attack-on-titan\",\"subscriptionRequired\":true,\"message\":\"Attack on Titan is available on Crunchyroll. All seasons are available with a Premium subscription.\"}"}
+data: {"status":"COMPLETED","result_json":"{\"available\":true,\"watchUrl\":\"https://www.crunchyroll.com/series/attack-on-titan\",\"subscriptionRequired\":true,\"message\":\"Attack on Titan is available on Crunchyroll. All seasons are available with a Premium subscription.\"}"}
 ```
 
 ### Parsed Final Result
@@ -421,17 +396,15 @@ data: {"type":"COMPLETE","resultJson":"{\"available\":true,\"watchUrl\":\"https:
 ### Error Response Example
 
 ```
-data: {"type":"CONNECTED","sessionId":"sess_xyz789"}
+data: {"streaming_url":"https://agent.tinyfish.ai/stream/sess_xyz789"}
 
-data: {"streamingUrl":"https://mino.ai/stream/sess_xyz789"}
+data: {"purpose":"Navigating to search page..."}
 
-data: {"type":"STATUS","message":"Navigating to search page..."}
+data: {"purpose":"Page loaded..."}
 
-data: {"type":"STATUS","message":"Page loaded..."}
+data: {"purpose":"Searching for Attack on Titan..."}
 
-data: {"type":"STATUS","message":"Searching for Attack on Titan..."}
-
-data: {"type":"COMPLETE","resultJson":"{\"available\":false,\"message\":\"Attack on Titan was not found in Disney+ catalog. The search returned no matching anime series.\"}"}
+data: {"status":"COMPLETED","result_json":"{\"available\":false,\"message\":\"Attack on Titan was not found in Disney+ catalog. The search returned no matching anime series.\"}"}
 ```
 
 ---
@@ -440,19 +413,19 @@ data: {"type":"COMPLETE","resultJson":"{\"available\":false,\"message\":\"Attack
 
 | Variable | Description |
 |----------|-------------|
-| `GEMINI_API_KEY` | Google Gemini API key for platform URL discovery |
-| `TINYFISH_API_KEY` | Mino API key for browser automation |
+| `OPENAI_API_KEY` | OpenAI API key for platform URL discovery (gpt-4o-mini) |
+| `TINYFISH_API_KEY` | TinyFish API key for browser automation |
 
 ---
 
 ## Error Handling
 
-### Gemini API Errors
-- **429 Rate Limit**: Implements retry with exponential backoff and model fallback (gemini-2.5-flash → gemini-2.5-flash-lite → gemini-2.5-pro)
+### OpenAI API Errors
+- **429 Rate Limit**: Implements retry with exponential backoff and model fallback (gpt-4o-mini with exponential backoff)
 - **Invalid JSON**: Attempts to extract and repair truncated JSON responses
 
-### Mino API Errors
-- **503 Service Unavailable**: Check API endpoint URL (use `mino.ai` not `api.mino.ai`)
+### TinyFish API Errors
+- **503 Service Unavailable**: Check API endpoint URL
 - **Connection timeout**: Individual platform checks fail gracefully without affecting others
 - **SSE stream interruption**: Handled with error event in stream
 
@@ -467,7 +440,7 @@ interface StreamingPlatform {
   searchUrl: string;
 }
 
-interface MinoAgentState {
+interface TinyFishAgentState {
   platformId: string;
   platformName: string;
   url: string;

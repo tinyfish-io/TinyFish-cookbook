@@ -1,13 +1,13 @@
 'use client'
 
-import { MinoAgentState } from '@/lib/types'
+import { TinyFishAgentState } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PlatformCardProps {
-  agent: MinoAgentState
+  agent: TinyFishAgentState
 }
 
 export function PlatformCard({ agent }: PlatformCardProps) {
@@ -69,7 +69,7 @@ export function PlatformCard({ agent }: PlatformCardProps) {
               src={agent.streamingUrl}
               className="h-full w-full"
               title={`${agent.platformName} live view`}
-              sandbox="allow-same-origin"
+              sandbox="allow-scripts allow-same-origin"
             />
             <div className="absolute bottom-2 left-2">
               <Badge variant="secondary" className="text-xs">

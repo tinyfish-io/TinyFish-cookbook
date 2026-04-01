@@ -2,34 +2,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GraduationCap, Monitor, Maximize2, X, CheckCircle, AlertCircle, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Scholarship } from "@/types/scholarship";
+import { AgentStatus, SearchState } from "@/types/scholarship";
 import { ScholarshipCard } from "./ScholarshipCard";
-
-interface ScholarshipUrl {
-  name: string;
-  url: string;
-  description: string;
-}
-
-interface AgentStatus {
-  agentId: string;
-  siteName: string;
-  siteUrl?: string;
-  description?: string;
-  status: "pending" | "running" | "complete" | "error";
-  message?: string;
-  streamingUrl?: string;
-  scholarships?: Scholarship[];
-  error?: string;
-}
-
-interface SearchState {
-  step: number;
-  stepMessage: string;
-  urls: ScholarshipUrl[];
-  agents: Record<string, AgentStatus>;
-  completedScholarships: Scholarship[];
-}
 
 interface LoadingAnimationProps {
   searchState: SearchState;
@@ -176,7 +150,7 @@ export function LoadingAnimation({ searchState }: LoadingAnimationProps) {
 
       {/* Powered by */}
       <p className="text-center text-sm text-muted-foreground">
-        powered by <span className="font-semibold text-primary">mino.ai</span>
+        powered by <span className="font-semibold text-primary">tinyfish.ai</span>
       </p>
     </div>
   );

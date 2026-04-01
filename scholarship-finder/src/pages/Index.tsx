@@ -21,7 +21,7 @@ const Index = () => {
           </div>
         )}
 
-        {/* Loading state with parallel Mino agents */}
+        {/* Loading state with parallel TinyFish agents */}
         {isLoading && (
           <LoadingAnimation searchState={searchState} />
         )}
@@ -50,7 +50,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border py-8 mt-12">
         <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
-          <p>powered by <span className="font-semibold text-primary">mino.ai</span></p>
+          <p>powered by <span className="font-semibold text-primary">tinyfish.ai</span></p>
         </div>
       </footer>
     </div>

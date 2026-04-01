@@ -1,8 +1,21 @@
 'use client';
 
+/**
+ * WorkflowSelector
+ *
+ * Lets the user pick a predefined research workflow (Literature Review,
+ * Hypothesis Generator, Paper Critique) and step through it.
+ *
+ * Each step is dispatched immediately when the user clicks "Run Next Step".
+ * Steps whose `action` is "search" should be wired to the search API;
+ * "analyze" and "generate" steps should call the conversation/summarize API.
+ * For now this component marks each step complete on click so the UI flow
+ * is honest -- no fake delays or simulated results.
+ */
+
 import { useState } from 'react';
 import { WORKFLOWS, ResearchWorkflow, WorkflowStep } from '@/lib/workflows';
-import { Play, CheckCircle, Circle, ChevronRight, FileText, Loader2, ArrowRight } from 'lucide-react';
+import { Play, CheckCircle, ChevronRight, FileText, Loader2, ArrowRight } from 'lucide-react';
 
 export default function WorkflowSelector() {
     const [activeWorkflow, setActiveWorkflow] = useState<ResearchWorkflow | null>(null);
@@ -16,23 +29,38 @@ export default function WorkflowSelector() {
         setResults({});
     };
 
+    /**
+     * Execute the current workflow step.
+     *
+     * For a production app each action type would call the appropriate API:
+     *   - "search"   -> POST /api/search/text
+     *   - "analyze"  -> POST /api/summarize or /api/compare
+     *   - "generate" -> POST /api/conversation
+     *   - "review"   -> POST /api/conversation
+     *
+     * The step result would then be stored and displayed below.
+     */
     const executeStep = async () => {
         if (!activeWorkflow) return;
 
         setIsProcessing(true);
         const step = activeWorkflow.steps[currentStepIndex];
 
-        // Simulate AI processing for the step
-        setTimeout(() => {
+        try {
+            // TODO: Wire each action type to the real API endpoints above.
+            // For now we mark the step as needing implementation so the UI
+            // remains functional without pretending work happened.
             setResults(prev => ({
                 ...prev,
-                [step.id]: `AI generated result for step "${step.title}". In a real implementation, this would call GPT-4 with context.`
+                [step.id]: `[Step "${step.title}" complete] Connect this ${step.action} step to the appropriate API endpoint to see real results.`
             }));
-            setIsProcessing(false);
+
             if (currentStepIndex < activeWorkflow.steps.length - 1) {
                 setCurrentStepIndex(prev => prev + 1);
             }
-        }, 2000);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     if (activeWorkflow) {

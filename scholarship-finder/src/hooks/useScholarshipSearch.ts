@@ -1,32 +1,6 @@
 import { useState, useCallback } from "react";
-import { Scholarship, SearchParams, SearchResponse } from "@/types/scholarship";
+import { Scholarship, SearchParams, SearchResponse, SearchState } from "@/types/scholarship";
 import { useToast } from "@/hooks/use-toast";
-
-interface ScholarshipUrl {
-  name: string;
-  url: string;
-  description: string;
-}
-
-interface AgentStatus {
-  agentId: string;
-  siteName: string;
-  siteUrl?: string;
-  description?: string;
-  status: "pending" | "running" | "complete" | "error";
-  message?: string;
-  streamingUrl?: string;
-  scholarships?: Scholarship[];
-  error?: string;
-}
-
-interface SearchState {
-  step: number;
-  stepMessage: string;
-  urls: ScholarshipUrl[];
-  agents: Record<string, AgentStatus>;
-  completedScholarships: Scholarship[];
-}
 
 export function useScholarshipSearch() {
   const [isLoading, setIsLoading] = useState(false);

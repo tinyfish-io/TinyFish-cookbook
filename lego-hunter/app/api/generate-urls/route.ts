@@ -1,4 +1,4 @@
-import { generateRetailerUrls } from '@/lib/gemini-client'
+import { generateRetailerUrls } from '@/lib/openai-client'
 import type { GenerateUrlsRequest } from '@/types'
 
 export async function POST(request: Request) {

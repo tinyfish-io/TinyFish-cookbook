@@ -17,7 +17,7 @@ export function Header() {
         </p>
 
         <p className="text-sm text-primary-foreground/60">
-          powered by <span className="font-semibold">mino.ai</span>
+          powered by <span className="font-semibold">tinyfish.ai</span>
         </p>
       </div>
     </header>

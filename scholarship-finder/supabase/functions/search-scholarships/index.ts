@@ -1,3 +1,18 @@
+/**
+ * search-scholarships Edge Function
+ *
+ * Accepts a scholarship search request (type, university, region) and returns
+ * results as a Server-Sent Events (SSE) stream. The function:
+ *
+ * 1. Calls an LLM (via Lovable AI Gateway) to discover 5-8 official scholarship
+ *    website URLs matching the user's query.
+ * 2. Dispatches parallel TinyFish browser agents -- one per URL -- to visit each
+ *    site, navigate pages, and extract structured scholarship data.
+ * 3. Streams progress events (agent started, live browser preview URL, progress
+ *    updates, per-agent results) back to the client in real time.
+ * 4. Sends a final ALL_COMPLETE event with the combined scholarship list.
+ */
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -31,11 +46,11 @@ Deno.serve(async (req) => {
 
       try {
         const { scholarshipType, university, region }: SearchParams = await req.json();
-        const MINO_API_KEY = Deno.env.get("MINO_API_KEY");
+        const TINYFISH_API_KEY = Deno.env.get("TINYFISH_API_KEY");
         const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-        if (!MINO_API_KEY) {
-          throw new Error("MINO_API_KEY not configured");
+        if (!TINYFISH_API_KEY) {
+          throw new Error("TINYFISH_API_KEY not configured");
         }
         if (!LOVABLE_API_KEY) {
           throw new Error("LOVABLE_API_KEY not configured");
@@ -51,10 +66,10 @@ Deno.serve(async (req) => {
         ].filter(Boolean).join(" ");
 
         // STEP 1: Use Lovable AI to get scholarship URLs
-        sendEvent({ 
-          type: "STEP", 
-          step: 1, 
-          message: "Finding scholarship websites..." 
+        sendEvent({
+          type: "STEP",
+          step: 1,
+          message: "Finding scholarship websites..."
         });
 
         const aiPrompt = `Find 5-8 official scholarship provider websites for ${scholarshipType} scholarships ${locationContext}.
@@ -114,17 +129,17 @@ Make sure all URLs are real, official websites.`;
           throw new Error("Failed to parse scholarship URLs");
         }
 
-        sendEvent({ 
-          type: "URLS_FOUND", 
+        sendEvent({
+          type: "URLS_FOUND",
           urls: scholarshipUrls,
           message: `Found ${scholarshipUrls.length} scholarship sources to search`
         });
 
-        // STEP 2: Run Mino agents in parallel
-        sendEvent({ 
-          type: "STEP", 
-          step: 2, 
-          message: `Launching ${scholarshipUrls.length} browser agents...` 
+        // STEP 2: Run TinyFish agents in parallel
+        sendEvent({
+          type: "STEP",
+          step: 2,
+          message: `Launching ${scholarshipUrls.length} browser agents...`
         });
 
         const goal = `You are searching for ${scholarshipType} scholarships ${locationContext}.
@@ -160,10 +175,10 @@ Return a JSON object:
 
 Only include scholarships with deadlines AFTER ${currentDate}.`;
 
-        // Start all Mino agents in parallel
+        // Start all TinyFish agents in parallel
         const agentPromises = scholarshipUrls.map(async (site, index) => {
           const agentId = `agent-${index}`;
-          
+
           sendEvent({
             type: "AGENT_STARTED",
             agentId,
@@ -173,11 +188,11 @@ Only include scholarships with deadlines AFTER ${currentDate}.`;
           });
 
           try {
-            const minoResponse = await fetch("https://mino.ai/v1/automation/run-sse", {
+            const tinyfishResponse = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "X-API-Key": MINO_API_KEY,
+                "X-API-Key": TINYFISH_API_KEY,
               },
               body: JSON.stringify({
                 url: site.url,
@@ -185,12 +200,12 @@ Only include scholarships with deadlines AFTER ${currentDate}.`;
               }),
             });
 
-            if (!minoResponse.ok) {
-              throw new Error(`Mino error: ${minoResponse.status}`);
+            if (!tinyfishResponse.ok) {
+              throw new Error(`TinyFish error: ${tinyfishResponse.status}`);
             }
 
-            // Process SSE stream from Mino
-            const reader = minoResponse.body?.getReader();
+            // Process SSE stream from TinyFish
+            const reader = tinyfishResponse.body?.getReader();
             if (!reader) throw new Error("No response body");
 
             const decoder = new TextDecoder();
@@ -213,17 +228,17 @@ Only include scholarships with deadlines AFTER ${currentDate}.`;
                     const data = JSON.parse(jsonStr);
 
                     // Forward streaming URL
-                    if (data.type === "STREAMING_URL" && data.streamingUrl) {
+                    if (data.streaming_url || (data.type === "STREAMING_URL" && data.streamingUrl)) {
                       sendEvent({
                         type: "AGENT_STREAMING",
                         agentId,
                         siteName: site.name,
-                        streamingUrl: data.streamingUrl,
+                        streamingUrl: data.streaming_url || data.streamingUrl,
                       });
                     }
 
                     // Forward progress updates
-                    if (data.type === "PROGRESS" && data.purpose) {
+                    if (data.purpose) {
                       sendEvent({
                         type: "AGENT_PROGRESS",
                         agentId,
@@ -233,10 +248,11 @@ Only include scholarships with deadlines AFTER ${currentDate}.`;
                     }
 
                     // Handle completion
-                    if (data.type === "COMPLETE" && data.resultJson) {
-                      const result = typeof data.resultJson === "string" 
-                        ? JSON.parse(data.resultJson.replace(/```json\n?|\n?```/g, "").trim())
-                        : data.resultJson;
+                    if ((data.status === "COMPLETED" && data.result_json) || (data.type === "COMPLETE" && data.resultJson)) {
+                      const rawResult = data.result_json || data.resultJson;
+                      const result = typeof rawResult === "string"
+                        ? JSON.parse(rawResult.replace(/```json\n?|\n?```/g, "").trim())
+                        : rawResult;
 
                       sendEvent({
                         type: "AGENT_COMPLETE",

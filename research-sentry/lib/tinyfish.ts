@@ -1,7 +1,7 @@
 // TinyFish Web Agent Client
 // Endpoint: https://agent.tinyfish.ai/v1/automation/run-sse
 
-export async function runMinoAutomation(
+export async function runTinyFishAutomation(
     url: string,
     goal: string,
     stealth = false,
@@ -10,7 +10,7 @@ export async function runMinoAutomation(
     const apiKey = process.env.TINYFISH_API_KEY;
 
     if (!apiKey) {
-        console.error('[Mino] TINYFISH_API_KEY not set in environment');
+        console.error('[TinyFish] TINYFISH_API_KEY not set in environment');
         return null;
     }
 
@@ -69,16 +69,16 @@ export async function runMinoAutomation(
                 if (line.startsWith('data: ')) {
                     try {
                         const eventData = JSON.parse(line.slice(6));
-                        lastEvent = eventData.type || 'unknown';
+                        lastEvent = eventData.status || eventData.type || 'unknown';
 
                         console.log(`[TinyFish] Event: ${lastEvent}`);
 
-                        if (eventData.type === 'COMPLETE' || eventData.type === 'complete') {
-                            result = eventData.resultJson || eventData.result || eventData.data;
+                        if (eventData.status === 'COMPLETED' || eventData.type === 'COMPLETE' || eventData.type === 'complete') {
+                            result = eventData.result_json || eventData.resultJson || eventData.result || eventData.data;
                             console.log('[TinyFish] Automation complete!');
                         }
 
-                        if (eventData.type === 'ERROR' || eventData.type === 'error') {
+                        if (eventData.status === 'FAILED' || eventData.type === 'ERROR' || eventData.type === 'error') {
                             console.error('[TinyFish] Error event:', eventData.message || eventData);
                             return null;
                         }
@@ -94,7 +94,7 @@ export async function runMinoAutomation(
                 (Array.isArray(result) ? `Array with ${result.length} items` : 'Object') : typeof result);
             return result;
         } else {
-            console.log(`[TinyFish] Stream ended without COMPLETE event. Last event: ${lastEvent}`);
+            console.log(`[TinyFish] Stream ended without COMPLETED status. Last event: ${lastEvent}`);
             return null;
         }
 

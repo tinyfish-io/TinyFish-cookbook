@@ -21,7 +21,7 @@
     "@tanstack/react-query": "^5.51.1",
     "@upstash/redis": "^1.34.0",
     "autoprefixer": "^10.4.19",
-    "axios": "^1.7.2",
+    "axios": "1.13.4",
     "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",

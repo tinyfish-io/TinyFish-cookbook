@@ -88,7 +88,11 @@ type TinyFishEvent = {
   status?: string;
   type?: string;
   resultJson?: unknown;
-  streamingUrl?: string;
+  result_json?: unknown;
+  result?: unknown;
+  data?: unknown;
+  streaming_url?: string;
+  run_id?: string;
 };
 
 interface CacheRow {
@@ -102,6 +106,20 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const sseData = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`;
 
 const elapsedSeconds = (startedAt: number) => ((Date.now() - startedAt) / 1000).toFixed(1);
+
+function getTinyFishResult(event: TinyFishEvent): unknown {
+  const payload = event.resultJson ?? event.result_json ?? event.result ?? event.data;
+
+  if (typeof payload !== "string") {
+    return payload;
+  }
+
+  try {
+    return JSON.parse(payload);
+  } catch {
+    return payload;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Supabase cache helpers (all gracefully degrade on failure)
@@ -229,13 +247,21 @@ async function runTinyFishSseForSite(
           continue;
         }
 
-        if (event.streamingUrl) {
-          console.log("[TINYFISH] streamingUrl", event.streamingUrl);
-          enqueue({ type: "STREAMING_URL", siteUrl: url, streamingUrl: event.streamingUrl });
+        if (event.streaming_url) {
+          console.log("[TINYFISH] streaming_url", event.streaming_url);
+          enqueue({
+            type: "STREAMING_URL",
+            siteUrl: url,
+            streaming_url: event.streaming_url,
+            run_id: event.run_id,
+          });
         }
 
-        if (event.status === "COMPLETED") {
-          resultJson = event.resultJson;
+        const eventType = event.type?.toUpperCase();
+        const eventStatus = event.status?.toUpperCase();
+
+        if (eventType === "COMPLETE" || eventStatus === "COMPLETED") {
+          resultJson = getTinyFishResult(event);
         }
       }
     }
@@ -246,12 +272,22 @@ async function runTinyFishSseForSite(
         siteUrl: url,
         shop: resultJson,
       });
+      enqueue({
+        type: "STREAMING_DONE",
+        siteUrl: url,
+        success: true,
+      });
       console.log(`[TINYFISH] Complete: ${url} (${elapsedSeconds(startedAt)}s)`);
       return true;
     }
 
     throw new Error("TinyFish stream finished without COMPLETED resultJson");
   } catch (error) {
+    enqueue({
+      type: "STREAMING_DONE",
+      siteUrl: url,
+      success: false,
+    });
     console.error(`[TINYFISH] Failed: ${url}`, error);
     return false;
   } finally {
@@ -338,7 +374,7 @@ export async function POST(request: Request): Promise<Response> {
       let liveSucceeded = 0;
 
       if (uncachedSites.length > 0) {
-        const tasks = uncachedSites.map((url, index) =>
+        const tasks = uncachedSites.map((url) =>
           (async () => {
             // Per-site enqueue wrapper: adds source + fires cache upsert
             const siteEnqueue = (payload: unknown) => {

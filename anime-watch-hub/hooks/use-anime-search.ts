@@ -57,7 +57,7 @@ export function useAnimeSearch() {
               try {
                 const data = JSON.parse(line.slice(6))
 
-                if (data.streaming_url) {
+                if (data.type === 'STREAMING_URL' && data.streaming_url) {
                   updateAgent(platform.id, {
                     status: 'browsing',
                     streamingUrl: data.streaming_url,
@@ -65,32 +65,25 @@ export function useAnimeSearch() {
                   })
                 }
 
-                if (data.purpose) {
+                if (data.type === 'PROGRESS' && data.purpose) {
                   updateAgent(platform.id, { statusMessage: data.purpose })
                 }
 
-                if (data.status === 'COMPLETED') {
-                  let result = {
-                    available: false,
-                    message: 'Check completed',
+                if (data.type === 'COMPLETE') {
+                  if (data.status === 'failed') {
+                    updateAgent(platform.id, {
+                      status: 'error',
+                      statusMessage: data.error?.message ?? 'Automation failed',
+                      streamingUrl: undefined,
+                    })
+                  } else {
+                    updateAgent(platform.id, {
+                      status: 'complete',
+                      result: data.result,
+                      statusMessage: undefined,
+                      streamingUrl: undefined,
+                    })
                   }
-
-                  if (data.result_json) {
-                    try {
-                      result = typeof data.result_json === 'string'
-                        ? JSON.parse(data.result_json)
-                        : data.result_json
-                    } catch {
-                      // Use default result if parsing fails
-                    }
-                  }
-
-                  updateAgent(platform.id, {
-                    status: 'complete',
-                    result,
-                    statusMessage: undefined,
-                    streamingUrl: undefined,
-                  })
                 }
 
                 if (data.status === 'FAILED') {

@@ -113,7 +113,11 @@ export default function Home() {
     setTypeSets(prev => prev.map((set, i) => {
       if (i !== hi) return set;
       const next = new Set(set);
-      next.has(type) ? next.delete(type) : next.add(type);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
       return next;
     }));
   };
@@ -328,11 +332,12 @@ export default function Home() {
 
         {anyTriggered ? (
           <div className="flex flex-col gap-12">
-            {activeSlotHookIndices.map((hi, slotPos) => {
+            {activeSlotHookIndices.map((hi) => {
               if (!triggered[hi]) return null;
               const hook       = allHooks[hi];
               const filtered   = applySortAndFilter(filterShops(hook.state.shops, typeSets[hi]), sortOrder, modelFilter);
               const noMatches  = typeSets[hi].size > 0 && hook.state.shops.length > 0 && filtered.length === 0;
+              const hasLiveResults = filtered.length > 0;
               const cityLabel  = cities[hi] ? CITY_LABELS[cities[hi]!] : '';
               const typeLabel  = Array.from(typeSets[hi]).join(', ');
 
@@ -387,6 +392,26 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* Partial results stream in as shops finish */}
+                  {hasLiveResults && (
+                    <div className="space-y-3">
+                      {hook.state.isSearching && (
+                        <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                          Incoming results — finished shops appear here immediately while the rest keep searching.
+                        </div>
+                      )}
+                      <ResultsGrid shops={filtered} />
+                    </div>
+                  )}
+
+                  {/* Explain the "nothing yet" state while shops are still finishing */}
+                  {hook.state.isSearching && noMatches && (
+                    <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-100 rounded-xl bg-zinc-50/60">
+                      {hook.state.progress.completed} shop{hook.state.progress.completed === 1 ? '' : 's'} finished, but none match your selected bike type yet.
+                    </div>
+                  )}
+
                   {/* Live browser agent iframes */}
                   {hook.state.streamingUrls.length > 0 && (
                     <LivePreviewGrid previews={hook.state.streamingUrls} />
@@ -421,9 +446,6 @@ export default function Home() {
                       No bikes match your filter. Try selecting more types.
                     </div>
                   )}
-
-                  {/* Results */}
-                  {filtered.length > 0 && <ResultsGrid shops={filtered} />}
                 </div>
               );
             })}

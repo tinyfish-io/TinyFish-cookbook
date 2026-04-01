@@ -22,29 +22,20 @@ The app keeps the workflow intentionally modular: adapters handle site-specific 
 
 ## TinyFish API usage
 
-From `services/tinyfish_client.py`, TinyDetective starts an async TinyFish run, then polls the documented runs endpoint until structured JSON is ready:
+TinyDetective uses the official [`tinyfish`](https://pypi.org/project/tinyfish/) Python SDK. The app queues TinyFish runs with `AsyncTinyFish.agent.queue(...)`, then resumes or polls them with `AsyncTinyFish.runs.get(...)` until structured JSON is ready:
 
 ```python
-payload = {
-    "url": url,
-    "goal": goal,
-    "browser_profile": self.browser_profile,
-    "api_integration": "tinydetective",
-}
-response = await asyncio.to_thread(
-    self._request_json,
-    "POST",
-    f"{self.base_url}/v1/automation/run-async",
-    payload,
-)
-run_id = response.get("run_id")
+from tinyfish import AsyncTinyFish
 
-response = await asyncio.to_thread(
-    self._request_json,
-    "POST",
-    f"{self.base_url}/v1/runs/batch",
-    {"run_ids": [run_id]},
+client = AsyncTinyFish(api_key=settings.tinyfish_api_key)
+queued = await client.agent.queue(
+    goal=goal,
+    url=url,
+    browser_profile=self._browser_profile(),
+    proxy_config=self._proxy_config(),
 )
+
+run = await client.runs.get(queued.run_id)
 ```
 
 ## How to run

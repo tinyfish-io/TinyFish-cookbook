@@ -1,15 +1,25 @@
-﻿"""TinyFish API client."""
+"""TinyFish SDK client."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-from urllib import error, request
+
+from tinyfish import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncTinyFish,
+    BrowserProfile,
+    ProxyConfig,
+    ProxyCountryCode,
+)
 
 from services.settings import settings
 
@@ -35,12 +45,14 @@ TinyFishRunUpdateCallback = Callable[[TinyFishRun], Awaitable[None] | None]
 
 
 class TinyFishClient:
-    """Minimal TinyFish HTTP client using the documented async run flow."""
+    """TinyFish SDK wrapper that preserves the app's run/poll contract."""
 
     def __init__(self) -> None:
         self.base_url = settings.tinyfish_base_url.rstrip("/")
         self.api_key = settings.tinyfish_api_key
         self.browser_profile = settings.tinyfish_browser_profile
+        self._client: AsyncTinyFish | None = None
+        os.environ.setdefault("TF_API_INTEGRATION", "tinydetective")
 
     async def run_json(
         self,
@@ -65,29 +77,24 @@ class TinyFishClient:
         return await self.wait_for_run(run_id, on_update=on_update)
 
     async def start_run(self, url: str, goal: str) -> str:
-        if not self.api_key:
-            raise TinyFishError("TINYFISH_API_KEY is not configured.")
-        payload: dict[str, Any] = {
-            "url": url,
-            "goal": goal,
-            "browser_profile": self.browser_profile,
-            "api_integration": "tinydetective",
-        }
-        if settings.tinyfish_proxy_enabled:
-            payload["proxy_config"] = {
-                "enabled": True,
-                "country_code": settings.tinyfish_proxy_country_code,
-            }
-        response = await asyncio.to_thread(
-            self._request_json,
-            "POST",
-            f"{self.base_url}/v1/automation/run-async",
-            payload,
-        )
-        run_id = response.get("run_id")
+        try:
+            response = await self._sdk_client().agent.queue(
+                goal=goal,
+                url=url,
+                browser_profile=self._browser_profile(),
+                proxy_config=self._proxy_config(),
+            )
+        except APITimeoutError as exc:
+            raise TinyFishError("Timed out while waiting for TinyFish to respond.") from exc
+        except APIConnectionError as exc:
+            raise TinyFishError(f"Failed to reach TinyFish: {exc.message}") from exc
+        except APIStatusError as exc:
+            raise TinyFishError(f"TinyFish HTTP {exc.status_code}: {exc.message}") from exc
+
+        run_id = response.run_id
         if not run_id:
             raise TinyFishError(f"TinyFish did not return a run_id: {response}")
-        return str(run_id)
+        return run_id
 
     async def wait_for_run(
         self,
@@ -157,58 +164,57 @@ class TinyFishClient:
         return max(0.0, (now - timestamp).total_seconds())
 
     async def get_run(self, run_id: str) -> TinyFishRun:
-        response = await asyncio.to_thread(
-            self._request_json,
-            "POST",
-            f"{self.base_url}/v1/runs/batch",
-            {"run_ids": [run_id]},
-        )
-        runs = response.get("data") or []
-        if not runs:
-            raise TinyFishError(f"TinyFish run {run_id} was not found in batch lookup: {response}")
-        run_data = runs[0]
+        try:
+            response = await self._sdk_client().runs.get(run_id)
+        except APITimeoutError as exc:
+            raise TinyFishError("Timed out while waiting for TinyFish to respond.") from exc
+        except APIConnectionError as exc:
+            raise TinyFishError(f"Failed to reach TinyFish: {exc.message}") from exc
+        except APIStatusError as exc:
+            raise TinyFishError(f"TinyFish HTTP {exc.status_code}: {exc.message}") from exc
+
         return TinyFishRun(
-            run_id=str(run_data.get("run_id") or run_id),
-            status=str(run_data.get("status") or "UNKNOWN"),
-            result=self._extract_result_payload(run_data),
-            error=run_data.get("error"),
-            raw=run_data,
+            run_id=response.run_id or run_id,
+            status=response.status.value if hasattr(response.status, "value") else str(response.status),
+            result=response.result,
+            error=response.error.model_dump(mode="json") if response.error is not None else None,
+            raw=response.model_dump(mode="json"),
         )
 
-    def _request_json(self, method: str, url: str, payload: dict[str, Any] | None) -> dict[str, Any]:
-        body = None if payload is None else json.dumps(payload).encode("utf-8")
-        req = request.Request(
-            url=url,
-            data=body,
-            method=method,
-            headers={
-                "Content-Type": "application/json",
-                "X-API-Key": self.api_key,
-            },
-        )
+    def _sdk_client(self) -> AsyncTinyFish:
+        if not self.api_key:
+            raise TinyFishError("TINYFISH_API_KEY is not configured.")
+        if self._client is None:
+            self._client = AsyncTinyFish(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=settings.tinyfish_http_timeout_seconds,
+            )
+        return self._client
+
+    def _browser_profile(self) -> BrowserProfile | None:
+        value = self.browser_profile.strip().lower()
+        if not value:
+            return None
         try:
-            with request.urlopen(req, timeout=settings.tinyfish_http_timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise TinyFishError(f"TinyFish HTTP {exc.code}: {detail}") from exc
-        except error.URLError as exc:
-            raise TinyFishError(f"Failed to reach TinyFish: {exc.reason}") from exc
-        except TimeoutError as exc:
-            raise TinyFishError("Timed out while waiting for TinyFish to respond.") from exc
+            return BrowserProfile(value)
+        except ValueError as exc:
+            supported = ", ".join(profile.value for profile in BrowserProfile)
+            raise TinyFishError(
+                f"Unsupported TINYFISH_BROWSER_PROFILE '{self.browser_profile}'. Expected one of: {supported}."
+            ) from exc
 
     @staticmethod
-    def _extract_result_payload(response: dict[str, Any]) -> Any:
-        for key in ("resultJson", "result", "data"):
-            if key in response and response[key] is not None:
-                value = response[key]
-                if isinstance(value, str):
-                    try:
-                        return json.loads(value)
-                    except json.JSONDecodeError:
-                        return value
-                return value
-        return None
+    def _proxy_config() -> ProxyConfig | None:
+        if not settings.tinyfish_proxy_enabled:
+            return None
+        country_code = settings.tinyfish_proxy_country_code.strip().upper()
+        if not country_code:
+            return ProxyConfig(enabled=True)
+        try:
+            return ProxyConfig(enabled=True, country_code=ProxyCountryCode(country_code))
+        except ValueError:
+            return ProxyConfig(enabled=True)
 
     @staticmethod
     def _fingerprint(run: TinyFishRun) -> str:
@@ -222,4 +228,3 @@ class TinyFishClient:
             sort_keys=True,
             default=str,
         )
-

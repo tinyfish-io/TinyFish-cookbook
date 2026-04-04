@@ -53,6 +53,24 @@ export async function getTemplates(): Promise<MemeTemplate[]> {
  * Supports any number of text boxes (2, 3, 4, 5+).
  * Returns { imageUrl, pageUrl } on success.
  */
+/**
+ * Validate that a template ID exists in the Imgflip database.
+ * Returns the valid ID, or a fallback (Drake) if invalid.
+ */
+async function validateTemplateId(templateId: string): Promise<{ id: string; box_count: number }> {
+  const templates = await getTemplates();
+  const match = templates.find((t) => t.id === templateId);
+  if (match) return { id: match.id, box_count: match.box_count };
+
+  // Groq hallucinated an ID — fall back to Drake (always valid, 2 boxes)
+  console.warn(`[FishPosts] Invalid template_id "${templateId}" — falling back to Drake`);
+  const drake = templates.find((t) => t.name.toLowerCase().includes("drake"));
+  if (drake) return { id: drake.id, box_count: drake.box_count };
+
+  // Last resort: first available template
+  return { id: templates[0].id, box_count: templates[0].box_count };
+}
+
 export async function generateMeme(
   templateId: string,
   texts: string[],
@@ -64,14 +82,23 @@ export async function generateMeme(
     throw new Error("IMGFLIP_USERNAME and IMGFLIP_PASSWORD are required");
   }
 
+  // Validate template ID — Groq sometimes hallucinates non-existent IDs
+  const validated = await validateTemplateId(templateId);
+
+  // Trim or pad texts to match the template's box count
+  const finalTexts = texts.slice(0, validated.box_count);
+  while (finalTexts.length < validated.box_count) {
+    finalTexts.push(""); // pad with empty if Groq sent too few
+  }
+
   const params = new URLSearchParams({
-    template_id: templateId,
+    template_id: validated.id,
     username,
     password,
   });
 
   // Use boxes[] parameter for proper multi-box support
-  texts.forEach((text, i) => {
+  finalTexts.forEach((text, i) => {
     params.append(`boxes[${i}][text]`, text);
   });
 

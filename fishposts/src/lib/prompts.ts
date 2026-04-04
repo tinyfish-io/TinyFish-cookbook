@@ -143,9 +143,12 @@ before proceeding. Never assume success without confirmation.
 
 1. Go to: https://imgflip.com/memetemplates?sort=top-30-days&page=${randomPage}
 2. Look at ALL the meme templates visible on this page.
-3. Pick the ONE template that best fits a funny observation about the company.
-4. Click "Add Caption" on your chosen template.
-5. Wait for the meme editor to fully load.
+3. IMPORTANT: Only pick templates that have exactly 2 text boxes (Top Text / Bottom Text).
+   Good: Drake, Distracted Boyfriend, Two Buttons, Change My Mind, Surprised Pikachu, Expanding Brain (2-panel), Buff Doge vs Cheems.
+   AVOID: Boardroom Meeting (4 boxes), American Chopper (5 boxes), or any template with 3+ panels.
+4. Pick the ONE 2-box template that best fits a funny observation about the company.
+5. Click "Add Caption" on your chosen template.
+6. Wait for the meme editor to fully load.
 
 ---
 
@@ -181,10 +184,13 @@ before proceeding. Never assume success without confirmation.
 
 1. Go to: https://imgflip.com/memetemplates?sort=top-30-days&page=${randomPage}
 2. Look at ALL the meme templates visible on this page.
-3. Pick the ONE template that best fits a funny observation about the
+3. IMPORTANT: Only pick templates that have exactly 2 text boxes (Top Text / Bottom Text).
+   Good: Drake, Distracted Boyfriend, Two Buttons, Change My Mind, Surprised Pikachu.
+   AVOID: Boardroom Meeting (4 boxes), American Chopper (5 boxes), or any template with 3+ panels.
+4. Pick the ONE 2-box template that best fits a funny observation about the
    trending story you read.
-4. Click "Add Caption" on your chosen template.
-5. Wait for the meme editor to fully load.
+5. Click "Add Caption" on your chosen template.
+6. Wait for the meme editor to fully load.
 
 ---
 
@@ -453,10 +459,13 @@ the tone of "${randomTone}". The result should be unexpected and funny.
 
 1. Look at ALL the meme templates visible on this page.
 2. Think about which template best fits a "${randomTone}" take on the user's text.
-3. Pick the ONE template with the best comedic potential for this creative combo.
-4. Click "Add Caption" on your chosen template.
-5. Wait for the meme editor to fully load.
-6. Remember: the tone is "${randomTone}" — your text should sound like that.
+3. IMPORTANT: Only pick templates that have exactly 2 text boxes (Top Text / Bottom Text).
+   Good: Drake, Distracted Boyfriend, Two Buttons, Change My Mind, Surprised Pikachu.
+   AVOID: Boardroom Meeting (4 boxes), American Chopper (5 boxes), or any template with 3+ panels.
+4. Pick the ONE 2-box template with the best comedic potential for this creative combo.
+5. Click "Add Caption" on your chosen template.
+6. Wait for the meme editor to fully load.
+7. Remember: the tone is "${randomTone}" — your text should sound like that.
 
 ---
 
@@ -563,11 +572,14 @@ unexpected, and funny. Under 10 words for each panel.
 ## TASK 1 — BROWSE AND PICK A MEME TEMPLATE
 
 1. Look at ALL the meme templates visible on this page.
-2. Pick the ONE template that best fits a "setup → plot twist" format.
+2. IMPORTANT: Only pick templates that have exactly 2 text boxes (Top Text / Bottom Text).
+   Good: Drake, Distracted Boyfriend, Two Buttons, Change My Mind, Surprised Pikachu.
+   AVOID: Boardroom Meeting (4 boxes), American Chopper (5 boxes), or any template with 3+ panels.
+3. Pick the ONE 2-box template that best fits a "setup → plot twist" format.
    Good choices: templates with two panels, reaction reveals, or
    unexpected turn formats.
-3. Click "Add Caption" on your chosen template.
-4. Wait for the meme editor to fully load.
+4. Click "Add Caption" on your chosen template.
+5. Wait for the meme editor to fully load.
 
 ---
 

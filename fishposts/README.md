@@ -65,22 +65,24 @@ The generate API route (`src/app/api/generate/route.ts`) calls `runAutomation` w
 +---------------------------------------------------+
 |  Next.js API Route                                |
 |  - Rate limiter (5 req/min/IP)                    |
-|  - Mode-specific prompt builder                   |
 |  - SSE streaming to client                        |
-+--------------+-----------------+------------------+
-               |                 |
-               v                 v
-+--------------------+  +--------------------+
-|  TinyFish Agent    |  |  Groq LLM          |
-|  (Web Browsing)    |  |  (Text Modes)      |
-|  - Visit URLs      |  |  - Takes agent     |
-|  - Read content    |  |    observations    |
-|  - Navigate        |  |  - Generates       |
-|    Imgflip         |  |    styled text     |
-|  - Fill forms      |  |                    |
-|  - Generate meme   |  |                    |
-+--------------------+  +--------------------+
++---------+-------------+-------------+-------------+
+          |             |             |
+          v             v             v
++------------------+ +------------+ +---------------+
+| TinyFish Fetch   | | Groq LLM   | | Imgflip API   |
+| (Page Reading)   | | (Creative) | | (Meme Gen)    |
+| - Renders URL    | | - Picks    | | - Template +  |
+| - Returns clean  | |   template | |   text -> JPG |
+|   markdown       | | - Writes   | | - Instant     |
+| - Fallback to    | |   meme text| |   (<1 sec)    |
+|   TinyFish agent | | - No filter| | - 2-5 box     |
++------------------+ +------------+ +---------------+
 ```
+
+**Pipeline:** Fetch API reads page (~4s) -> Groq picks template + writes text -> Imgflip API generates image (<1s). Total: ~5-10 seconds.
+
+Previously blocked topics (OpenAI, political figures) now work because the LLM guard only applied to TinyFish agent prompts, and creative writing moved entirely to Groq.
 
 ## Setup
 
@@ -89,6 +91,7 @@ The generate API route (`src/app/api/generate/route.ts`) calls `runAutomation` w
 - Node.js >= 20.9.0
 - TinyFish API key ([tinyfish.ai](https://tinyfish.ai))
 - Groq API key ([console.groq.com](https://console.groq.com)) — for text modes
+- Imgflip account ([imgflip.com/signup](https://imgflip.com/signup)) — free, for meme generation
 
 ### Environment Variables
 
@@ -97,6 +100,8 @@ Create `.env.local`:
 ```env
 TINYFISH_API_KEY=your-tinyfish-api-key
 GROQ_API_KEY=your-groq-api-key
+IMGFLIP_USERNAME=your-imgflip-username
+IMGFLIP_PASSWORD=your-imgflip-password
 ```
 
 ### Run Locally

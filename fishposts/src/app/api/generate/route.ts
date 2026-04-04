@@ -127,9 +127,24 @@ function getMemeContext(mode: ContentMode, observations: string, input?: string)
     case "trend_roast":
       return `Make a meme about one of these trending stories:\n\n${observations}\n\nPick the most memeable one. Be savage and specific.`;
     case "chaos_mode":
-      return `Make a meme about this topic:\n\nUser said: "${input}"\n\nIMPORTANT: Do NOT just restate what the user typed. Use your KNOWLEDGE of this topic to find a specific, funny angle. Reference real events, real people, real details, real contradictions, real ironies. The meme should be so specific that only people who know the topic would fully get it.\n\nIf the topic is a person — reference something they actually did or said.\nIf the topic is a company — reference a real product, decision, or controversy.\nIf the topic is abstract — find a concrete, relatable example.`;
+      return `Make a meme about this topic:\n\nUser said: "${input}"\n\nIMPORTANT: Do NOT just restate what the user typed. That's lazy and boring. Use your KNOWLEDGE to find a hyper-specific, funny angle.
+
+GOOD MEME EXAMPLES (specific, insider-knowledge level):
+- Topic "Trump" + Drake template → top: "Reading the briefing" / bottom: "Tweeting at 3am about covfefe"
+- Topic "OpenAI" + Distracted Boyfriend → top: "Shipping safe AGI" / bottom: "Another GPT wrapper with a $20B valuation"
+- Topic "JavaScript" + Expanding Brain → "var" / "let & const" / "TypeScript" / "Rewriting it in Rust"
+- Topic "Elon Musk" + Two Buttons → "Fix Twitter DMs" / "Rename it to X" / sweating
+
+BAD MEMES (generic, just restates the topic):
+- Topic "Trump" → "Like Trump / Don't like Trump" (BORING - says nothing specific)
+- Topic "OpenAI" → "AI good / AI bad" (GENERIC - could be about anything)
+
+Your meme MUST reference a specific real thing: a real quote, a real event, a real product name, a real controversy, a real behavior pattern. Make it so specific that someone who follows the topic would laugh and screenshot it.`;
     case "plot_twist":
-      return `Make a meme where this statement is the SETUP, and you add a devastating PLOT TWIST as the punchline:\n\n"${input}"\n\nThe twist must be SPECIFIC and UNEXPECTED — not just a generic reversal. Use your knowledge to make it land.`;
+      return `Make a meme where this statement is the SETUP, and you add a devastating PLOT TWIST as the punchline:\n\n"${input}"\n\nThe twist must be SPECIFIC and UNEXPECTED — not just a generic reversal.
+
+GOOD twists: "I'm learning to code" → bottom: "LinkedIn says I'm a 10x engineer now"
+BAD twists: "I'm learning to code" → bottom: "Plot twist: it's hard" (BORING, obvious)`;
     default:
       return `Make a meme based on: ${observations}`;
   }

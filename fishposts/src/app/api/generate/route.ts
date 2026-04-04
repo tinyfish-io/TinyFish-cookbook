@@ -42,7 +42,8 @@ ${modeContext}
   * 5 boxes: Escalating argument or progression, final box = mic drop
 - UNDER 10 WORDS per box. Short punchy text.
 - Think about what the template IMAGE shows — match your text to each panel's visual.
-- Be SPECIFIC — reference actual details, not generic observations.
+- Be SPECIFIC — this is the #1 rule. Reference real names, real products, real events, real quotes, real numbers. Generic memes are BORING. A meme about Trump should reference something he actually did/said. A meme about OpenAI should reference GPT, Sam Altman, or a real controversy.
+- NEVER just restate the user's input. Add your own knowledge and find a clever angle.
 - Be FUNNY, satirical, edgy, honest. No filter. Make people screenshot it.
 - Go for VARIETY — don't always pick Drake or the same template. Mix it up.
 
@@ -122,13 +123,13 @@ Output ONLY valid JSON: {"title": "${situation.slice(0, 40).toUpperCase()}", "li
 function getMemeContext(mode: ContentMode, observations: string, input?: string): string {
   switch (mode) {
     case "site_roast":
-      return `Make a meme roasting this website based on these observations:\n\n${observations}\n\nBe savage. Reference specific details from the site.`;
+      return `Make a meme roasting this website based on these observations:\n\n${observations}\n\nBe savage. Reference specific details from the site — actual product names, taglines, pricing, UI quirks.`;
     case "trend_roast":
-      return `Make a meme about one of these trending stories:\n\n${observations}\n\nPick the most memeable one. Be savage.`;
+      return `Make a meme about one of these trending stories:\n\n${observations}\n\nPick the most memeable one. Be savage and specific.`;
     case "chaos_mode":
-      return `Make a meme about this user input with a completely unexpected tone:\n\nUser said: "${input}"\n\nContext from research:\n${observations}\n\nBe random, absurd, and funny.`;
+      return `Make a meme about this topic:\n\nUser said: "${input}"\n\nIMPORTANT: Do NOT just restate what the user typed. Use your KNOWLEDGE of this topic to find a specific, funny angle. Reference real events, real people, real details, real contradictions, real ironies. The meme should be so specific that only people who know the topic would fully get it.\n\nIf the topic is a person — reference something they actually did or said.\nIf the topic is a company — reference a real product, decision, or controversy.\nIf the topic is abstract — find a concrete, relatable example.`;
     case "plot_twist":
-      return `Make a meme where this statement is the SETUP, and you add a devastating PLOT TWIST as the punchline:\n\n"${input}"\n\nContext:\n${observations}`;
+      return `Make a meme where this statement is the SETUP, and you add a devastating PLOT TWIST as the punchline:\n\n"${input}"\n\nThe twist must be SPECIFIC and UNEXPECTED — not just a generic reversal. Use your knowledge to make it land.`;
     default:
       return `Make a meme based on: ${observations}`;
   }

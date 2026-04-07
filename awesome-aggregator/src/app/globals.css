@@ -1,0 +1,9 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #0c0c0c; color: #fff; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0c0c0c; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }

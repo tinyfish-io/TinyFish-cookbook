@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runMinoAutomation } from '@/lib/mino';
+import { runTinyFishAutomation } from '@/lib/tinyfish';
 import { extractEmailsFromText } from '@/lib/email-utils';
 import { fetchPdfText } from '@/lib/pdf-utils';
 
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
                     });
                     return NextResponse.json({ authors: authors.sort((a, b) => a.email.localeCompare(b.email)) });
                 }
-                // If we successfully parsed the PDF but found no emails, stop here (avoid slow Mino + timeouts).
+                // If we successfully parsed the PDF but found no emails, stop here (avoid slow TinyFish + timeouts).
                 return NextResponse.json({ authors: [], error: 'No emails found in the PDF text.' });
             } catch (e) {
                 console.warn('[EmailExtract] PDF parse attempt failed for', url, e);
@@ -241,19 +241,19 @@ Return ONLY valid JSON with this exact schema:
 { "authors": [{ "firstName": string, "lastName": string, "email": string }] }
 No markdown, no commentary. If you cannot find first or last name, use empty strings.`;
 
-        // Mino fallback (best-effort): allow up to remaining budget.
-        const elapsedBeforeMino = Date.now() - startedAt;
-        const remainingForMino = totalBudgetMs - elapsedBeforeMino;
-        if (remainingForMino <= 0) {
+        // TinyFish fallback (best-effort): allow up to remaining budget.
+        const elapsedBeforeTinyFish = Date.now() - startedAt;
+        const remainingForTinyFish = totalBudgetMs - elapsedBeforeTinyFish;
+        if (remainingForTinyFish <= 0) {
             return NextResponse.json({
                 authors: [],
                 error: 'Author extraction timed out after 5 minutes.',
             });
         }
 
-        const minoTarget = candidates.find((u) => u.toLowerCase().includes('pdf')) || candidates[0];
+        const tinyFishTarget = candidates.find((u) => u.toLowerCase().includes('pdf')) || candidates[0];
         // IMPORTANT: pass timeoutMs to ensure the underlying request is aborted (no background leak).
-        const raw = await runMinoAutomation(minoTarget, goal, false, { timeoutMs: remainingForMino });
+        const raw = await runTinyFishAutomation(tinyFishTarget, goal, false, { timeoutMs: remainingForTinyFish });
 
         if (!raw) {
             return NextResponse.json({ authors: [], error: 'Author extraction timed out after 5 minutes.' });

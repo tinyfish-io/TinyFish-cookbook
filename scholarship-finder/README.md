@@ -1,88 +1,125 @@
-# Project Title - Scholarship Match Engine 
+# Scholarship Finder
 
 **Live Link:** https://tinyfishscholarshipfinder.lovable.app/
 
-## What This Project Is -
-This project is an AI-powered scholarship discovery and comparison system that automatically finds, scans, and extracts scholarship information directly from official scholarship websites worldwide.
+**Demo Video:** https://drive.google.com/file/d/1GXZhJOjiVUP5XcGvTAvRGcYhTWoKXlsE/view?usp=sharing
 
-Instead of relying on outdated databases, PDFs, or manual searches, the system pulls live, up-to-date data from source websites and returns it in a clean, structured, and comparable format. Users can search scholarships based on financial need, country/region, academic level, or target university.
+## What This Project Is
 
-## How it works 
-The system first uses an AI layer to identify and curate relevant scholarship websites based on user input such as:
+An AI-powered scholarship discovery engine that automatically finds, scrapes, and structures scholarship information from official websites worldwide. Instead of relying on outdated databases, the system pulls live data directly from source websites and returns it in a clean, comparable format.
 
-Country or region
+Users search by scholarship type, university, or region. The system uses an LLM to identify relevant scholarship websites, then dispatches parallel TinyFish browser agents to scrape each site and extract structured scholarship data in real time.
 
-University or institution
+## How It Works
 
-Financial need / merit-based criteria
+1. **User searches** -- Enters scholarship type (e.g., "need-based"), optionally a university and region.
+2. **LLM finds URLs** -- An LLM (via Lovable AI Gateway) identifies 5-8 official scholarship websites matching the query.
+3. **TinyFish agents scrape in parallel** -- Each URL is sent to the TinyFish web automation API. Browser agents visit each site, navigate pages, and extract structured scholarship data. All agents run concurrently.
+4. **Results streamed back** -- The Supabase Edge Function streams SSE events to the frontend: agent status updates, live browser previews, and extracted scholarships as they arrive. The UI renders results progressively.
 
-Academic level (undergraduate, postgraduate, PhD)
+## TinyFish API Usage
 
-Field of study
+The core integration lives in the Supabase Edge Function. Here is the key pattern from `supabase/functions/search-scholarships/index.ts`:
 
-This ensures that only official and relevant sources are used.
-
-
-## What to Expect
-Live, up-to-date data pulled directly from official websites
-
-Parallel web scanning for fast results
-
-Real-time status updates during execution
-
-Structured, comparable output (JSON)
-
-**Demo Video** - https://drive.google.com/file/d/1GXZhJOjiVUP5XcGvTAvRGcYhTWoKXlsE/view?usp=sharing
-
-## Code snippet -
-```bash
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
+```typescript
+// Launch a TinyFish browser agent against a scholarship website
+const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "X-API-Key": "sk-mino-YOUR_API_KEY",
+    "X-API-Key": TINYFISH_API_KEY,
   },
   body: JSON.stringify({
-    url: "https://www.gebiz.gov.sg",
-    goal: "Extract the latest open government tenders. Return JSON with tenderTitle, agency, tenderID, procurementCategory, submissionDeadline, eligibilityCriteria, estimatedValue, tenderStatus, and tenderLink.",
-    browser_profile: "lite",
+    url: site.url,  // e.g. "https://sfs.mit.edu/undergraduate-students/"
+    goal: goal,     // Prompt describing what scholarship data to extract
   }),
 });
 
-const reader = response.body!.getReader();
+// Process the SSE stream from TinyFish
+const reader = response.body.getReader();
 const decoder = new TextDecoder();
+let buffer = "";
 
 while (true) {
   const { done, value } = await reader.read();
   if (done) break;
 
-  const chunk = decoder.decode(value);
-  for (const line of chunk.split("\n")) {
-    if (line.startsWith("data: ")) {
-      const data = JSON.parse(line.slice(6));
+  buffer += decoder.decode(value, { stream: true });
+  const lines = buffer.split("\n");
+  buffer = lines.pop() || "";
 
-      // Live browser view
-      if (data.streamingUrl) {
+  for (const line of lines) {
+    if (line.startsWith("data: ")) {
+      const data = JSON.parse(line.slice(6).trim());
+
+      // Live browser view URL (embed in an iframe)
+      if (data.type === "STREAMING_URL" && data.streamingUrl) {
         console.log("Live view:", data.streamingUrl);
       }
 
-      // Final structured output
+      // Progress updates while the agent navigates
+      if (data.type === "PROGRESS" && data.purpose) {
+        console.log("Agent status:", data.purpose);
+      }
+
+      // Final structured scholarship data
       if (data.type === "COMPLETE" && data.resultJson) {
-        console.log("Extracted tenders:", data.resultJson);
+        console.log("Extracted scholarships:", data.resultJson);
       }
     }
   }
 }
 ```
+
 ## Tech Stack
 
-Next.js (TypeScript)
+- **Frontend:** React + TypeScript + Vite + Tailwind CSS + shadcn/ui
+- **Backend:** Supabase Edge Functions (Deno)
+- **AI:** Lovable AI Gateway (Gemini) for URL discovery
+- **Web Automation:** TinyFish API for parallel browser scraping
+- **Hosting:** Lovable
 
-Mino API
+## Setup
 
-AI
+### 1. Install dependencies
 
-## Architecture Diagram - 
+```bash
+npm install
+```
+
+### 2. Set up environment variables
+
+Copy the example env file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+You need:
+- `VITE_SUPABASE_URL` -- Your Supabase project URL
+- `VITE_SUPABASE_PUBLISHABLE_KEY` -- Your Supabase anon/public key
+
+### 3. Set Supabase Edge Function secrets
+
+```bash
+supabase secrets set TINYFISH_API_KEY=your_tinyfish_api_key
+supabase secrets set LOVABLE_API_KEY=your_lovable_api_key
+```
+
+### 4. Deploy the Edge Function
+
+```bash
+supabase functions deploy search-scholarships
+```
+
+### 5. Run locally
+
+```bash
+npm run dev
+```
+
+## Architecture Diagram
+
 ```mermaid
 flowchart TB
 
@@ -94,29 +131,23 @@ UI["USER INTERFACE<br/>(React + Tailwind + Dashboard)"]
 %% =======================
 %% INPUT & ORCHESTRATION
 %% =======================
-ORCH["Search Orchestration Layer<br/>(Next.js API / Server Actions)"]
+ORCH["Search Orchestration Layer<br/>(Supabase Edge Function)"]
 
 %% =======================
 %% INTELLIGENCE LAYER
 %% =======================
-LLM["LLM Intelligence Layer<br/>(ChatGPT API / Gemini API)"]
+LLM["LLM Intelligence Layer<br/>(Gemini via Lovable AI Gateway)"]
 
 %% =======================
 %% AUTOMATION LAYER
 %% =======================
-MINO["MINO Web Automation<br/>(Scholarship Discovery & Extraction)"]
-
-%% =======================
-%% DATA LAYER
-%% =======================
-DB["DATA STORE<br/>(Supabase / Postgres)"]
+TF["TinyFish Web Automation<br/>(Scholarship Discovery & Extraction)"]
 
 %% =======================
 %% DETAIL NODES
 %% =======================
-LLMD["• Interpret user intent<br/>• Region / University filtering<br/>• Generate authoritative scholarship links"]
-MINOD["• Visit scholarship websites<br/>• Extract visible scholarship details<br/>• SSE streaming of results"]
-DBD["• Cached scholarships<br/>• Deduplicated entries<br/>• Saved comparisons"]
+LLMD["- Interpret user intent<br/>- Region / University filtering<br/>- Generate authoritative scholarship links"]
+TFD["- Visit scholarship websites<br/>- Extract visible scholarship details<br/>- SSE streaming of results"]
 
 %% =======================
 %% CONNECTIONS
@@ -126,14 +157,10 @@ UI --> ORCH
 ORCH --> LLM
 LLM --> LLMD
 
-ORCH --> MINO
-MINO --> MINOD
+ORCH --> TF
+TF --> TFD
 
-ORCH --> DB
-DB --> DBD
-
-MINO --> ORCH
-DB --> ORCH
+TF --> ORCH
 
 ORCH --> UI
 ```

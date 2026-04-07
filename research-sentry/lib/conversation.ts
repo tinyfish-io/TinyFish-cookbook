@@ -1,7 +1,9 @@
 import OpenAI from 'openai';
 import { Message, ResearchPaper } from './types';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+function getOpenAI() {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+}
 
 export async function generateConversationResponse(
   history: Message[], 
@@ -30,7 +32,7 @@ export async function generateConversationResponse(
 
   let response;
   try {
-    response = await openai.chat.completions.create({
+    response = await getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages: messages as any,
       temperature: 0.7,

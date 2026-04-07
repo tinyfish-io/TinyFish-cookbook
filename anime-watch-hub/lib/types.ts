@@ -17,7 +17,7 @@ export interface PlatformSearchResult {
   region?: string
 }
 
-export interface MinoAgentState {
+export interface TinyFishAgentState {
   platformId: string
   platformName: string
   url: string

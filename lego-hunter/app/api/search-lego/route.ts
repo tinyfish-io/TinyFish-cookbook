@@ -1,4 +1,4 @@
-import { analyzeBestDeal } from '@/lib/gemini-client'
+import { analyzeBestDeal } from '@/lib/openai-client'
 import type { Retailer, ProductData, SSEEvent, TinyFishSSEEvent } from '@/types'
 
 interface SearchLegoRequest {
@@ -74,7 +74,7 @@ async function processRetailers(
     // Wait for all scraping to complete
     await Promise.allSettled(scrapePromises)
 
-    // Analyze results with Gemini if we have any
+    // Analyze results with OpenAI if we have any
     if (results.length > 0) {
       try {
         const bestDeal = await analyzeBestDeal(legoSetName, maxBudget, results)
@@ -196,8 +196,8 @@ Important: Return ONLY the JSON object, no additional text.`,
           const sseEvent: TinyFishSSEEvent = JSON.parse(line.slice(6))
 
           // Capture streaming URL for browser preview
-          if (sseEvent.streamingUrl && !streamingUrl) {
-            streamingUrl = sseEvent.streamingUrl
+          if (sseEvent.streaming_url && !streamingUrl) {
+            streamingUrl = sseEvent.streaming_url
             await sendEvent({
               type: 'retailer_start',
               retailer: retailer.name,
@@ -206,17 +206,17 @@ Important: Return ONLY the JSON object, no additional text.`,
           }
 
           // Forward step events for progress updates
-          if (sseEvent.type === 'STEP') {
+          if (sseEvent.purpose) {
             await sendEvent({
               type: 'retailer_step',
               retailer: retailer.name,
-              step: sseEvent.step || sseEvent.message || 'Processing...'
+              step: sseEvent.purpose
             })
           }
 
           // Handle completion
-          if (sseEvent.type === 'COMPLETE' && sseEvent.status === 'COMPLETED') {
-            let resultData = sseEvent.resultJson
+          if (sseEvent.status === 'COMPLETED') {
+            let resultData = sseEvent.result_json
 
             // Try to parse if it's a string
             if (typeof resultData === 'string') {
@@ -263,8 +263,8 @@ Important: Return ONLY the JSON object, no additional text.`,
           }
 
           // Handle errors from TinyFish
-          if (sseEvent.type === 'ERROR' || sseEvent.status === 'FAILED') {
-            throw new Error(sseEvent.message || 'Scraping failed')
+          if (sseEvent.status === 'FAILED') {
+            throw new Error(sseEvent.error || sseEvent.message || 'Scraping failed')
           }
         } catch (parseError) {
           // Ignore parse errors for individual events

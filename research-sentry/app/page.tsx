@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Sparkles, Github, Zap, Mic, MessageSquare } from 'lucide-react';
 import SearchInterface from '@/components/SearchInterface';
 import ResultsGrid from '@/components/ResultsGrid';
@@ -10,7 +10,7 @@ import ErrorMessage from '@/components/ErrorMessage';
 import CoPilotMode from '@/components/CoPilotMode';
 import WorkflowSelector from '@/components/WorkflowSelector';
 import CitationTracker from '@/components/CitationTracker';
-import TinyFishAgentTerminal from '@/components/TinyFishAgentTerminal';
+import TinyFishAgentTerminal, { AgentLog } from '@/components/TinyFishAgentTerminal';
 import { SearchResult, SourceType } from '@/lib/types';
 
 export default function Home() {
@@ -25,6 +25,17 @@ export default function Home() {
     const [searchSources, setSearchSources] = useState<SourceType[]>([]);
     const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
     const [voicePreviewResults, setVoicePreviewResults] = useState<SearchResult | null>(null);
+    const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
+    const [agentComplete, setAgentComplete] = useState(false);
+
+    const addAgentLog = useCallback((message: string, type: AgentLog['type'] = 'info') => {
+        setAgentLogs(prev => [...prev, {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            message,
+            type,
+            timestamp: Date.now(),
+        }]);
+    }, []);
 
     const handleTextSearch = async (query: string, sources: SourceType[]) => {
         setLoading(true);
@@ -32,6 +43,11 @@ export default function Home() {
         setSelectedPapers(new Set());
         setSearchTopic(query);
         setSearchSources(sources);
+        setAgentLogs([]);
+        setAgentComplete(false);
+
+        addAgentLog('TinyFish Agent initialized. Connecting to browser instance...', 'info');
+        addAgentLog(`Targeting [${sources.join(', ')}] for discovery.`, 'info');
 
         try {
             const response = await fetch('/api/search/text', {
@@ -41,12 +57,17 @@ export default function Home() {
             });
 
             if (!response.ok) {
+                addAgentLog(`Search request failed: ${response.statusText}`, 'error');
                 throw new Error(`Search failed: ${response.statusText}`);
             }
 
             const data = await response.json();
+            addAgentLog(`Discovery complete. Found ${data.totalFound ?? 0} papers.`, 'success');
+            setAgentComplete(true);
             setResults(data);
         } catch (err) {
+            addAgentLog(err instanceof Error ? err.message : 'An error occurred', 'error');
+            setAgentComplete(true);
             setError(err instanceof Error ? err.message : 'An error occurred during search');
         } finally {
             setLoading(false);
@@ -61,6 +82,10 @@ export default function Home() {
         setSearchSources(['arxiv', 'pubmed', 'semantic_scholar']);
         setVoiceTranscript(null);
         setVoicePreviewResults(null);
+        setAgentLogs([]);
+        setAgentComplete(false);
+
+        addAgentLog('Voice input received. Transcribing with Whisper...', 'info');
 
         try {
             const formData = new FormData();
@@ -78,12 +103,17 @@ export default function Home() {
             const data = await response.json();
             const transcript = typeof data?.transcript === 'string' ? data.transcript.trim() : '';
             if (transcript) {
+                addAgentLog(`Transcript: "${transcript}"`, 'success');
                 setVoiceTranscript(transcript);
                 setVoicePreviewResults(data);
             } else {
+                addAgentLog(`Discovery complete. Found ${data.totalFound ?? 0} papers.`, 'success');
                 setResults(data);
             }
+            setAgentComplete(true);
         } catch (err) {
+            addAgentLog(err instanceof Error ? err.message : 'An error occurred', 'error');
+            setAgentComplete(true);
             setError(err instanceof Error ? err.message : 'An error occurred during voice search');
         } finally {
             setLoading(false);
@@ -271,7 +301,7 @@ export default function Home() {
                                     <p className="text-slate-500 text-sm">Real-time browser automation & cross-portal evidence extraction</p>
                                 </div>
 
-                                <TinyFishAgentTerminal topic={searchTopic} sources={searchSources} />
+                                <TinyFishAgentTerminal logs={agentLogs} isComplete={agentComplete} />
 
                                 <div className="mt-12 text-center animate-pulse">
                                     <LoadingSpinner size="md" />

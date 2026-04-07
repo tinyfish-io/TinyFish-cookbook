@@ -893,8 +893,8 @@
                     const content = document.getElementById(`content-${event.site}`);
                     const status = document.getElementById(`status-${event.site}`);
                     
-                    if (content && event.streamingUrl) {
-                        content.innerHTML = `<iframe src="${event.streamingUrl}" allow="autoplay"></iframe>`;
+                    if (content && event.streaming_url) {
+                        content.innerHTML = `<iframe src="${event.streaming_url}" allow="autoplay"></iframe>`;
                     }
                     
                     if (status) {

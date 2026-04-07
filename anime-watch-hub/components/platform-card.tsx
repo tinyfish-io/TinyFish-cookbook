@@ -1,13 +1,13 @@
 'use client'
 
-import { MinoAgentState } from '@/lib/types'
+import { TinyFishAgentState } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PlatformCardProps {
-  agent: MinoAgentState
+  agent: TinyFishAgentState
 }
 
 export function PlatformCard({ agent }: PlatformCardProps) {

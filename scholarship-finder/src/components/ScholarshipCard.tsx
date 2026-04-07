@@ -1,23 +1,53 @@
-import { ExternalLink, Calendar, DollarSign, CheckCircle2, Info, FileText, Building2, MapPin } from "lucide-react";
+import { ExternalLink, Calendar, DollarSign, CheckCircle2, Info, FileText, Building2, MapPin, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Scholarship } from "@/types/scholarship";
+import { cn } from "@/lib/utils";
 
 interface ScholarshipCardProps {
   scholarship: Scholarship;
   index: number;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-export function ScholarshipCard({ scholarship, index }: ScholarshipCardProps) {
+export function ScholarshipCard({ scholarship, index, isSelected, onToggleSelect }: ScholarshipCardProps) {
+  const selectable = isSelected !== undefined && onToggleSelect !== undefined;
+
   return (
-    <Card 
-      className="overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 animate-fade-in"
+    <Card
+      className={cn(
+        "overflow-hidden border-border/50 hover:shadow-lg transition-all duration-300 animate-fade-in",
+        selectable && "relative cursor-pointer",
+        selectable && isSelected && "ring-2 ring-orange-500 border-orange-500"
+      )}
       style={{ animationDelay: `${index * 100}ms` }}
+      onClick={selectable ? () => onToggleSelect(scholarship.id) : undefined}
     >
+      {/* Selection indicator (only rendered when selectable) */}
+      {selectable && (
+        <div className="absolute top-4 right-4 z-10">
+          <div
+            className={cn(
+              "w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all",
+              isSelected
+                ? "bg-orange-500 border-orange-500"
+                : "bg-white border-muted-foreground/30 hover:border-orange-400"
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect(scholarship.id);
+            }}
+          >
+            {isSelected && <Check className="w-4 h-4 text-white" />}
+          </div>
+        </div>
+      )}
+
       <CardHeader className="pb-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className={cn("flex items-start justify-between gap-4", selectable && "pr-10")}>
           <div className="space-y-2">
             <CardTitle className="text-xl font-bold text-foreground leading-tight">
               {scholarship.name}
@@ -28,7 +58,7 @@ export function ScholarshipCard({ scholarship, index }: ScholarshipCardProps) {
             {scholarship.type}
           </Badge>
         </div>
-        
+
         <div className="flex flex-wrap gap-3 pt-2">
           {scholarship.university && (
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -122,6 +152,7 @@ export function ScholarshipCard({ scholarship, index }: ScholarshipCardProps) {
         <Button
           asChild
           className="w-full h-12 font-semibold gradient-primary hover:opacity-90 transition-opacity"
+          onClick={selectable ? (e: React.MouseEvent) => e.stopPropagation() : undefined}
         >
           <a href={scholarship.applicationLink} target="_blank" rel="noopener noreferrer">
             Apply Now

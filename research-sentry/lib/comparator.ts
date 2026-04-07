@@ -1,7 +1,9 @@
 import OpenAI from 'openai';
 import { ResearchPaper } from './types';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+function getOpenAI() {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+}
 
 export interface ComparisonPoint {
     metric: string;
@@ -31,7 +33,7 @@ export async function comparePapers(papers: ResearchPaper[]): Promise<Comparison
   - summary: string (High-level synthesis of differences)
   `;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
         model: 'gpt-4o',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' },

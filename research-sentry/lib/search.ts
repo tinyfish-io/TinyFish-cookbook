@@ -1,6 +1,6 @@
 import { SearchCriteria, SearchResult, SourceType, ResearchPaper } from './types';
 import { aggregateAndDeduplicate } from './aggregator';
-import { runMinoAutomation } from './mino';
+import { runTinyFishAutomation } from './tinyfish';
 
 /**
  * HYBRID SEARCH ENGINE
@@ -15,7 +15,7 @@ import { runMinoAutomation } from './mino';
 /**
  * Hyper-robust JSON parser that handles markdown blocks and recursive scanning
  */
-function parseMinoResponse(rawResponse: any): any[] {
+function parseTinyFishResponse(rawResponse: any): any[] {
     // If it's already an array, just return it
     if (Array.isArray(rawResponse)) return rawResponse;
 
@@ -27,7 +27,7 @@ function parseMinoResponse(rawResponse: any): any[] {
             const parsed = JSON.parse(cleanJson);
             return findPapersArray(parsed);
         } catch (e) {
-            console.error('[Mino-Parser] Failed to parse stringified response:', e);
+            console.error('[TinyFish-Parser] Failed to parse stringified response:', e);
             return [];
         }
     }
@@ -115,19 +115,19 @@ async function fallbackSemanticScholar(topic: string): Promise<ResearchPaper[]> 
 }
 
 // ============================================
-// CORE MINO ENGINE
+// CORE TINYFISH ENGINE
 // ============================================
 
-async function scrapeWithMino(
+async function scrapeWithTinyFish(
     url: string,
     goal: string,
     source: SourceType,
     stealth = false,
     timeoutMs?: number
 ): Promise<ResearchPaper[]> {
-    const rawResult = await runMinoAutomation(url, goal, stealth, timeoutMs ? { timeoutMs } : undefined);
+    const rawResult = await runTinyFishAutomation(url, goal, stealth, timeoutMs ? { timeoutMs } : undefined);
 
-    let result = parseMinoResponse(rawResult);
+    let result = parseTinyFishResponse(rawResult);
 
     if (result.length === 0) {
         console.warn(`[TinyFish] ${source} return 0 papers. RAW STRUCTURE:`, JSON.stringify(rawResult).slice(0, 300));
@@ -169,7 +169,7 @@ async function scrapeWithMino(
         if (!pdfUrl) {
             if (source === 'arxiv' && arxivId) pdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
         }
-        // Normalize arXiv pdf URLs (Mino often returns without ".pdf")
+        // Normalize arXiv pdf URLs (TinyFish often returns without ".pdf")
         if (source === 'arxiv' && typeof pdfUrl === 'string') {
             if (pdfUrl.includes('arxiv.org/abs/')) {
                 const idPart = pdfUrl.split('arxiv.org/abs/')[1]?.split(/[?#]/)[0];
@@ -201,52 +201,52 @@ async function scrapeWithMino(
 
 async function scrapeArxiv(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const goal = `Search ArXiv for "${criteria.topic}". Extract top 5 papers. For each paper, MUST extract: title, authors array, abstract, publishedDate, arxivId, url, and pdfUrl. Return JSON array. ${criteria.fullPrompt ? `Instruction: ${criteria.fullPrompt}` : ''}`;
-    const minoResults = await scrapeWithMino('https://arxiv.org/search', goal, 'arxiv', false, timeoutMs);
-    if (minoResults.length > 0) return minoResults;
-    console.log(`[Mino-Search] ArXiv zero results. Triggering fallback API...`);
+    const tinyFishResults = await scrapeWithTinyFish('https://arxiv.org/search', goal, 'arxiv', false, timeoutMs);
+    if (tinyFishResults.length > 0) return tinyFishResults;
+    console.log(`[TinyFish-Search] ArXiv zero results. Triggering fallback API...`);
     return fallbackArxiv(criteria.topic);
 }
 
 async function scrapePubmed(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const goal = `Search PubMed for "${criteria.topic}". Extract top 5 papers. MUST extract: title, authors array, abstract, pmid, and link (url). Return JSON array.`;
-    const minoResults = await scrapeWithMino('https://pubmed.ncbi.nlm.nih.gov/', goal, 'pubmed', false, timeoutMs);
-    if (minoResults.length > 0) return minoResults;
+    const tinyFishResults = await scrapeWithTinyFish('https://pubmed.ncbi.nlm.nih.gov/', goal, 'pubmed', false, timeoutMs);
+    if (tinyFishResults.length > 0) return tinyFishResults;
     return fallbackSemanticScholar(`${criteria.topic} pubmed`);
 }
 
 async function scrapeSemanticScholar(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const goal = `Search Semantic Scholar for "${criteria.topic}". Extract top 5 papers. MUST extract: title, authors array, abstract, year, paperId, url, and pdfUrl. Return JSON array. ${criteria.fullPrompt ? `Instruction: ${criteria.fullPrompt}` : ''}`;
-    const minoResults = await scrapeWithMino('https://www.semanticscholar.org/', goal, 'semantic_scholar', false, timeoutMs);
-    if (minoResults.length > 0) return minoResults;
+    const tinyFishResults = await scrapeWithTinyFish('https://www.semanticscholar.org/', goal, 'semantic_scholar', false, timeoutMs);
+    if (tinyFishResults.length > 0) return tinyFishResults;
     return fallbackSemanticScholar(criteria.topic);
 }
 
 async function scrapeGoogleScholar(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const searchUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(criteria.topic)}`;
     const goal = `Extract papers from this Google Scholar page: title, authors, snippet (abstract), citations count, link. Return JSON array.`;
-    return scrapeWithMino(searchUrl, goal, 'google_scholar', true, timeoutMs);
+    return scrapeWithTinyFish(searchUrl, goal, 'google_scholar', true, timeoutMs);
 }
 
 async function scrapeIEEE(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const goal = `Search IEEE Xplore for "${criteria.topic}". Extract first 5 papers: title, authors, abstract, doi. Return JSON array.`;
-    const minoResults = await scrapeWithMino('https://ieeexplore.ieee.org/', goal, 'ieee', true, timeoutMs);
-    if (minoResults.length > 0) return minoResults;
+    const tinyFishResults = await scrapeWithTinyFish('https://ieeexplore.ieee.org/', goal, 'ieee', true, timeoutMs);
+    if (tinyFishResults.length > 0) return tinyFishResults;
     return fallbackSemanticScholar(`${criteria.topic} ieee`);
 }
 
 async function scrapeSSRN(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const goal = `Search SSRN for "${criteria.topic}". Extract top 5 papers: title, authors, abstract. Return JSON.`;
-    return scrapeWithMino('https://www.ssrn.com/', goal, 'ssrn', false, timeoutMs);
+    return scrapeWithTinyFish('https://www.ssrn.com/', goal, 'ssrn', false, timeoutMs);
 }
 
 async function scrapeCORE(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const goal = `Search CORE for "${criteria.topic}". Extract 5 results with title, abstract, link. Return JSON.`;
-    return scrapeWithMino('https://core.ac.uk/', goal, 'core', false, timeoutMs);
+    return scrapeWithTinyFish('https://core.ac.uk/', goal, 'core', false, timeoutMs);
 }
 
 async function scrapeDOAJ(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const goal = `Search DOAJ for "${criteria.topic}". Extract 5 articles with title, abstract, link. Return JSON.`;
-    return scrapeWithMino('https://doaj.org/', goal, 'doaj', false, timeoutMs);
+    return scrapeWithTinyFish('https://doaj.org/', goal, 'doaj', false, timeoutMs);
 }
 
 async function scrapeSource(source: string, criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
@@ -271,7 +271,7 @@ export async function searchResearchPapers(criteria: SearchCriteria): Promise<Se
     console.log(`=================================================`);
 
     // Prevent one slow portal from forcing a platform timeout.
-    // Each source gets a time budget for Mino automation.
+    // Each source gets a time budget for TinyFish automation.
     const perSourceTimeoutMs = 40_000;
 
     const results = await Promise.all(

@@ -1,6 +1,6 @@
 ---
 name: project-idea-validator
-description: Validate a project idea by discovering similar existing projects across GitHub and Dev.to before you build. Use when a developer describes an idea and wants to know what already exists, what gaps remain, and whether the space is worth entering. Runs parallel TinyFish agents across both sources and synthesizes findings into a structured report.
+description: Researches any project idea against live data from GitHub and Dev.to to surface what already exists, how mature the space is, and where the real opportunity lives. Use when a developer describes something they want to build and wants to know if it's been done before. Triggers on phrases like "validate my idea", "has this been built", "is this already a thing", "what exists for X", "should I build this", "is this idea original", "check if my project exists", "what are the alternatives to what I want to build", "is the market saturated for X", or any request to research the competitive landscape before starting a project.
 ---
 
 # Project Idea Validator — Discover What Already Exists Before You Build
@@ -44,25 +44,25 @@ If not authenticated, stop and tell the user:
 >
 > **Option 2 — PowerShell (current session only):**
 > ```powershell
-> $env:TINYFISH_API_KEY="your-api-key-here"
+> $env:TINYFISH_API_KEY="sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg"
 > ```
 >
 > **Option 3 — PowerShell (persist across sessions):**
 > ```powershell
-> [System.Environment]::SetEnvironmentVariable("TINYFISH_API_KEY", "your-api-key-here", "User")
+> [System.Environment]::SetEnvironmentVariable("TINYFISH_API_KEY", "sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg", "User")
 > ```
 > Then close and reopen PowerShell for it to take effect.
 >
 > **Option 4 — bash/zsh (Mac/Linux):**
 > ```bash
-> export TINYFISH_API_KEY="your-api-key-here"
+> export TINYFISH_API_KEY="sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg"
 > ```
 >
 > **Option 5 — Claude Code settings:** Add to `~/.claude/settings.local.json`:
 > ```json
 > {
 >   "env": {
->     "TINYFISH_API_KEY": "your-api-key-here"
+>     "TINYFISH_API_KEY": "sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg"
 >   }
 > }
 > ```

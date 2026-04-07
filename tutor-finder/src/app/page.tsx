@@ -1,25 +1,24 @@
-import { useState } from 'react';
-import { GraduationCap, RotateCcw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ExamSelector } from '@/components/ExamSelector';
-import { LocationInput } from '@/components/LocationInput';
-import { DiscoveringState } from '@/components/DiscoveringState';
-import { AgentPreviewGrid } from '@/components/AgentPreviewGrid';
-import { TutorResultsGrid } from '@/components/TutorResultsGrid';
-import { CompareButton } from '@/components/CompareButton';
-import { CompareDashboard } from '@/components/CompareDashboard';
-import { useTutorSearch } from '@/hooks/useTutorSearch';
+"use client";
 
-const Index = () => {
+import { useState } from "react";
+import { GraduationCap, RotateCcw } from "lucide-react";
+import { ExamSelector } from "@/components/ExamSelector";
+import { LocationInput } from "@/components/LocationInput";
+import { DiscoveringState } from "@/components/DiscoveringState";
+import { AgentPreviewGrid } from "@/components/AgentPreviewGrid";
+import { TutorResultsGrid } from "@/components/TutorResultsGrid";
+import { CompareButton } from "@/components/CompareButton";
+import { CompareDashboard } from "@/components/CompareDashboard";
+import { useTutorSearch } from "@/hooks/useTutorSearch";
+
+export default function Home() {
   const { state, setExam, startSearch, toggleTutorSelection, resetSearch } = useTutorSearch();
   const [showCompare, setShowCompare] = useState(false);
 
   const selectedTutors = state.tutors.filter((t) => state.selectedTutorIds.has(t.id));
 
   const handleSearch = (location: string) => {
-    if (state.exam) {
-      startSearch(state.exam, location);
-    }
+    if (state.exam) startSearch(state.exam, location);
   };
 
   return (
@@ -37,17 +36,20 @@ const Index = () => {
             </div>
           </div>
           {(state.isSearching || state.tutors.length > 0) && (
-            <Button variant="ghost" size="sm" onClick={resetSearch} className="gap-2">
+            <button
+              onClick={resetSearch}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
+            >
               <RotateCcw className="w-4 h-4" />
               New Search
-            </Button>
+            </button>
           )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 pb-24 space-y-8">
-        {/* Step 1: Exam Selection (only show if not searching) */}
+        {/* Step 1: Exam Selection */}
         {!state.isSearching && !state.isDiscovering && state.tutors.length === 0 && (
           <section className="max-w-4xl mx-auto">
             <div className="text-center mb-8">
@@ -65,11 +67,7 @@ const Index = () => {
         {/* Step 2: Location Input */}
         {!state.isSearching && !state.isDiscovering && state.exam && state.tutors.length === 0 && (
           <section className="mt-8">
-            <LocationInput
-              exam={state.exam}
-              onSearch={handleSearch}
-              isLoading={false}
-            />
+            <LocationInput exam={state.exam} onSearch={handleSearch} isLoading={false} />
           </section>
         )}
 
@@ -87,7 +85,7 @@ const Index = () => {
           </section>
         )}
 
-        {/* Step 5: Tutor Results */}
+        {/* Step 5: Tutor Results — shown as soon as any agent completes */}
         {(state.tutors.length > 0 || state.isSearching) && (
           <section>
             <TutorResultsGrid
@@ -100,7 +98,6 @@ const Index = () => {
         )}
       </main>
 
-      {/* Compare Button - Always visible when there are results */}
       {state.tutors.length > 0 && (
         <CompareButton
           selectedCount={state.selectedTutorIds.size}
@@ -108,15 +105,9 @@ const Index = () => {
         />
       )}
 
-      {/* Compare Dashboard */}
       {showCompare && selectedTutors.length >= 2 && (
-        <CompareDashboard
-          tutors={selectedTutors}
-          onClose={() => setShowCompare(false)}
-        />
+        <CompareDashboard tutors={selectedTutors} onClose={() => setShowCompare(false)} />
       )}
     </div>
   );
-};
-
-export default Index;
+}

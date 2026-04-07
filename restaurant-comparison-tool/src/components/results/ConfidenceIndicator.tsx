@@ -1,3 +1,5 @@
+'use client';
+
 import { ShieldCheck, AlertCircle, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ConfidenceLevel } from '@/types';

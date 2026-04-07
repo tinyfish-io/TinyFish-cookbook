@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { X, Star, ShieldCheck, AlertTriangle, MapPin, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,8 +23,8 @@ export function ResultDetailPanel({ result, searchParams, onClose }: ResultDetai
     searchParams.preferences
   );
 
-  const positiveSignals = result.safetySignals.filter(s => s.sentiment === 'positive');
-  const negativeSignals = result.safetySignals.filter(s => s.sentiment === 'negative');
+  const positiveSignals = (result.safetySignals ?? []).filter(s => s.sentiment === 'positive');
+  const negativeSignals = (result.safetySignals ?? []).filter(s => s.sentiment === 'negative');
 
   return (
     <>
@@ -103,12 +105,12 @@ export function ResultDetailPanel({ result, searchParams, onClose }: ResultDetai
             </div>
 
             {/* Pros & Cons */}
-            {(result.pros.length > 0 || result.cons.length > 0) && (
+            {((result.pros ?? []).length > 0 || (result.cons ?? []).length > 0) && (
               <div className="grid grid-cols-2 gap-4">
-                {result.pros.length > 0 && (
+                {(result.pros ?? []).length > 0 && (
                   <div className="space-y-1.5">
                     <h4 className="text-xs font-semibold text-risk-low uppercase tracking-wider">Pros</h4>
-                    {result.pros.map((pro, i) => (
+                    {(result.pros ?? []).map((pro, i) => (
                       <div key={i} className="flex items-start gap-1.5 text-xs text-foreground">
                         <CheckCircle className="w-3.5 h-3.5 text-risk-low shrink-0 mt-0.5" />
                         <span>{pro}</span>
@@ -116,10 +118,10 @@ export function ResultDetailPanel({ result, searchParams, onClose }: ResultDetai
                     ))}
                   </div>
                 )}
-                {result.cons.length > 0 && (
+                {(result.cons ?? []).length > 0 && (
                   <div className="space-y-1.5">
                     <h4 className="text-xs font-semibold text-risk-high uppercase tracking-wider">Cons</h4>
-                    {result.cons.map((con, i) => (
+                    {(result.cons ?? []).map((con, i) => (
                       <div key={i} className="flex items-start gap-1.5 text-xs text-foreground">
                         <XCircle className="w-3.5 h-3.5 text-risk-high shrink-0 mt-0.5" />
                         <span>{con}</span>
@@ -138,9 +140,9 @@ export function ResultDetailPanel({ result, searchParams, onClose }: ResultDetai
                 <AlertTriangle className="w-4 h-4 text-muted-foreground" />
                 <h3 className="text-sm font-semibold text-foreground">Allergen Risks</h3>
               </div>
-              {result.allergenRisks.length > 0 ? (
+              {(result.allergenRisks ?? []).length > 0 ? (
                 <div className="space-y-2">
-                  {result.allergenRisks.map((risk) => (
+                  {(result.allergenRisks ?? []).map((risk) => (
                     <div key={risk.allergen} className="flex items-start gap-2">
                       <AllergenRiskBadge risk={risk} />
                       <p className="text-xs text-muted-foreground flex-1 pt-0.5">{risk.details}</p>
@@ -187,7 +189,7 @@ export function ResultDetailPanel({ result, searchParams, onClose }: ResultDetai
                   ))}
                 </div>
               )}
-              {result.safetySignals.length === 0 && (
+              {(result.safetySignals ?? []).length === 0 && (
                 <p className="text-xs text-muted-foreground italic">No specific safety signals extracted</p>
               )}
             </div>
@@ -221,7 +223,7 @@ export function ResultDetailPanel({ result, searchParams, onClose }: ResultDetai
               </Button>
             )}
 
-            {result.dataSourcesUsed.length > 0 && (
+            {(result.dataSourcesUsed ?? []).length > 0 && (
               <p className="text-[10px] text-muted-foreground/60 text-center">
                 Sources: {result.dataSourcesUsed.join(', ')}
               </p>

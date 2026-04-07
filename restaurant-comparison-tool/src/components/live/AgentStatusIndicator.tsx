@@ -1,3 +1,5 @@
+'use client';
+
 import { cn } from '@/lib/utils';
 import type { AgentStatus } from '@/types';
 import { Search, BookOpen, UtensilsCrossed, Brain, CheckCircle, XCircle, Loader2 } from 'lucide-react';

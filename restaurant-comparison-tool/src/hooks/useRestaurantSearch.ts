@@ -1,3 +1,5 @@
+'use client';
+
 import { useCallback, useRef } from 'react';
 import { useSearchContext } from '@/context/SearchContext';
 import type { SearchParams } from '@/types';

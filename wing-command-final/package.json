@@ -1,0 +1,41 @@
+{
+  "name": "wing-command",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Wing Command \u2014 Find the best chicken wings near you. Powered by TinyFish + Groq.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3000}",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tiny-fish/sdk": "latest",
+    "@tanstack/react-query": "^5.51.1",
+    "autoprefixer": "^10.4.19",
+    "canvas-confetti": "^1.9.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "framer-motion": "^11.3.0",
+    "groq-sdk": "^0.7.0",
+    "lucide-react": "^0.400.0",
+    "next": "^14.2.35",
+    "postcss": "^8.4.39",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sharp": "^0.34.5",
+    "tailwind-merge": "^2.4.0",
+    "tailwindcss": "^3.4.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/canvas-confetti": "^1.6.4",
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.35",
+    "typescript": "^5.5.3"
+  }
+}

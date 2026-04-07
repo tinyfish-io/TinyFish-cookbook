@@ -1,76 +1,104 @@
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import { ResearchPaper } from './types';
 
-// Mock database for tracked papers in this demo
-// In a real app, this would be a database model
+const getGroq = () => {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error('GROQ_API_KEY is not configured');
+    return new Groq({ apiKey });
+};
+
+// Shape the CitationTracker component expects
 export interface TrackedPaper {
-    id: string; // Paper ID
-    paperTitle: string;
-    originalCitationCount: number;
+    paperId: string;
+    title: string;
     currentCitationCount: number;
-    velocity: number; // Citations per month
-    lastChecked: number;
-    trend: 'up' | 'stable' | 'down';
+    trend: 'up' | 'down' | 'stable';
+    velocity: number; // citations per month
     impactProjections: {
         nextYear: number;
         fiveYear: number;
     };
+    topicScore: number;
+    lastUpdated: string;
 }
 
-const getOpenAI = () => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        throw new Error('OPENAI_API_KEY is not configured');
-    }
-    return new OpenAI({ apiKey });
-};
+export async function analyzeCitationNetwork(paper: ResearchPaper): Promise<TrackedPaper> {
+    const groq = getGroq();
 
-export async function analyzeCitationTrend(paper: ResearchPaper): Promise<TrackedPaper> {
-    const openai = getOpenAI();
-    // Simulating citation analysis with AI since we don't have historical data access in this demo
-    const prompt = `Analyze the potential citation impact of this research paper:
-  Title: "${paper.title}"
-  Current Citations: ${paper.citations || 0}
-  Published: ${paper.publishedDate}
-  Source: ${paper.source}
-  
-  Estimate the "Citation Velocity" (citations/month) and predict impact.
-  Return JSON:
-  {
-    "velocity": number,
-    "trend": "up" | "stable" | "down",
-    "impactProjections": { "nextYear": number, "fiveYear": number }
-  }
-  `;
+    const currentCitations = paper.citations ?? 0;
 
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-    });
+    const prompt = `Analyze this academic paper and predict its citation trajectory.
 
-    const choice = response.choices?.[0];
-    if (!choice) {
-        throw new Error('OpenAI returned no choices');
-    }
-    if (choice.finish_reason === 'length') {
-        throw new Error('OpenAI response was truncated');
-    }
-    let analysis: any;
+Paper: "${paper.title}"
+Authors: ${Array.isArray(paper.authors) ? paper.authors.join(', ') : paper.authors}
+Year: ${paper.publishedDate ? new Date(paper.publishedDate).getFullYear() : 'unknown'}
+Current citations: ${currentCitations}
+Source: ${paper.source}
+
+Based on the paper's topic, age, and current citation count, estimate:
+1. Citation trend: "up", "down", or "stable"
+2. Monthly velocity (citations per month as a number)
+3. Projected citations in 1 year (integer)
+4. Projected citations in 5 years (integer)
+5. Topic relevance score 1-100
+
+Return ONLY valid JSON, no markdown:
+{
+  "trend": "up",
+  "velocity": 5,
+  "nextYear": 150,
+  "fiveYear": 400,
+  "topicScore": 75
+}`;
+
     try {
-        analysis = JSON.parse(choice.message.content ?? '{}');
-    } catch (error) {
-        throw new Error('OpenAI returned invalid JSON');
-    }
+        const response = await groq.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 200,
+        });
 
-    return {
-        id: paper.id,
-        paperTitle: paper.title,
-        originalCitationCount: paper.citations || 0,
-        currentCitationCount: paper.citations || 0, // In real app, this updates
-        lastChecked: Date.now(),
-        velocity: analysis.velocity,
-        trend: analysis.trend,
-        impactProjections: analysis.impactProjections
-    };
+        const content = response.choices[0]?.message?.content ?? '{}';
+        let parsed: Record<string, unknown>;
+        try {
+            parsed = JSON.parse(content.replace(/```json\n?|```/g, '').trim());
+        } catch {
+            parsed = {};
+        }
+
+        const trend = (['up', 'down', 'stable'].includes(parsed.trend as string)
+            ? parsed.trend
+            : currentCitations > 50 ? 'up' : 'stable') as 'up' | 'down' | 'stable';
+
+        const velocity = Number(parsed.velocity ?? Math.max(1, Math.round(currentCitations / 12)));
+        const nextYear = Number(parsed.nextYear ?? currentCitations + velocity * 12);
+        const fiveYear = Number(parsed.fiveYear ?? currentCitations + velocity * 60);
+
+        return {
+            paperId: paper.id ?? paper.url ?? paper.title,
+            title: paper.title,
+            currentCitationCount: currentCitations,
+            trend,
+            velocity,
+            impactProjections: { nextYear, fiveYear },
+            topicScore: Number(parsed.topicScore ?? 60),
+            lastUpdated: new Date().toISOString(),
+        };
+    } catch {
+        // Fallback with sensible defaults if Groq fails
+        const velocity = Math.max(1, Math.round(currentCitations / 12));
+        return {
+            paperId: paper.id ?? paper.title,
+            title: paper.title,
+            currentCitationCount: currentCitations,
+            trend: 'stable',
+            velocity,
+            impactProjections: {
+                nextYear: currentCitations + velocity * 12,
+                fiveYear: currentCitations + velocity * 60,
+            },
+            topicScore: 60,
+            lastUpdated: new Date().toISOString(),
+        };
+    }
 }

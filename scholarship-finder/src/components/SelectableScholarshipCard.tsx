@@ -1,4 +1,5 @@
-import { Scholarship } from "@/types/scholarship";
+"use client";
+import type { Scholarship } from "@/types/scholarship";
 import { ScholarshipCard } from "./ScholarshipCard";
 
 interface SelectableScholarshipCardProps {
@@ -9,12 +10,5 @@ interface SelectableScholarshipCardProps {
 }
 
 export function SelectableScholarshipCard({ scholarship, index, isSelected, onToggleSelect }: SelectableScholarshipCardProps) {
-  return (
-    <ScholarshipCard
-      scholarship={scholarship}
-      index={index}
-      isSelected={isSelected}
-      onToggleSelect={onToggleSelect}
-    />
-  );
+  return <ScholarshipCard scholarship={scholarship} index={index} isSelected={isSelected} onToggleSelect={onToggleSelect} />;
 }

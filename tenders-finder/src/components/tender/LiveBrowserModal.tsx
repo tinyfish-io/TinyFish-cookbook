@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Monitor, Maximize2, Minimize2, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+"use client";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Monitor, Maximize2, Minimize2, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface LiveBrowserModalProps {
   isOpen: boolean;
@@ -15,9 +15,7 @@ export function LiveBrowserModal({ isOpen, streamingUrl, platformName, onClose }
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    setIsLoading(true);
-  }, [streamingUrl]);
+  useEffect(() => { setIsLoading(true); }, [streamingUrl]);
 
   if (!isOpen) return null;
 
@@ -37,52 +35,33 @@ export function LiveBrowserModal({ isOpen, streamingUrl, platformName, onClose }
           onClick={(e) => e.stopPropagation()}
           className={cn(
             "bg-card rounded-2xl shadow-2xl overflow-hidden flex flex-col",
-            isFullscreen ? 'fixed inset-4' : 'w-full max-w-5xl h-[85vh]'
+            isFullscreen ? "fixed inset-4" : "w-full max-w-5xl h-[85vh]"
           )}
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary/10 to-muted/50 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Monitor className="w-5 h-5 text-primary" />
                 <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
                 </span>
               </div>
               <div>
                 <span className="font-semibold text-foreground">Live Browser Preview</span>
                 <span className="text-xs text-muted-foreground ml-2">• {platformName}</span>
               </div>
-              <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-medium animate-pulse">
-                LIVE
-              </span>
+              <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-medium animate-pulse">LIVE</span>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="h-8 w-8"
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="w-4 h-4" />
-                ) : (
-                  <Maximize2 className="w-4 h-4" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onClose}
-                className="h-8 w-8 hover:bg-destructive/20 hover:text-destructive"
-              >
+              <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1.5 hover:bg-muted rounded-lg transition-colors">
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+              <button onClick={onClose} className="p-1.5 hover:bg-destructive/20 hover:text-destructive rounded-lg transition-colors">
                 <X className="w-4 h-4" />
-              </Button>
+              </button>
             </div>
           </div>
-
-          {/* Browser Content */}
           <div className="flex-1 bg-background relative">
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-muted/80 z-10">
@@ -95,9 +74,8 @@ export function LiveBrowserModal({ isOpen, streamingUrl, platformName, onClose }
             <iframe
               src={streamingUrl}
               className="w-full h-full border-0"
-              title={`Live browser preview for ${platformName}`}
+              title={`Live preview for ${platformName}`}
               onLoad={() => setIsLoading(false)}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             />
           </div>
         </motion.div>

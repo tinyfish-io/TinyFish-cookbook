@@ -1,8 +1,7 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Fish, ExternalLink } from 'lucide-react';
-import { Tender } from '@/types/tender';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+"use client";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, ExternalLink } from "lucide-react";
+import type { Tender } from "@/types/tender";
 
 interface CompareModalProps {
   isOpen: boolean;
@@ -11,17 +10,18 @@ interface CompareModalProps {
 }
 
 const COMPARE_FIELDS: { key: keyof Tender; label: string }[] = [
-  { key: 'tenderTitle', label: 'Tender Title' },
-  { key: 'tenderId', label: 'Tender ID' },
-  { key: 'issuingAuthority', label: 'Issuing Authority' },
-  { key: 'countryRegion', label: 'Country / Region' },
-  { key: 'tenderType', label: 'Tender Type' },
-  { key: 'publicationDate', label: 'Publication Date' },
-  { key: 'submissionDeadline', label: 'Submission Deadline' },
-  { key: 'tenderStatus', label: 'Status' },
-  { key: 'briefDescription', label: 'Description' },
-  { key: 'eligibilityCriteria', label: 'Eligibility' },
-  { key: 'industryCategory', label: 'Industry / Category' },
+  { key: "tenderTitle", label: "Tender Title" },
+  { key: "tenderId", label: "Tender ID" },
+  { key: "issuingAuthority", label: "Issuing Authority" },
+  { key: "countryRegion", label: "Country / Region" },
+  { key: "tenderType", label: "Tender Type" },
+  { key: "publicationDate", label: "Publication Date" },
+  { key: "submissionDeadline", label: "Submission Deadline" },
+  { key: "tenderStatus", label: "Status" },
+  { key: "briefDescription", label: "Description" },
+  { key: "eligibilityCriteria", label: "Eligibility" },
+  { key: "industryCategory", label: "Industry / Category" },
+  { key: "officialTenderUrl", label: "Official Link" },
 ];
 
 export function CompareModal({ isOpen, onClose, tenders }: CompareModalProps) {
@@ -48,96 +48,58 @@ export function CompareModal({ isOpen, onClose, tenders }: CompareModalProps) {
             <div>
               <h2 className="text-xl font-bold text-foreground">Compare Tenders</h2>
               <p className="text-sm text-muted-foreground">
-                Comparing {tenders.length} selected tenders
+                Comparing {tenders.length} selected tender{tenders.length !== 1 ? "s" : ""}
               </p>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
+            >
               <X className="w-5 h-5" />
-            </Button>
+            </button>
           </div>
 
-          {/* Comparison Table */}
-          <ScrollArea className="flex-1">
-            <div className="p-6">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr>
-                      <th className="text-left p-3 bg-muted/50 font-semibold text-foreground border border-border rounded-tl-lg sticky left-0 min-w-[150px]">
-                        Field
-                      </th>
-                      {tenders.map((tender, index) => (
-                        <th
-                          key={tender.id}
-                          className="text-left p-3 bg-muted/50 font-semibold text-foreground border border-border min-w-[250px]"
-                        >
-                          Tender {index + 1}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {COMPARE_FIELDS.map((field, rowIndex) => (
-                      <tr key={field.key}>
-                        <td className="p-3 font-medium text-muted-foreground border border-border bg-muted/20 sticky left-0">
-                          {field.label}
-                        </td>
-                        {tenders.map((tender) => (
-                          <td
-                            key={`${tender.id}-${field.key}`}
-                            className="p-3 text-foreground border border-border"
-                          >
-                            {field.key === 'officialTenderUrl' ? (
-                              <a
-                                href={tender[field.key]}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline inline-flex items-center gap-1"
-                              >
-                                View <ExternalLink className="w-3 h-3" />
-                              </a>
-                            ) : (
-                              <span className="line-clamp-3">
-                                {tender[field.key] || 'N/A'}
-                              </span>
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                    {/* Official URL row */}
-                    <tr>
-                      <td className="p-3 font-medium text-muted-foreground border border-border bg-muted/20 sticky left-0">
-                        Official Link
-                      </td>
-                      {tenders.map((tender) => (
-                        <td
-                          key={`${tender.id}-url`}
-                          className="p-3 text-foreground border border-border"
-                        >
+          {/* Table */}
+          <div className="flex-1 overflow-auto p-6">
+            <table className="w-full border-collapse min-w-[600px]">
+              <thead>
+                <tr>
+                  <th className="text-left p-3 bg-muted/50 font-semibold text-foreground border border-border sticky left-0 min-w-[150px] rounded-tl-lg">
+                    Field
+                  </th>
+                  {tenders.map((tender, index) => (
+                    <th key={tender.id} className="text-left p-3 bg-muted/50 font-semibold text-foreground border border-border min-w-[250px]">
+                      Tender {index + 1}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE_FIELDS.map((field) => (
+                  <tr key={field.key}>
+                    <td className="p-3 font-medium text-muted-foreground border border-border bg-muted/20 sticky left-0 text-sm whitespace-nowrap">
+                      {field.label}
+                    </td>
+                    {tenders.map((tender) => (
+                      <td key={`${tender.id}-${field.key}`} className="p-3 text-foreground border border-border text-sm">
+                        {field.key === "officialTenderUrl" ? (
                           <a
-                            href={tender.officialTenderUrl}
+                            href={tender[field.key]}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:underline inline-flex items-center gap-1"
                           >
                             View Tender <ExternalLink className="w-3 h-3" />
                           </a>
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </ScrollArea>
-
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-center gap-2">
-            <Fish className="w-5 h-5 text-primary" />
-            <span className="text-sm text-muted-foreground">
-              Powered by <span className="font-semibold text-primary">Tiny Fish Web Agent</span>
-            </span>
+                        ) : (
+                          <span className="line-clamp-3">{tender[field.key] || "N/A"}</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </motion.div>
       </motion.div>

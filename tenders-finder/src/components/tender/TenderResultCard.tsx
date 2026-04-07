@@ -1,8 +1,8 @@
-import { motion } from 'framer-motion';
-import { Calendar, Building2, FileText, ExternalLink, CheckCircle2 } from 'lucide-react';
-import { Tender } from '@/types/tender';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+"use client";
+import { motion } from "framer-motion";
+import { Calendar, Building2, FileText, ExternalLink, CheckCircle2 } from "lucide-react";
+import type { Tender } from "@/types/tender";
+import { cn } from "@/lib/utils";
 
 interface TenderResultCardProps {
   tender: Tender;
@@ -18,47 +18,29 @@ export function TenderResultCard({ tender, isSelected, onToggleSelect }: TenderR
       whileHover={{ scale: 1.01 }}
       onClick={onToggleSelect}
       className={cn(
-        "relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200",
-        "bg-white hover:shadow-lg",
-        isSelected 
-          ? "border-primary bg-primary/5 shadow-md" 
-          : "border-border hover:border-primary/50"
+        "relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 bg-white hover:shadow-lg",
+        isSelected ? "border-primary bg-primary/5 shadow-md" : "border-border hover:border-primary/50"
       )}
     >
-      {/* Selection Indicator */}
       <div className={cn(
         "absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
-        isSelected 
-          ? "bg-primary border-primary" 
-          : "bg-white border-muted-foreground/30"
+        isSelected ? "bg-primary border-primary" : "bg-white border-muted-foreground/30"
       )}>
-        {isSelected && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
+        {isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}
       </div>
 
-      {/* Header */}
       <div className="pr-8 mb-3">
-        <h3 className="font-semibold text-foreground line-clamp-2 mb-1">
-          {tender.tenderTitle}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          ID: {tender.tenderId}
-        </p>
+        <h3 className="font-semibold text-foreground line-clamp-2 mb-1">{tender.tenderTitle}</h3>
+        <p className="text-sm text-muted-foreground">ID: {tender.tenderId}</p>
       </div>
 
-      {/* Tags */}
       <div className="flex flex-wrap gap-2 mb-3">
-        <Badge variant="secondary" className="text-xs">
-          {tender.industryCategory}
-        </Badge>
-        <Badge 
-          variant={tender.tenderStatus === 'Open' ? 'default' : 'outline'}
-          className="text-xs"
-        >
+        <span className="text-xs px-2 py-1 bg-secondary text-secondary-foreground rounded-full">{tender.industryCategory}</span>
+        <span className={cn("text-xs px-2 py-1 rounded-full", tender.tenderStatus === "Open" ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground")}>
           {tender.tenderStatus}
-        </Badge>
+        </span>
       </div>
 
-      {/* Details */}
       <div className="space-y-2 text-sm">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Building2 className="w-4 h-4 flex-shrink-0" />
@@ -74,7 +56,6 @@ export function TenderResultCard({ tender, isSelected, onToggleSelect }: TenderR
         </div>
       </div>
 
-      {/* Link */}
       <a
         href={tender.officialTenderUrl}
         target="_blank"

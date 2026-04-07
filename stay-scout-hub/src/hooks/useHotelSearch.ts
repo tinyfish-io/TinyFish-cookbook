@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback, useRef } from 'react';
 import { Platform, PlatformResult, SearchParams } from '@/types/hotel';
 import { discoverPlatforms, checkPlatform } from '@/lib/api/hotel-search';

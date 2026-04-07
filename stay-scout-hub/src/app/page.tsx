@@ -1,3 +1,5 @@
+'use client';
+
 import { SearchFormV2 } from '@/components/SearchFormV2';
 import { AreaResultsSection } from '@/components/AreaResultsSection';
 import { useAreaSearch } from '@/hooks/useAreaSearch';
@@ -6,22 +8,23 @@ import { motion } from 'framer-motion';
 import { TRIP_PURPOSES } from '@/types/hotel';
 import { useState } from 'react';
 
-const Index = () => {
+export default function Home() {
   const { search, isSearching, results, error } = useAreaSearch();
-  const [searchContext, setSearchContext] = useState<{ 
-    city?: string; 
+  const [searchContext, setSearchContext] = useState<{
+    city?: string;
     purpose?: string;
     checkIn?: string;
     checkOut?: string;
   }>({});
 
   const handleSearch = (params: Parameters<typeof search>[0]) => {
-    const purposeLabel = params.purpose === 'custom' 
-      ? params.customPurpose 
-      : TRIP_PURPOSES.find(p => p.id === params.purpose)?.label;
-    
-    setSearchContext({ 
-      city: params.city, 
+    const purposeLabel =
+      params.purpose === 'custom'
+        ? params.customPurpose
+        : TRIP_PURPOSES.find((p) => p.id === params.purpose)?.label;
+
+    setSearchContext({
+      city: params.city,
       purpose: purposeLabel,
       checkIn: params.checkIn,
       checkOut: params.checkOut,
@@ -30,20 +33,20 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white text-zinc-950">
       {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-glow">
-              <Brain className="w-5 h-5 text-primary-foreground" />
+              <Brain className="w-5 h-5 text-white" />
             </div>
             <div>
-              <span className="text-xl font-bold font-display">StayScout</span>
-              <p className="text-xs text-muted-foreground">AI-Powered Location Intelligence</p>
+              <span className="text-xl font-bold">StayScout</span>
+              <p className="text-xs text-zinc-500">AI-Powered Location Intelligence</p>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground hidden sm:block">
+          <div className="text-sm text-zinc-400 hidden sm:block">
             Pre-Booking Decision Engine
           </div>
         </div>
@@ -51,7 +54,7 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
-        {/* Hero Section */}
+        {/* Hero */}
         <motion.div
           className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }}
@@ -65,15 +68,16 @@ const Index = () => {
             <Sparkles className="w-4 h-4" />
             Not a booking site — a decision-making tool
           </motion.div>
-          
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-display mb-4">
+
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
             <span className="text-gradient">Where</span> should you stay?
           </h1>
-          
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Tell us your trip purpose, and AI agents will research neighborhoods, 
-            analyze reviews, and explain <span className="text-foreground font-medium">why</span> each 
-            area is or isn't right for you.
+
+          <p className="text-lg text-zinc-500 max-w-2xl mx-auto">
+            Tell us your trip purpose, and AI agents will research neighborhoods,
+            analyze reviews, and explain{' '}
+            <span className="text-zinc-900 font-medium">why</span> each area is
+            or isn&apos;t right for you.
           </p>
         </motion.div>
 
@@ -94,7 +98,7 @@ const Index = () => {
                 <step.icon className="w-6 h-6 text-primary" />
               </div>
               <h3 className="font-semibold text-sm mb-1">{step.title}</h3>
-              <p className="text-xs text-muted-foreground">{step.desc}</p>
+              <p className="text-xs text-zinc-500">{step.desc}</p>
             </div>
           ))}
         </motion.div>
@@ -102,14 +106,14 @@ const Index = () => {
         <SearchFormV2 onSearch={handleSearch} isSearching={isSearching} />
 
         {error && (
-          <div className="mt-8 p-4 bg-destructive/10 border border-destructive/30 rounded-xl text-center text-destructive">
+          <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-xl text-center text-red-600">
             {error}
           </div>
         )}
 
-        <AreaResultsSection 
-          results={results} 
-          isSearching={isSearching} 
+        <AreaResultsSection
+          results={results}
+          isSearching={isSearching}
           city={searchContext.city}
           purpose={searchContext.purpose}
           checkIn={searchContext.checkIn}
@@ -118,14 +122,11 @@ const Index = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 mt-20">
-        <div className="container mx-auto px-4 py-8 text-center text-sm text-muted-foreground">
+      <footer className="border-t border-zinc-200 mt-20">
+        <div className="container mx-auto px-4 py-8 text-center text-sm text-zinc-400">
           <p>StayScout — Pre-booking intelligence for smarter travel decisions</p>
-          <p className="mt-2 text-xs">Powered by Gemini AI & Mino Browser Agents</p>
         </div>
       </footer>
     </div>
   );
-};
-
-export default Index;
+}

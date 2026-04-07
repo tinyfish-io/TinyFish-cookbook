@@ -1,21 +1,13 @@
 import { AreaSuggestion, AreaResearchResult, SearchParams } from '@/types/hotel';
 
-const API_BASE = import.meta.env.VITE_SUPABASE_URL;
-
 export async function discoverAreas(params: SearchParams): Promise<AreaSuggestion[]> {
-  const response = await fetch(`${API_BASE}/functions/v1/discover-areas`, {
+  const response = await fetch('/api/discover-areas', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to discover areas');
-  }
-
+  if (!response.ok) throw new Error('Failed to discover areas');
   const data = await response.json();
   return data.areas;
 }
@@ -30,7 +22,6 @@ export function researchArea(
   const controller = new AbortController();
   let completed = false;
 
-  // Timeout after 3 minutes for quick scan (Mino agents need time)
   const timeoutId = setTimeout(() => {
     if (!completed) {
       completed = true;
@@ -53,25 +44,17 @@ export function researchArea(
 
   const fetchStream = async () => {
     try {
-      const response = await fetch(`${API_BASE}/functions/v1/research-area`, {
+      const response = await fetch('/api/research-area', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ area, params }),
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.body) throw new Error('No reader available');
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No reader available');
-      }
-
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
@@ -85,14 +68,12 @@ export function researchArea(
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-
           const jsonStr = line.slice(6).trim();
           if (jsonStr === '[DONE]') continue;
 
           try {
             const event = JSON.parse(jsonStr);
 
-            // 🔹 streamingUrl is event-agnostic
             if (event.data?.streamingUrl) {
               onStatus({
                 areaId: area.id,
@@ -128,12 +109,11 @@ export function researchArea(
               }
             }
           } catch {
-            // Ignore parse errors
+            // ignore parse errors
           }
         }
       }
 
-      // Fallback if stream ends without COMPLETE
       if (!completed) {
         completed = true;
         clearTimeout(timeoutId);

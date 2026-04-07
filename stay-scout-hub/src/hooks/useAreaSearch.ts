@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback, useRef } from 'react';
 import { AreaSuggestion, AreaResearchResult, SearchParams } from '@/types/hotel';
 import { discoverAreas, researchArea } from '@/lib/api/area-search';

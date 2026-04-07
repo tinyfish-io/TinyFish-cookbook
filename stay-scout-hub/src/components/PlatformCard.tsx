@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { PlatformResult } from '@/types/hotel';
 import { Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Monitor } from 'lucide-react';

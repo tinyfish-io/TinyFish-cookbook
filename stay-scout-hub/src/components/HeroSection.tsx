@@ -1,3 +1,5 @@
+'use client';
+
 import { motion, Easing } from 'framer-motion';
 import { Building2, Zap, Globe } from 'lucide-react';
 import hotelHero from '@/assets/hotel-hero.jpg';

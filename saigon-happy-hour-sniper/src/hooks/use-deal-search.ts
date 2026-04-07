@@ -1,16 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Venue, Deal, DealType, District, SearchState, StreamingPreview } from '../lib/types';
+import type { Venue, Deal, DealType, District, StreamingPreview } from '../lib/types';
 import { normalizeVenue } from '../lib/normalize';
 
-export type { Venue, Deal, DealType, District, SearchState, StreamingPreview };
+export type { Venue, Deal, DealType, District, StreamingPreview };
+
+export interface SearchState {
+  venues: Venue[];
+  isSearching: boolean;
+  progress: { completed: number; total: number };
+  error: string | null;
+  elapsed: string | null;
+  streamingUrls: StreamingPreview[];
+}
 
 const MAX_IFRAMES_PER_SEARCH = 5;
 
 export function useDealSearch(): {
   state: SearchState;
-  search: (district: District, useCache?: boolean) => void;
+  search: (district: District) => void;
   abort: () => void;
 } {
   const [state, setState] = useState<SearchState>({
@@ -19,7 +28,6 @@ export function useDealSearch(): {
     progress: { completed: 0, total: 0 },
     error: null,
     elapsed: null,
-    cachedCount: 0,
     streamingUrls: [],
   });
 
@@ -27,18 +35,14 @@ export function useDealSearch(): {
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
   const abort = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    if (readerRef.current) {
-      readerRef.current.cancel();
-      readerRef.current = null;
-    }
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    readerRef.current?.cancel();
+    readerRef.current = null;
   }, []);
 
   const search = useCallback(
-    (district: District, useCache?: boolean) => {
+    (district: District) => {
       abort();
 
       setState({
@@ -47,7 +51,6 @@ export function useDealSearch(): {
         progress: { completed: 0, total: 0 },
         error: null,
         elapsed: null,
-        cachedCount: 0,
         streamingUrls: [],
       });
 
@@ -59,17 +62,12 @@ export function useDealSearch(): {
           const response = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ district, useCache: useCache ?? false }),
+            body: JSON.stringify({ district }),
             signal: controller.signal,
           });
 
-          if (!response.ok) {
-            throw new Error(`Search failed: ${response.status}`);
-          }
-
-          if (!response.body) {
-            throw new Error('Response body is empty');
-          }
+          if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+          if (!response.body) throw new Error('Response body is empty');
 
           const reader = response.body.getReader();
           readerRef.current = reader;
@@ -85,9 +83,7 @@ export function useDealSearch(): {
             buffer = lines.pop() ?? '';
 
             for (const line of lines) {
-              if (!line.startsWith('data: ')) {
-                continue;
-              }
+              if (!line.startsWith('data: ')) continue;
 
               let event: Record<string, unknown>;
               try {
@@ -96,63 +92,61 @@ export function useDealSearch(): {
                 continue;
               }
 
-              if (event.type === 'STREAMING_URL') {
+              if (event.type === 'SEARCH_STARTED') {
+                setState((prev) => ({
+                  ...prev,
+                  progress: { ...prev.progress, total: Number(event.total ?? 0) },
+                }));
+              } else if (event.type === 'STREAMING_URL') {
                 setState((prev) => {
                   const url = String(event.siteUrl || '');
+                  const streamingUrl = String(event.streamingUrl || '');
+                  if (!streamingUrl) return prev;
                   if (prev.streamingUrls.some((s) => s.siteUrl === url)) return prev;
                   if (prev.streamingUrls.length >= MAX_IFRAMES_PER_SEARCH) return prev;
                   return {
                     ...prev,
-                    streamingUrls: [
-                      ...prev.streamingUrls,
-                      {
-                        siteUrl: url,
-                        streamingUrl: String(event.streamingUrl || ''),
-                        done: false,
-                      },
-                    ],
+                    streamingUrls: [...prev.streamingUrls, { siteUrl: url, streamingUrl, done: false }],
                   };
                 });
               } else if (event.type === 'VENUE_RESULT') {
                 const venue = normalizeVenue(event.venue);
                 if (!venue) continue;
-                venue.source = (event.source as Venue['source']) ?? 'live';
-                venue.cached_at = event.cached_at ? String(event.cached_at) : undefined;
+                venue.source = 'live';
                 setState((prev) => ({
                   ...prev,
                   venues: [...prev.venues, venue],
-                  progress: {
-                    ...prev.progress,
-                    completed: prev.progress.completed + 1,
-                  },
+                  progress: { ...prev.progress, completed: prev.progress.completed + 1 },
                   streamingUrls: prev.streamingUrls.map((s) =>
                     s.siteUrl === String(event.siteUrl || '') ? { ...s, done: true } : s
                   ),
                 }));
-               } else if (event.type === 'SEARCH_COMPLETE') {
-                 const total = Number(event.total ?? 0);
-                 const elapsed = String(event.elapsed ?? '');
-                 const cachedCount = Number(event.cached ?? 0);
-                 setState((prev) => ({
-                   ...prev,
-                   isSearching: false,
-                   progress: { ...prev.progress, total },
-                   elapsed,
-                   cachedCount,
-                   streamingUrls: prev.streamingUrls.map((s) => ({ ...s, done: true })),
-                 }));
-               }
+              } else if (event.type === 'STREAMING_DONE') {
+                setState((prev) => ({
+                  ...prev,
+                  streamingUrls: prev.streamingUrls.map((s) =>
+                    s.siteUrl === String(event.siteUrl || '') ? { ...s, done: true } : s
+                  ),
+                }));
+              } else if (event.type === 'SEARCH_COMPLETE') {
+                setState((prev) => ({
+                  ...prev,
+                  isSearching: false,
+                  progress: { ...prev.progress, total: Number(event.total ?? prev.progress.total) },
+                  elapsed: String(event.elapsed ?? ''),
+                  streamingUrls: prev.streamingUrls.map((s) => ({ ...s, done: true })),
+                }));
+              }
             }
           }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {
             setState((prev) => ({ ...prev, isSearching: false }));
           } else {
-            const errorMsg = err instanceof Error ? err.message : 'Unknown error';
             setState((prev) => ({
               ...prev,
               isSearching: false,
-              error: errorMsg,
+              error: err instanceof Error ? err.message : 'Unknown error',
             }));
           }
         } finally {
@@ -163,11 +157,7 @@ export function useDealSearch(): {
     [abort]
   );
 
-  useEffect(() => {
-    return () => {
-      abort();
-    };
-  }, [abort]);
+  useEffect(() => () => abort(), [abort]);
 
   return { state, search, abort };
 }

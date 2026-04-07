@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
 import { useDealSearch } from '@/hooks/use-deal-search';
 import type { Venue, DealType, District } from '@/lib/types';
 import { DISTRICT_LABELS } from '@/lib/district-sites';
@@ -105,7 +104,6 @@ export default function Home() {
   // Per-hook-index data (keyed by hook index, not slot position)
   const [districts, setDistricts] = useState<(District | null)[]>([null, null, null, null]);
   const [triggered, setTriggered] = useState<boolean[]>([false, false, false, false]);
-  const [useCache, setUseCache] = useState(false);
 
   // Global filters
   const [dayFilter, setDayFilter] = useState<string | null>(null);
@@ -135,7 +133,7 @@ export default function Home() {
       prev.map((t, i) => (activeSlotHookIndices.includes(i) ? true : t)),
     );
     activeSlotHookIndices.forEach(hi => {
-      allHooks[hi].search(districts[hi]!, useCache);
+      allHooks[hi].search(districts[hi]!);
     });
   };
 
@@ -298,18 +296,6 @@ export default function Home() {
                 : 'Each search needs a district selected.'}
             </p>
           )}
-
-          <div className="flex items-center gap-3">
-            <Switch
-              id="cache-toggle"
-              checked={useCache}
-              onCheckedChange={setUseCache}
-              disabled={anySearching}
-            />
-            <label htmlFor="cache-toggle" className="text-sm text-zinc-600 cursor-pointer select-none">
-              {useCache ? '⚡ Cached results (faster)' : '🔴 Live scraping (shows TinyFish in action)'}
-            </label>
-          </div>
         </div>
 
         {/* Global filter toolbar — only visible when results exist */}
@@ -398,6 +384,7 @@ export default function Home() {
                   value={nameFilter}
                   onChange={e => setNameFilter(e.target.value)}
                   className="w-full h-7 px-3 text-xs rounded-md border border-zinc-200 bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition-shadow"
+                  suppressHydrationWarning
                 />
               </div>
               {hasActiveFilters && (
@@ -444,14 +431,12 @@ export default function Home() {
                         <span>
                           {hook.state.isSearching
                             ? 'Searching…'
-                            : hook.state.cachedCount > 0 && hook.state.cachedCount === hook.state.progress.total
-                              ? '⚡ Instant results from cache'
                               : `Search complete — ${hook.state.elapsed || '0s'}`}
                         </span>
                         <span>
                           {hook.state.progress.completed}
                           {hook.state.progress.total ? `/${hook.state.progress.total}` : ''} venues
-                          {hook.state.cachedCount > 0 && ` (${hook.state.cachedCount} cached)`}
+                
                         </span>
                       </div>
                       <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
@@ -504,8 +489,18 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Results */}
-                  {filtered.length > 0 && <ResultsGrid venues={filtered} />}
+                  {/* Results stream in as each agent finishes */}
+                  {filtered.length > 0 && (
+                    <div className="space-y-3">
+                      {hook.state.isSearching && (
+                        <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                          Results loading — showing {filtered.length} venue{filtered.length !== 1 ? 's' : ''} found so far
+                        </div>
+                      )}
+                      <ResultsGrid venues={filtered} />
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -518,19 +513,6 @@ export default function Home() {
               : 'Ready — click Search to find deals'}
           </div>
         )}
-
-        {/* Footer */}
-        <footer className="text-center text-sm text-zinc-400 pt-4 border-t border-zinc-100">
-          Powered by{' '}
-          <a
-            href="https://tinyfish.io"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-zinc-600 hover:text-zinc-900 underline underline-offset-2 transition-colors"
-          >
-            TinyFish
-          </a>
-        </footer>
 
       </main>
     </div>

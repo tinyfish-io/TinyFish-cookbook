@@ -198,11 +198,29 @@ export function normalizeDealType(raw: string | null | undefined): DealType {
 }
 
 export function normalizeVenue(raw: unknown): Venue | null {
-  if (raw == null || typeof raw !== 'object') return null;
+  if (raw == null) return null;
+  
+  // Accept strings (sometimes result is JSON string)
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  
+  if (typeof raw !== 'object') return null;
 
   const obj = raw as Record<string, unknown>;
 
-  if (!obj.name || typeof obj.name !== 'string' || !obj.name.trim()) return null;
+  // Accept any name-like field — never silently drop a venue
+  const nameRaw =
+    obj.name ??
+    obj.venue_name ??
+    obj.venueName ??
+    obj.title ??
+    obj.shop_name ??
+    obj.shopName;
+  
+  const name = nameRaw ? String(nameRaw).trim() : '';
+  // Only drop if truly no identifying info at all
+  if (!name && !obj.website && !obj.address) return null;
 
   let rawDeals: unknown[] = [];
   if (Array.isArray(obj.deals)) {
@@ -214,9 +232,12 @@ export function normalizeVenue(raw: unknown): Venue | null {
   const deals: Deal[] = rawDeals
     .filter(
       (d): d is Record<string, unknown> =>
-        d != null && typeof d === 'object' && !!(d as Record<string, unknown>).deal_name
+        d != null && typeof d === 'object'
     )
     .map((d) => {
+      const dealName = String(
+        d.deal_name ?? d.name ?? d.title ?? d.promotion ?? d.description ?? 'Deal'
+      ).trim();
       const rawItems = Array.isArray(d.items) ? d.items : d.items ? [d.items] : [];
       const items: DealItem[] = (rawItems as Record<string, unknown>[]).map((item) => ({
         item: (item.item as string) || '',
@@ -224,13 +245,20 @@ export function normalizeVenue(raw: unknown): Venue | null {
         regular_price: convertVndPrice(item.regular_price as string | number | null | undefined),
       }));
 
+      const rawDays = d.day_of_week;
+      let parsedDays: string[];
+      if (Array.isArray(rawDays)) {
+        parsedDays = rawDays.flatMap((day) => parseDayRange(String(day)));
+      } else {
+        parsedDays = parseDayRange(rawDays as string | null | undefined);
+      }
       const timeStart = d.time_start ? convertSingleTimeTo24h(String(d.time_start)) : null;
       const timeEnd = d.time_end ? convertSingleTimeTo24h(String(d.time_end)) : null;
 
       return {
-        deal_name: d.deal_name as string,
+        deal_name: dealName,
         type: normalizeDealType(d.type as string | null | undefined),
-        day_of_week: parseDayRange(d.day_of_week as string | null | undefined),
+        day_of_week: parsedDays,
         time_start: timeStart,
         time_end: timeEnd,
         description: (d.description as string) || '',
@@ -241,7 +269,7 @@ export function normalizeVenue(raw: unknown): Venue | null {
     });
 
   return {
-    name: obj.name as string,
+    name: name || String(obj.website || obj.address || 'Unknown Venue'),
     district: (obj.district as Venue['district']) || 'd1',
     address: (obj.address as string) || '',
     website: (obj.website as string) || '',

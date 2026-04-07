@@ -1,43 +1,29 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Environment files — never commit these
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Next.js
+.next/
+out/
 
-# testing
-/coverage
+# Dependencies
+node_modules/
 
-# next.js
-/.next/
-/out/
+# Build output
+dist/
+build/
 
-# production
-/build
-
-# misc
+# OS files
 .DS_Store
-*.pem
+Thumbs.db
 
-# debug
+# Logs
+*.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-.env*.local
+# Editor
+.vscode/
+.idea/

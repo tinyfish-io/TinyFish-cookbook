@@ -48,6 +48,5 @@ export interface SearchState {
   progress: { completed: number; total: number };
   error: string | null;
   elapsed: string | null;
-  cachedCount: number;
   streamingUrls: StreamingPreview[];
 }

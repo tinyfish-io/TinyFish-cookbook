@@ -10,8 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.97.0",
-    "@tiny-fish/sdk": "^0.0.5",
+    "@tiny-fish/sdk": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.575.0",

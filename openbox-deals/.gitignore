@@ -1,7 +1,5 @@
 .env
-venv/
-__pycache__/
-*.pyc
-.vscode/
-.idea/
-.DS_Store
+.env.local
+.env.*.local
+.next/
+node_modules/

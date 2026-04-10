@@ -189,7 +189,7 @@ export default function SettingsPage() {
           <section className="bg-white border border-border rounded-lg p-6">
             <h2 className="font-medium mb-1">Browser Settings</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Configure how Mino interacts with websites
+              Configure how TinyFish interacts with websites
             </p>
 
             <div className="space-y-4">

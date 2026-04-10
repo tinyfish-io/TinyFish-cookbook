@@ -1,19 +1,45 @@
-/**
- * Mino API client for SkillForge
- * Handles SSE streaming for scraping operations
- */
+import { TinyFish } from "@tiny-fish/sdk";
+import { formatStepMessage, isSystemEvent } from "./utils";
 
-import {
-  parseSSELine,
-  isCompleteEvent,
-  isErrorEvent,
-  formatStepMessage,
-  isSystemEvent,
-} from "./utils";
+type AgentStreamParams = Parameters<TinyFish["agent"]["stream"]>[0];
 
-const MINO_API_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
+type TinyFishStreamEventBase = { type: string };
+type TinyFishStreamingUrlEvent = TinyFishStreamEventBase & {
+  type: "STREAMING_URL";
+  streaming_url: string;
+};
+type TinyFishProgressEvent = TinyFishStreamEventBase & {
+  type: "PROGRESS";
+  purpose?: string;
+  action?: string;
+};
+type TinyFishCompleteEvent = TinyFishStreamEventBase & {
+  type: "COMPLETE";
+  status?: string;
+  result?: unknown;
+  result_json?: unknown;
+  resultJson?: unknown;
+  error?: { message?: string } | string;
+  message?: string;
+};
 
-export interface MinoRequestConfig {
+type TinyFishStreamEvent =
+  | TinyFishStreamingUrlEvent
+  | TinyFishProgressEvent
+  | TinyFishCompleteEvent
+  | (TinyFishStreamEventBase & Record<string, unknown>);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toTinyFishEvent(value: unknown): TinyFishStreamEvent | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.type !== "string") return null;
+  return value as TinyFishStreamEvent;
+}
+
+export interface TinyFishRequestConfig {
   url: string;
   goal: string;
   browser_profile?: "lite" | "stealth";
@@ -23,105 +49,90 @@ export interface MinoRequestConfig {
   };
 }
 
-export interface MinoResponse {
+export interface TinyFishResponse {
   success: boolean;
   result?: unknown;
   error?: string;
   streamingUrl?: string;
 }
 
-export interface MinoCallbacks {
+export interface TinyFishCallbacks {
   onStep?: (message: string) => void;
   onStreamingUrl?: (url: string) => void;
   onComplete?: (result: unknown) => void;
   onError?: (error: string) => void;
 }
 
+let clientPromise: Promise<TinyFish> | null = null;
+async function getClient(apiKey?: string): Promise<TinyFish> {
+  // The SDK reads `TINYFISH_API_KEY` from env; keep compatibility with callers
+  // that pass `apiKey` separately.
+  if (!process.env.TINYFISH_API_KEY && apiKey) {
+    process.env.TINYFISH_API_KEY = apiKey;
+  }
+
+  if (!clientPromise) {
+    clientPromise = Promise.resolve(new TinyFish());
+  }
+  return clientPromise;
+}
+
 /**
- * Execute a Mino automation task with callbacks for progress
+ * Execute a TinyFish automation task with callbacks for progress
  */
-export async function runMinoAutomation(
-  config: MinoRequestConfig,
+export async function runTinyFishAutomation(
+  config: TinyFishRequestConfig,
   apiKey: string,
-  callbacks?: MinoCallbacks
-): Promise<MinoResponse> {
+  callbacks?: TinyFishCallbacks,
+): Promise<TinyFishResponse> {
   let streamingUrl: string | undefined;
 
   try {
-    const response = await fetch(MINO_API_URL, {
-      method: "POST",
-      headers: {
-        "X-API-Key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(config),
-    });
+    const client = await getClient(apiKey);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API request failed: ${response.status} ${errorText}`);
-    }
+    const stream = await client.agent.stream(config as unknown as AgentStreamParams);
 
-    if (!response.body) {
-      throw new Error("Response body is null");
-    }
+    for await (const rawEvent of stream as AsyncIterable<unknown>) {
+      const event = toTinyFishEvent(rawEvent);
+      if (!event) continue;
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+      const rawStreamingUrl = (event as Record<string, unknown>).streaming_url;
+      if (event.type === "STREAMING_URL" && typeof rawStreamingUrl === "string") {
+        streamingUrl = rawStreamingUrl;
+        callbacks?.onStreamingUrl?.(rawStreamingUrl);
+        continue;
+      }
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const event = parseSSELine(line);
-        if (!event) continue;
-
-        // Capture streaming URL if available
-        if (event.streamingUrl) {
-          streamingUrl = event.streamingUrl;
-          callbacks?.onStreamingUrl?.(event.streamingUrl);
-        }
-
-        // Forward step progress (filter system events)
-        if (event.type === "STEP" && !isSystemEvent(event)) {
+      if (event.type === "PROGRESS") {
+        if (!isSystemEvent(event)) {
           callbacks?.onStep?.(formatStepMessage(event));
         }
+        continue;
+      }
 
-        // Check for completion
-        if (isCompleteEvent(event)) {
-          callbacks?.onComplete?.(event.resultJson);
-          return {
-            success: true,
-            result: event.resultJson,
-            streamingUrl,
-          };
+      if (event.type === "COMPLETE") {
+        const status = String((event as TinyFishCompleteEvent).status ?? "").toUpperCase();
+        const isSuccess = status === "COMPLETED";
+        const complete = event as TinyFishCompleteEvent;
+        const result = complete.result ?? complete.result_json ?? complete.resultJson;
+        const errorMsg =
+          (typeof complete.error === "string"
+            ? complete.error
+            : complete.error?.message) ||
+          complete.message ||
+          "Automation failed";
+
+        if (isSuccess) {
+          callbacks?.onComplete?.(result);
+          return { success: true, result, streamingUrl };
         }
 
-        // Check for errors
-        if (isErrorEvent(event)) {
-          const errorMsg = event.message || "Automation failed";
-          callbacks?.onError?.(errorMsg);
-          return {
-            success: false,
-            error: errorMsg,
-            streamingUrl,
-          };
-        }
+        callbacks?.onError?.(String(errorMsg));
+        return { success: false, error: String(errorMsg), streamingUrl };
       }
     }
 
-    // If we reach here without completion, it's an unexpected end
-    return {
-      success: false,
-      error: "Stream ended without completion event",
-      streamingUrl,
-    };
+    return { success: false, error: "Stream ended without completion event", streamingUrl };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     callbacks?.onError?.(errorMsg);
@@ -133,11 +144,11 @@ export async function runMinoAutomation(
 }
 
 /**
- * Build Mino goal for different source types
+ * Build TinyFish goal for different source types
  */
 export function buildScrapeGoal(
   sourceType: "docs" | "github" | "stackoverflow" | "blog",
-  topic: string
+  topic: string,
 ): string {
   const goals: Record<string, string> = {
     docs: `Extract technical documentation content about "${topic}".
@@ -308,3 +319,4 @@ export function parseScrapedContent(result: unknown): string {
 
   return String(result);
 }
+

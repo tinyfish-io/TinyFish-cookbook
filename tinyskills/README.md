@@ -21,7 +21,7 @@ The app uses TinyFish's SSE endpoint to scrape multiple sources in parallel. Eac
 ### Scraping Documentation
 
 ```typescript
-const result = await runMinoAutomation(
+const result = await runTinyFishAutomation(
   {
     url: "https://react.dev/reference/rsc/server-components",
     goal: `Extract technical documentation content about "react server components".
@@ -67,7 +67,7 @@ From `app/api/scrape-sources/route.ts`:
 const scrapePromises = sources.map(async (source) => {
   const goal = buildScrapeGoal(source.type, topic);
   
-  const result = await runMinoAutomation(
+  const result = await runTinyFishAutomation(
     {
       url: source.url,
       goal,
@@ -103,7 +103,7 @@ The app streams real-time progress for all 8 parallel scraping operations, showi
 ### Prerequisites
 
 - Node.js 18+ (or Bun)
-- A TinyFish API key ([get one here](https://mino.ai/api-keys))
+- A TinyFish API key ([get one here](https://agent.tinyfish.ai/api-keys))
 - OpenRouter API key for AI synthesis ([get one here](https://openrouter.ai))
 
 ### Setup
@@ -111,8 +111,8 @@ The app streams real-time progress for all 8 parallel scraping operations, showi
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/pranavjana/mino-tinyskills.git
-cd mino-tinyskills
+git clone https://github.com/tinyfish-io/tinyfish-cookbook.git
+cd tinyfish-cookbook/tinyskills
 ```
 
 2. Install dependencies:
@@ -164,7 +164,7 @@ npm run dev
                       │ POST to TinyFish (x8, parallel)
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│                  TinyFish API (mino.ai)                  │
+│                  TinyFish API (tinyfish.ai)              │
 │                                                          │
 │  8 parallel web agents, each with specialized prompts:   │
 │    • Docs → Extract APIs, examples, concepts            │

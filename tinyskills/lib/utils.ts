@@ -5,8 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Mino SSE Event utilities
-export interface MinoEvent {
+// TinyFish stream event utilities (used for progress text + filtering)
+export interface TinyFishEvent {
   type: string;
   status?: string;
   message?: string;
@@ -21,28 +21,28 @@ export interface MinoEvent {
   timestamp?: number;
 }
 
-export function parseSSELine(line: string): MinoEvent | null {
+export function parseSSELine(line: string): TinyFishEvent | null {
   if (!line.startsWith("data: ")) {
     return null;
   }
 
   try {
     const data = JSON.parse(line.slice(6));
-    return data as MinoEvent;
+    return data as TinyFishEvent;
   } catch {
     return null;
   }
 }
 
-export function isCompleteEvent(event: MinoEvent): boolean {
+export function isCompleteEvent(event: TinyFishEvent): boolean {
   return event.type === "COMPLETE" && event.status === "COMPLETED";
 }
 
-export function isErrorEvent(event: MinoEvent): boolean {
+export function isErrorEvent(event: TinyFishEvent): boolean {
   return event.type === "ERROR" || event.status === "FAILED";
 }
 
-export function formatStepMessage(event: MinoEvent): string {
+export function formatStepMessage(event: TinyFishEvent): string {
   return (
     event.purpose ||
     event.action ||
@@ -56,7 +56,7 @@ export function formatStepMessage(event: MinoEvent): string {
 }
 
 // Check if event is a system/internal event to filter out
-export function isSystemEvent(event: MinoEvent): boolean {
+export function isSystemEvent(event: TinyFishEvent): boolean {
   const systemTypes = [
     "STARTED",
     "STREAMING_URL",

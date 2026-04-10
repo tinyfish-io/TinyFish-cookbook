@@ -1,8 +1,8 @@
 import {
-  runMinoAutomation,
+  runTinyFishAutomation,
   buildScrapeGoal,
   parseScrapedContent,
-} from "@/lib/mino-client";
+} from "@/lib/tinyfish-client";
 import { countWords } from "@/lib/utils";
 import type { IdentifiedSource, ScrapeProgress, Settings } from "@/types";
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
       const apiKey = process.env.TINYFISH_API_KEY;
       if (!apiKey) {
-        await sendEvent({ type: "error", error: "Mino API key not configured" });
+        await sendEvent({ type: "error", error: "TinyFish API key not configured" });
         await closeWriter();
         return;
       }
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
         try {
           const goal = buildScrapeGoal(source.type, topic);
 
-          const result = await runMinoAutomation(
+          const result = await runTinyFishAutomation(
             {
               url: source.url,
               goal,

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tiny-fish/sdk": "^0.0.7",
     "clsx": "^2.1.1",
     "framer-motion": "^12.27.1",
     "lucide-react": "^0.562.0",

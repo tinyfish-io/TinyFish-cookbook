@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { saveSnapshot, getLastSnapshot, getHistory, HistoricalSnapshot } from '@/lib/store';
+import { TinyFish } from '@tiny-fish/sdk';
 
 // Extend Vercel serverless function timeout to 120 seconds (max for Pro plan)
 export const maxDuration = 120;
@@ -139,6 +140,8 @@ const SCAN_TIMEOUT_MS = 110000; // 110s total scan budget
 
 const scanCache = new Map<string, { expires: number; result: ScanResult }>();
 
+const tinyFishClient = new TinyFish();
+
 const getDirectSearchUrls = (partNumber: string) => [
     { name: 'DigiKey', url: `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(partNumber)}` },
     { name: 'Mouser', url: `https://www.mouser.com/c/?q=${encodeURIComponent(partNumber)}` },
@@ -146,6 +149,22 @@ const getDirectSearchUrls = (partNumber: string) => [
     { name: 'Farnell', url: `https://www.farnell.com/search?st=${encodeURIComponent(partNumber)}` },
     { name: 'Arrow', url: `https://www.arrow.com/en/products/search?q=${encodeURIComponent(partNumber)}` },
 ];
+
+type TinyFishStreamEvent =
+    | { type: 'STARTED'; run_id?: string; timestamp?: string }
+    | { type: 'STREAMING_URL'; run_id?: string; streaming_url?: string; streamingUrl?: string }
+    | { type: 'PROGRESS'; run_id?: string; purpose?: string }
+    | { type: 'COMPLETE'; run_id?: string; status?: string; result_json?: unknown; resultJson?: unknown; result?: unknown }
+    | { type: string; [key: string]: unknown };
+
+function timeoutAfter(ms: number, message = 'Timed out'): Promise<never> {
+    return new Promise((_, reject) => {
+        const id = setTimeout(() => reject(new Error(message)), ms);
+        // Avoid holding the event loop open in serverless runtimes (Node only).
+        const maybeTimeout = id as unknown as { unref?: () => void };
+        maybeTimeout.unref?.();
+    });
+}
 
 export async function POST(request: Request) {
     const agentLogs: string[] = [];
@@ -185,9 +204,9 @@ export async function POST(request: Request) {
         let riskLevel = "MEDIUM";
         let riskScore = 50;
         let reasoning = "Gathering live data...";
-        let evidence: string[] = [];
+        const evidence: string[] = [];
         let leadTime = 0;
-        let moq = 0;
+        const moq = 0;
         let availability = "Unknown";
         let priceEstimate = "N/A";
 
@@ -196,8 +215,6 @@ export async function POST(request: Request) {
         const directSourcesBlocked: string[] = [];
         let uniqueSources: string[] = [];
         let sourceSignals: SourceSignal[] = [];
-        let signalsSummary: SignalSummary | undefined;
-        let confidence: ConfidenceInfo | undefined;
         const scanStartTime = Date.now();
         let scanTimedOut = false;
 
@@ -223,16 +240,9 @@ export async function POST(request: Request) {
 
                 agentLogs.push(`${logPrefix} Requesting ${source.name} via TinyFish API...`);
                 try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), SOURCE_TIMEOUT_MS);
-
-                    const response = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
-                        method: 'POST',
-                        headers: {
-                            'X-API-Key': apiKey,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
+                    // Use TinyFish SDK streaming to preserve SSE-style progress and completion events.
+                    const run = async (): Promise<SourceSignal> => {
+                        const stream = await tinyFishClient.agent.stream({
                             url: source.url,
                             goal: `Find the product listing for ${part_number}. Extract: price, availability/stock status, lead time, lifecycle status. Return as JSON.`,
                             browser_profile: "lite",
@@ -240,85 +250,84 @@ export async function POST(request: Request) {
                                 enabled: true,
                                 country_code: "US"
                             },
-                            api_integration: "silicon_signal",
-                            feature_flags: {
-                                enable_agent_memory: true
-                            }
-                        }),
-                        signal: controller.signal
-                    });
+                        });
 
-                    clearTimeout(timeoutId);
-
-                    if (!response.ok) {
-                        agentLogs.push(`${logPrefix} TinyFish API error for ${source.name}: ${response.status}`);
-                        return defaultSignal;
-                    }
-
-                    const reader = response.body?.getReader();
-                    if (!reader) return defaultSignal;
-
-                    const decoder = new TextDecoder();
-                    let buffer = '';
-
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) break;
-
-                        buffer += decoder.decode(value, { stream: true });
-                        const lines = buffer.split('\n');
-                        buffer = lines.pop() || '';
-
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                const dataStr = line.replace('data: ', '').trim();
-                                if (!dataStr) continue;
-                                try {
-                                    const eventData = JSON.parse(dataStr);
-                                    if (eventData.type === 'STREAMING_URL') {
-                                        agentLogs.push(`${logPrefix} [${source.name}] Live stream: ${eventData.streamingUrl}`);
-                                    }
-                                    if (eventData.type === 'PROGRESS') {
-                                        agentLogs.push(`${logPrefix} [${source.name}] Progress: ${eventData.purpose}`);
-                                    }
-                                    if (eventData.type === 'COMPLETE') {
-                                        const resultJson = eventData.resultJson || {};
-
-                                        let parsedPrice = resultJson.price || resultJson.price_estimate;
-                                        if (parsedPrice && typeof parsedPrice === 'number') {
-                                            parsedPrice = `USD ${parsedPrice.toFixed(2)}`;
-                                        } else if (parsedPrice && typeof parsedPrice === 'string' && !parsedPrice.toLowerCase().includes('usd')) {
-                                            const pMatch = parsedPrice.match(/[\d.]+/);
-                                            if (pMatch) parsedPrice = `USD ${pMatch[0]}`;
-                                        }
-
-                                        let parsedLeadTime = undefined;
-                                        if (typeof resultJson.lead_time_weeks === 'number') {
-                                            parsedLeadTime = resultJson.lead_time_weeks;
-                                        } else if (typeof resultJson.lead_time === 'number') {
-                                            parsedLeadTime = resultJson.lead_time;
-                                        } else if (typeof resultJson.lead_time === 'string') {
-                                            const m = resultJson.lead_time.match(/(\d+)/);
-                                            if (m) parsedLeadTime = parseInt(m[1], 10);
-                                        }
-
-                                        return {
-                                            name: source.name,
-                                            url: source.url,
-                                            ok: true,
-                                            blocked: false,
-                                            availability: mapSchemaAvailability(resultJson.availability || resultJson.stock_status) || resultJson.availability || resultJson.stock_status,
-                                            lifecycle_status: inferLifecycle(resultJson.lifecycle_status) !== 'Unknown' ? inferLifecycle(resultJson.lifecycle_status) : resultJson.lifecycle_status,
-                                            lead_time_weeks: parsedLeadTime,
-                                            price_estimate: parsedPrice
-                                        };
-                                    }
-                                } catch (e) {
-                                    // parsing partial chunk issue
+                        for await (const event of stream as AsyncIterable<TinyFishStreamEvent>) {
+                            const type = event.type;
+                            if (type === 'STREAMING_URL') {
+                                const streamingUrlRaw = (event as Extract<TinyFishStreamEvent, { type: 'STREAMING_URL' }>).streaming_url ??
+                                    (event as Extract<TinyFishStreamEvent, { type: 'STREAMING_URL' }>).streamingUrl;
+                                if (typeof streamingUrlRaw === 'string' && streamingUrlRaw) {
+                                    agentLogs.push(`${logPrefix} [${source.name}] Live stream: ${streamingUrlRaw}`);
                                 }
                             }
+                            if (type === 'PROGRESS') {
+                                const purpose = (event as Extract<TinyFishStreamEvent, { type: 'PROGRESS' }>).purpose;
+                                if (typeof purpose === 'string' && purpose) {
+                                    agentLogs.push(`${logPrefix} [${source.name}] Progress: ${purpose}`);
+                                }
+                            }
+                            if (type === 'COMPLETE') {
+                                const resultJson =
+                                    ((event as Extract<TinyFishStreamEvent, { type: 'COMPLETE' }>).result_json ??
+                                        (event as Extract<TinyFishStreamEvent, { type: 'COMPLETE' }>).resultJson ??
+                                        (event as Extract<TinyFishStreamEvent, { type: 'COMPLETE' }>).result ??
+                                        {}) as Record<string, unknown>;
+
+                                let parsedPrice = (resultJson as { price?: unknown; price_estimate?: unknown }).price ??
+                                    (resultJson as { price?: unknown; price_estimate?: unknown }).price_estimate;
+                                if (parsedPrice && typeof parsedPrice === 'number') {
+                                    parsedPrice = `USD ${parsedPrice.toFixed(2)}`;
+                                } else if (parsedPrice && typeof parsedPrice === 'string' && !parsedPrice.toLowerCase().includes('usd')) {
+                                    const pMatch = parsedPrice.match(/[\d.]+/);
+                                    if (pMatch) parsedPrice = `USD ${pMatch[0]}`;
+                                }
+
+                                let parsedLeadTime: number | undefined = undefined;
+                                const leadTimeWeeks = (resultJson as { lead_time_weeks?: unknown }).lead_time_weeks;
+                                const leadTime = (resultJson as { lead_time?: unknown }).lead_time;
+                                if (typeof leadTimeWeeks === 'number') {
+                                    parsedLeadTime = leadTimeWeeks;
+                                } else if (typeof leadTime === 'number') {
+                                    parsedLeadTime = leadTime;
+                                } else if (typeof leadTime === 'string') {
+                                    const m = leadTime.match(/(\d+)/);
+                                    if (m) parsedLeadTime = parseInt(m[1], 10);
+                                }
+
+                                const availabilityRaw =
+                                    (resultJson as { availability?: unknown; stock_status?: unknown }).availability ??
+                                    (resultJson as { availability?: unknown; stock_status?: unknown }).stock_status;
+
+                                const lifecycleRaw = (resultJson as { lifecycle_status?: unknown }).lifecycle_status;
+                                const inferredLifecycle = inferLifecycle(typeof lifecycleRaw === 'string' ? lifecycleRaw : '');
+
+                                return {
+                                    name: source.name,
+                                    url: source.url,
+                                    ok: true,
+                                    blocked: false,
+                                    availability:
+                                        typeof availabilityRaw === 'string'
+                                            ? mapSchemaAvailability(availabilityRaw) || availabilityRaw
+                                            : undefined,
+                                    lifecycle_status:
+                                        inferredLifecycle !== 'Unknown'
+                                            ? inferredLifecycle
+                                            : (typeof lifecycleRaw === 'string' ? lifecycleRaw : undefined),
+                                    lead_time_weeks: parsedLeadTime,
+                                    price_estimate: typeof parsedPrice === 'string' ? parsedPrice : undefined
+                                };
+                            }
                         }
-                    }
+
+                        return defaultSignal;
+                    };
+
+                    return await Promise.race([
+                        run(),
+                        timeoutAfter(SOURCE_TIMEOUT_MS, `TinyFish source timeout: ${source.name}`),
+                    ]);
                 } catch (err) {
                     agentLogs.push(`${logPrefix} Failed to fetch ${source.name} via TinyFish: ${err instanceof Error ? err.message : String(err)}`);
                 }
@@ -402,11 +411,11 @@ export async function POST(request: Request) {
             Boolean(signal.availability || signal.lifecycle_status || signal.lead_time_weeks || signal.price_estimate)
         ).length;
         const sourcesOk = sourceSignals.filter((signal) => signal.ok).length;
-        confidence = computeConfidence(sourcesOk, signalsCount);
+        const confidence = computeConfidence(sourcesOk, signalsCount);
 
         const hasAnySignals = uniqueSources.length > 0 || signalsCount > 0;
 
-        signalsSummary = {
+        const signalsSummary: SignalSummary = {
             availability: hasAnySignals && availability === 'Unknown' ? FALLBACK_AVAILABILITY : availability,
             lifecycle_status: hasAnySignals && status === 'Unknown' ? FALLBACK_LIFECYCLE : status,
             lead_time_weeks: leadTime || undefined,

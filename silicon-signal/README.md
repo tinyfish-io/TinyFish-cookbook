@@ -181,7 +181,7 @@ stateDiagram-v2
 ##  Getting Started
 
 ### **Environment Setup**
-Create a `.env.local` in the `frontend` directory:
+Create a `.env.local` in this directory:
 ```env
 TINYFISH_API_KEY=your_key_here
 ```
@@ -189,7 +189,7 @@ The TinyFish tracker runs without API keys, but adding `TINYFISH_API_KEY` enable
 
 ### **Running Locally**
 ```bash
-cd frontend
+cd silicon-signal
 npm install
 npm run dev
 ```

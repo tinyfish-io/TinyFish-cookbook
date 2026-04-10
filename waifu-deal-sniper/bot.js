@@ -12,6 +12,15 @@ const { Client, GatewayIntentBits, EmbedBuilder, ActivityType, Partials } = requ
 const { TEMPLATES, SPICY_KEYWORDS, HUSBANDO_KEYWORDS, FIGURE_TYPE_KEYWORDS, GACHA_TEMPLATES, ROAST_TEMPLATES, COPIUM_TEMPLATES } = require('./templates');
 const db = require('./database');
 
+// TinyFish SDK is ESM; this app is CommonJS. Use a lazy dynamic import.
+let tinyFishClientPromise = null;
+async function getTinyFishClient() {
+  if (!tinyFishClientPromise) {
+    tinyFishClientPromise = import('@tiny-fish/sdk').then(({ TinyFish }) => new TinyFish());
+  }
+  return tinyFishClientPromise;
+}
+
 // Store last search results per user for gacha/roast
 const lastSearchResults = new Map();
 
@@ -32,7 +41,6 @@ setInterval(() => {
 const CONFIG = {
   DISCORD_TOKEN: process.env.DISCORD_TOKEN,
   TINYFISH_API_KEY: process.env.TINYFISH_API_KEY,
-  TINYFISH_ENDPOINT: 'https://agent.tinyfish.ai/v1/automation/run-sse',
   WATCH_INTERVAL: 5 * 60 * 1000, // 5 minutes
   RATE_LIMIT_WINDOW: 60000,      // 1 minute
   RATE_LIMIT_MAX: 10,            // 10 searches per minute
@@ -379,61 +387,20 @@ async function searchSite(siteKey, query, maxPrice = null) {
   const goal = site.goal + (maxPrice ? `\n\nOnly items under ${maxPrice} JPY.` : '');
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 90000);
-    
-    const response = await fetch(CONFIG.TINYFISH_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': CONFIG.TINYFISH_API_KEY,
-      },
-      body: JSON.stringify({ url: searchUrl, goal }),
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeout);
+    const client = await getTinyFishClient();
 
-    if (!response.ok) {
-      console.error(`${site.name} API error:`, response.status);
-      return { success: false, error: `API error: ${response.status}` };
+    // This code path previously hit the SSE endpoint but still waited for the full body.
+    // `agent.run()` matches that "wait for completion" behavior without SSE parsing.
+    const run = await client.agent.run({ url: searchUrl, goal });
+
+    const tinyfishError = run?.error?.message || run?.error;
+    if (tinyfishError) {
+      console.error(`${site.name} TinyFish error:`, tinyfishError);
+      return { success: false, error: String(tinyfishError) };
     }
 
-    // Parse SSE response
-    const text = await response.text();
-    const lines = text.split('\n');
-    
-    console.log(`${site.name} response length:`, text.length, 'bytes');
-    
-    let foundItems = null;
-    
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const event = JSON.parse(line.slice(6));
-          
-          if (event.type) {
-            console.log(`${site.name} event: ${event.type}`);
-          }
-          
-          if (event.type === 'COMPLETE') {
-            console.log(`${site.name} COMPLETE event received`);
-            let items = findItemsArray(event);
-            if (items && items.length > 0) {
-              foundItems = items;
-            }
-          }
-          
-          if (event.type === 'ERROR' || event.status === 'FAILED') {
-            console.error(`${site.name} error event:`, event.error || event.message);
-            return { success: false, error: event.error || event.message };
-          }
-        } catch (e) {
-          // Not valid JSON, skip
-        }
-      }
-    }
-    
+    let foundItems = findItemsArray(run?.result ?? run);
+
     if (foundItems && foundItems.length > 0) {
       // Post-process items
       foundItems = foundItems.map(item => {
@@ -467,27 +434,6 @@ async function searchSite(siteKey, query, maxPrice = null) {
       return { success: true, items: foundItems, site: siteKey };
     }
     
-    // Fallback
-    try {
-      const fullJson = JSON.parse(text);
-      const items = findItemsArray(fullJson);
-      if (items && items.length > 0) {
-        const processedItems = items.map(item => {
-          item.rarity = calculateRarity(item);
-          item.rarityDetails = getRarityDetails(item);
-          item.site = siteKey;
-          item.siteName = site.name;
-          item.siteEmoji = site.emoji;
-          return item;
-        });
-        console.log(`✅ ${site.name} found ${processedItems.length} items (fallback)`);
-        return { success: true, items: processedItems, site: siteKey };
-      }
-    } catch (e) {
-      // Not valid JSON
-    }
-    
-    console.log(`${site.name} response tail:`, text.slice(-500));
     console.error(`❌ No items found from ${site.name}`);
     return { success: false, error: 'No results found' };
   } catch (error) {

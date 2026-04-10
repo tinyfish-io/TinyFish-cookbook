@@ -27,10 +27,11 @@ https://github.com/user-attachments/assets/demo.mp4
 
 ---
 
-## 📦 TinyFish API Integration
+## 📦 TinyFish SDK Integration
 
 ```javascript
-const TINYFISH_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run-sse';
+import { TinyFish } from "@tiny-fish/sdk";
+const client = new TinyFish(); // Reads TINYFISH_API_KEY from environment
 
 async function searchSite(siteKey, query, maxPrice = null) {
   const site = SITES[siteKey];
@@ -48,27 +49,8 @@ async function searchSite(siteKey, query, maxPrice = null) {
     - manufacturer: Company name
     Return JSON array.`;
 
-  const response = await fetch(TINYFISH_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': process.env.TINYFISH_API_KEY,
-    },
-    body: JSON.stringify({ url: searchUrl, goal }),
-  });
-
-  // Parse SSE response
-  const text = await response.text();
-  const lines = text.split('\n');
-  
-  for (const line of lines) {
-    if (line.startsWith('data: ')) {
-      const event = JSON.parse(line.slice(6));
-      if (event.type === 'COMPLETE') {
-        return event.items || event.result;
-      }
-    }
-  }
+  const run = await client.agent.run({ url: searchUrl, goal });
+  return run.result;
 }
 ```
 
@@ -143,10 +125,9 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
                                                         │
                                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      TINYFISH API                                  │
+│                      TINYFISH AGENT SDK                               │
 │                                                                         │
-│   POST /v1/automation/run-sse                                           │
-│   { url: "https://mercari.com/search?keyword=rem", goal: "..." }       │
+│   client.agent.run({ url: "...", goal: "..." })                         │
 │                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐  │
 │   │  Headless Browser → Navigate → Extract → Return Structured JSON │  │
@@ -170,7 +151,7 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
 | Feature | Description |
 |---------|-------------|
 | **Multi-Site Search** | AmiAmi, Mercari US, Solaris Japan |
-| **Real-Time Scraping** | Live prices via TinyFish API |
+| **Real-Time Scraping** | Live prices via TinyFish agent |
 | **Rarity Scoring** | SSR/SR/R/N based on scale, manufacturer, exclusivity |
 | **Gacha Mode** | Random figure picks with dramatic reveals |
 | **Roast Mode** | Get roasted for your waifu choices |
@@ -223,7 +204,7 @@ waifu-deal-sniper/
 
 ## 🙏 Credits
 
-Built with [TinyFish API](https://tinyfish.ai) for web scraping.
+Built with [TinyFish](https://tinyfish.ai) for web scraping.
 
 ---
 

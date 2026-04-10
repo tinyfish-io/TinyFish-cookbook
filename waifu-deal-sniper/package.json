@@ -18,6 +18,7 @@
   "author": "Shubham Khandelwal",
   "license": "MIT",
   "dependencies": {
+    "@tiny-fish/sdk": "^0.0.7",
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
     "sql.js": "^1.10.3"

@@ -1,109 +1,112 @@
-import { TINYFISH_API_URL } from './constants';
 import type { TinyFishRequestConfig, TinyFishCallbacks, TinyFishSSEEvent } from '@/types';
 
-/**
- * Parse a single SSE line
- */
-function parseSSELine(line: string): TinyFishSSEEvent | null {
-  if (!line.startsWith('data: ')) return null;
+function safeString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length ? value : undefined;
+}
 
+function parseSSELine(line: string): Record<string, unknown> | null {
+  if (!line.startsWith('data: ')) return null;
   try {
-    return JSON.parse(line.slice(6)) as TinyFishSSEEvent;
+    return JSON.parse(line.slice(6)) as Record<string, unknown>;
   } catch {
     return null;
   }
 }
 
 /**
- * Start a TinyFish agent and handle SSE stream
- * Returns an AbortController for cancellation
+ * Start a TinyFish agent and handle streaming events.
+ * Uses a same-origin dev proxy (Vite middleware) that calls the TinyFish SDK server-side.
  */
 export function startTinyFishAgent(
   config: TinyFishRequestConfig,
   callbacks: TinyFishCallbacks
 ): AbortController {
   const controller = new AbortController();
-  const apiKey = import.meta.env.VITE_TINYFISH_API_KEY;
-
-  // Check API key
-  if (!apiKey) {
-    callbacks.onError('TinyFish API key is not configured. Add it to your .env file.');
-    return controller;
-  }
-
-  // Start the fetch request
-  fetch(TINYFISH_API_URL, {
+  fetch('/api/tinyfish/stream', {
     method: 'POST',
-    headers: {
-      'X-API-Key': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      url: config.url,
-      goal: config.goal,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: config.url, goal: config.goal }),
     signal: controller.signal,
   })
     .then(async (response) => {
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const text = await response.text().catch(() => '')
+        throw new Error(text || `HTTP error! status: ${response.status}`)
       }
 
-      if (!response.body) {
-        throw new Error('Response body is null');
-      }
+      if (!response.body) throw new Error('Response body is null')
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let streamingUrlCaptured = false;
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let streamingUrlCaptured = false
 
       while (true) {
-        const { done, value } = await reader.read();
+        const { done, value } = await reader.read()
+        if (done) break
 
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? ''; // Keep incomplete line in buffer
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
 
         for (const line of lines) {
-          const event = parseSSELine(line);
-          if (!event) continue;
+          const rawEvent = parseSSELine(line)
+          if (!rawEvent) continue
 
-          // 1. Capture streaming URL (comes early, only once)
-          if (event.streamingUrl && !streamingUrlCaptured) {
-            streamingUrlCaptured = true;
-            callbacks.onStreamingUrl(event.streamingUrl);
-          }
+          const type = safeString(rawEvent.type)
+          if (!type || type === 'HEARTBEAT') continue
 
-          // 2. Progress steps
-          if (event.type === 'STEP' || event.purpose || event.action) {
-            callbacks.onStep(event);
-          }
-
-          // 3. Final result
-          if (event.type === 'COMPLETE' || event.status === 'COMPLETED') {
-            if (event.resultJson) {
-              callbacks.onComplete(event.resultJson);
+          if (type === 'STREAMING_URL') {
+            const streamingUrl = safeString(rawEvent.streaming_url) ?? safeString(rawEvent.streamingUrl)
+            if (streamingUrl && !streamingUrlCaptured) {
+              streamingUrlCaptured = true
+              callbacks.onStreamingUrl(streamingUrl)
             }
-            return;
+            continue
           }
 
-          // 4. Error
-          if (event.type === 'ERROR' || event.status === 'FAILED') {
-            callbacks.onError(event.message || 'Agent automation failed');
-            return;
+          if (type === 'PROGRESS') {
+            const event: TinyFishSSEEvent = {
+              type: 'STEP',
+              purpose: safeString(rawEvent.purpose),
+              action: safeString(rawEvent.action),
+              message: safeString(rawEvent.message),
+            }
+            callbacks.onStep(event)
+            continue
           }
+
+          if (type === 'COMPLETE') {
+            const status = safeString(rawEvent.status)
+            if (status === 'COMPLETED' && rawEvent.result) {
+              callbacks.onComplete(rawEvent.result as unknown as any)
+            } else {
+              const errorMessage =
+                safeString((rawEvent.error as { message?: unknown } | undefined)?.message) ??
+                safeString(rawEvent.message) ??
+                'Agent automation failed'
+              callbacks.onError(errorMessage)
+            }
+            return
+          }
+
+          if (type === 'ERROR' || safeString(rawEvent.status) === 'FAILED') {
+            callbacks.onError(safeString(rawEvent.message) ?? 'Agent automation failed')
+            return
+          }
+
+          callbacks.onStep({
+            type: 'STEP',
+            message: safeString(rawEvent.message) ?? safeString(rawEvent.purpose) ?? `Event: ${type}`,
+          })
         }
       }
     })
     .catch((error) => {
-      // Don't trigger error for aborted requests
       if ((error as Error).name !== 'AbortError') {
-        callbacks.onError((error as Error).message);
+        callbacks.onError((error as Error).message)
       }
-    });
+    })
 
   return controller;
 }

@@ -14,15 +14,13 @@ https://github.com/user-attachments/assets/ba91b1fa-71eb-40a1-9973-e8a46d3c3021
 The app calls the TinyFish SSE endpoint once per discovered URL, in parallel. Each browser agent navigates a real website (GitHub repo or Dev.to article), reads the page content, and returns structured JSON. Stack Overflow agents receive pre-fetched API data in their goal prompt and reason about it without browsing:
 
 ```typescript
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": import.meta.env.VITE_TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: "https://github.com/hoppscotch/hoppscotch",
-    goal: `You are a concept discovery agent. The user is exploring: "API testing tool".
+import { TinyFish } from "@tiny-fish/sdk";
+
+const client = new TinyFish({ apiKey: import.meta.env.VITE_TINYFISH_API_KEY });
+
+const stream = await client.agent.stream({
+  url: "https://github.com/hoppscotch/hoppscotch",
+  goal: `You are a concept discovery agent. The user is exploring: "API testing tool".
 
            STEP 1 — NAVIGATE TO THE REPOSITORY:
            Open the URL. Confirm you're on the repository homepage.
@@ -37,8 +35,19 @@ const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", 
            STEP 4 — RETURN RESULTS as JSON:
            { "projectName": "...", "summary": "...", "techStack": [...],
              "alignmentExplanation": "...", "stars": 1234, ... }`,
-  }),
 });
+
+for await (const event of stream) {
+  if (event.type === "STREAMING_URL") {
+    console.log("Watch live:", event.streaming_url);
+  }
+  if (event.type === "PROGRESS") {
+    console.log("Step:", event.purpose);
+  }
+  if (event.type === "COMPLETE") {
+    console.log("Result:", event.result);
+  }
+}
 ```
 
 The response streams SSE events including a `streamingUrl` (live browser preview via iframe) and a final `COMPLETE` event with the extracted JSON data.

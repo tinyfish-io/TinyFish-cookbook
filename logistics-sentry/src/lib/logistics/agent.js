@@ -1,4 +1,5 @@
 import { runGenericAgent } from "../tinyfish";
+import { TinyFish } from "@tiny-fish/sdk";
 
 // --- STAGE 1: SOURCE DISCOVERY (KNOWLEDGE BASE) ---
 // In a production system, this would be an LLM or specific search agent.
@@ -58,74 +59,46 @@ const SOURCE_KNOWLEDGE_BASE = {
     // Contextual sources like Weather or Labor generic sites could be added
 };
 
-function buildDiscoverySources(origin_port, carrier) {
+async function buildDiscoverySources(origin_port, carrier) {
+    const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
     const sources = [];
+
     if (origin_port) {
-        const portQuery = encodeURIComponent(`${origin_port} port authority operations status`);
-        sources.push({
-            name: `Discovery: ${origin_port} Port Authority`,
-            url: `https://duckduckgo.com/html/?q=${portQuery}`,
-            type: "custom_discovery",
-            goal: `
-### MISSION: PORT AUTHORITY INTELLIGENCE DISCOVERY
-TARGET: ${origin_port}
-
-You are a Logistics Intelligence Scout. Your job is to locate the official port authority or terminal operations page for ${origin_port}, then extract operational status signals.
-
-### INSTRUCTIONS:
-1. Search for the official port authority or terminal operations page for ${origin_port}.
-2. Navigate to the official source and look for operational updates, advisories, or congestion metrics.
-3. Extract specific metrics/quotes with dates where possible.
-
-### REQUIRED OUTPUT (JSON ONLY):
-{
-  "scan_status": "completed",
-  "operational_status": "NORMAL" | "DISRUPTED" | "UNKNOWN",
-  "signals": [
-    {
-      "summary": "Detailed finding with numbers/quotes if available",
-      "severity": "LOW" | "MEDIUM" | "HIGH",
-      "date": "YYYY-MM-DD",
-      "category": "METRIC" | "QUOTE" | "STATUS"
+        try {
+            const res = await client.search.query({
+                query: `${origin_port} port authority operations status advisories`,
+            });
+            const top = res.results?.slice(0, 2) || [];
+            top.forEach((r) => {
+                sources.push({
+                    name: r.title || `Discovery: ${origin_port}`,
+                    url: r.url,
+                    type: "port_authority",
+                });
+            });
+        } catch (e) {
+            console.error(`[Search] Port discovery failed for ${origin_port}:`, e.message);
+        }
     }
-  ]
-}
-`
-        });
-    }
+
     if (carrier) {
-        const carrierQuery = encodeURIComponent(`${carrier} customer advisories`);
-        sources.push({
-            name: `Discovery: ${carrier} Advisories`,
-            url: `https://duckduckgo.com/html/?q=${carrierQuery}`,
-            type: "custom_discovery",
-            goal: `
-### MISSION: CARRIER ADVISORY INTELLIGENCE DISCOVERY
-TARGET: ${carrier}
-
-You are a Logistics Intelligence Scout. Your job is to locate ${carrier}'s official customer advisories or operations updates page, then extract operational signals.
-
-### INSTRUCTIONS:
-1. Find the official ${carrier} advisories/alerts/newsroom page.
-2. Navigate to the most recent advisories and extract concrete metrics or dates.
-3. Prefer official carrier sources over third-party news.
-
-### REQUIRED OUTPUT (JSON ONLY):
-{
-  "scan_status": "completed",
-  "operational_status": "NORMAL" | "DISRUPTED" | "UNKNOWN",
-  "signals": [
-    {
-      "summary": "Detailed finding with numbers/quotes if available",
-      "severity": "LOW" | "MEDIUM" | "HIGH",
-      "date": "YYYY-MM-DD",
-      "category": "METRIC" | "QUOTE" | "STATUS"
+        try {
+            const res = await client.search.query({
+                query: `${carrier} shipping customer advisories operational updates`,
+            });
+            const top = res.results?.slice(0, 2) || [];
+            top.forEach((r) => {
+                sources.push({
+                    name: r.title || `Discovery: ${carrier}`,
+                    url: r.url,
+                    type: "carrier_advisory",
+                });
+            });
+        } catch (e) {
+            console.error(`[Search] Carrier discovery failed for ${carrier}:`, e.message);
+        }
     }
-  ]
-}
-`
-        });
-    }
+
     return sources;
 }
 
@@ -447,7 +420,7 @@ export async function assessDelayRisk(context) {
 
     let discoveryUsed = false;
     if (sources.length === 0) {
-        sources = buildDiscoverySources(origin_port, carrier);
+        sources = await buildDiscoverySources(origin_port, carrier);
         discoveryUsed = sources.length > 0;
         if (!discoveryUsed) {
             return {

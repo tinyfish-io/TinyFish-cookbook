@@ -11,7 +11,30 @@
   "dependencies": {
     "next": "15.3.1",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "@tiny-fish/sdk": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5"
+  }
+}{
+  "name": "soleradar",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.3.1",
+    "react": "^18",
+    "react-dom": "^18",
+    "@tiny-fish/sdk": "latest"
   },
   "devDependencies": {
     "@types/node": "^20",

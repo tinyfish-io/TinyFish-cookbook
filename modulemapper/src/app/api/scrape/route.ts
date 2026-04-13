@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server'
+import { TinyFish, EventType, RunStatus } from '@tiny-fish/sdk'
 
 export const runtime = 'nodejs'
-
-const TINYFISH_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run-sse'
-const TINYFISH_KEY = process.env.TINYFISH_API_KEY!
 
 interface AgentConfig {
   id: string
@@ -24,7 +22,7 @@ function buildAgents(params: {
 }): AgentConfig[] {
   const agents: AgentConfig[] = []
 
-  // Rate My Professors — find professors for this course, extract ratings + reviews
+  // Rate My Professors
   agents.push({
     id: 'rmp',
     source: 'Rate My Professor',
@@ -70,7 +68,7 @@ Be precise. 2 posts maximum. Do not click anything unrelated.`
     })
   }
 
-  // Course platform (NUSMods, Bruinwalk, etc.) — just read what's on the page
+  // Course platform (NUSMods, Bruinwalk, etc.)
   if (params.courseplatformUrl && params.courseplatformName) {
     agents.push({
       id: 'platform',
@@ -89,7 +87,7 @@ Return as JSON:
     })
   }
 
-  // Official course page — just read the description, no navigation
+  // Official course page
   if (params.officialUrl) {
     agents.push({
       id: 'official',
@@ -105,7 +103,7 @@ Return as JSON:
     })
   }
 
-  // Student blogs — Google search, try for up to 3 relevant articles
+  // Student blogs
   agents.push({
     id: 'blogs',
     source: 'Student blogs',
@@ -127,57 +125,33 @@ If no results look relevant at all, return { "reviews": [], "source_urls": [] } 
   return agents
 }
 
-async function runTinyFishAgent(agent: AgentConfig): Promise<{ source: string; raw: string; error?: string }> {
+async function runTinyFishAgent(agent: AgentConfig, apiKey: string): Promise<{ source: string; raw: string; error?: string }> {
   try {
-    const response = await fetch(TINYFISH_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': TINYFISH_KEY
-      },
-      body: JSON.stringify({
-        url: agent.url,
-        goal: agent.goal,
-        browser_profile: 'stealth'
-      })
-    })
-
-    if (!response.ok) {
-      const errText = await response.text()
-      return { source: agent.source, raw: '', error: `HTTP ${response.status}: ${errText}` }
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) return { source: agent.source, raw: '', error: 'No stream' }
-
-    const decoder = new TextDecoder()
-    let buffer = ''
+    const client = new TinyFish({ apiKey })
     let finalResult = ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed || !trimmed.startsWith('data:')) continue
-        const data = trimmed.slice(5).trim()
-        if (!data || data === '[DONE]') continue
-
-        try {
-          const parsed = JSON.parse(data)
-          if (parsed.type === 'COMPLETE' && parsed.result) {
-            finalResult = typeof parsed.result === 'string'
-              ? parsed.result
-              : JSON.stringify(parsed.result)
-          } else if (parsed.type === 'COMPLETE' && parsed.status === 'COMPLETED') {
-            finalResult = finalResult || 'completed'
+    const stream = await client.agent.stream(
+      { url: agent.url, goal: agent.goal, browser_profile: 'stealth' },
+      {
+        onComplete: (event) => {
+          if (event.status === RunStatus.COMPLETED && event.result != null) {
+            finalResult = typeof event.result === 'string'
+              ? event.result
+              : JSON.stringify(event.result)
           }
-        } catch { /* skip malformed lines */ }
+        },
+      }
+    )
+
+    // Drain stream so callbacks fire
+    for await (const event of stream) {
+      if (event.type === EventType.COMPLETE && !finalResult) {
+        if (event.status === RunStatus.COMPLETED && event.result != null) {
+          finalResult = typeof event.result === 'string'
+            ? event.result
+            : JSON.stringify(event.result)
+        }
+        break
       }
     }
 
@@ -195,6 +169,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { code, university, subreddits, courseplatformUrl, courseplatformName, officialUrl, rmpQuery, blogQuery } = body
 
+  const apiKey = process.env.TINYFISH_API_KEY
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'Missing TINYFISH_API_KEY' }), { status: 500 })
+  }
+
   const agents = buildAgents({ code, university, subreddits, courseplatformUrl, courseplatformName, officialUrl, rmpQuery, blogQuery })
 
   const encoder = new TextEncoder()
@@ -209,7 +188,7 @@ export async function POST(req: NextRequest) {
 
       const promises = agents.map(async (agent) => {
         send({ type: 'agent_start', id: agent.id, source: agent.source })
-        const result = await runTinyFishAgent(agent)
+        const result = await runTinyFishAgent(agent, apiKey)
         send({ type: 'agent_done', id: agent.id, source: agent.source, raw: result.raw, error: result.error })
         return result
       })

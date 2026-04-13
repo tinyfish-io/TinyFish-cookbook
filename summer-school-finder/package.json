@@ -22,7 +22,6 @@
     "@tiny-fish/sdk": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "groq-sdk": "^0.7.0",
     "lucide-react": "^0.462.0",
     "next": "15.3.6",
     "next-themes": "^0.3.0",

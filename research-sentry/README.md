@@ -10,73 +10,77 @@ Demo video: https://cookbook-research-sentry.vercel.app/
 
 ## How It Works
 
-1. **Voice / text input** -- speak or type your research query.
-2. **GPT-4o parses intent** -- OpenAI extracts topic, keywords, and target sources from your query.
-3. **TinyFish agents scrape 8 academic portals in parallel** -- each portal gets its own headless browser session via the TinyFish API.
-4. **Results aggregated & deduplicated** -- papers from every source are merged, normalized, and ranked by citation count.
-5. **Summarize, compare, export** -- ask follow-up questions, compare papers side-by-side, track citations, or export BibTeX.
+1. **Voice / text input** — speak or type your research query.
+2. **Intent parsing** — extracts topic, keywords, and target sources from your query.
+3. **TinyFish agents scrape 8 academic portals in parallel** — each portal gets its own headless browser session via the TinyFish Agent API.
+4. **Results aggregated & deduplicated** — papers from every source are merged, normalized, and ranked by citation count.
+5. **Summarize, compare, export** — ask follow-up questions, compare papers side-by-side, track citations, or export BibTeX.
 
 ---
 
 ## Key Features
 
-- **Voice input** -- record a question and Whisper transcribes it into a search query.
-- **Multi-source search** -- scrapes ArXiv, PubMed, Semantic Scholar, Google Scholar, IEEE Xplore, SSRN, CORE, and DOAJ simultaneously.
-- **Paper comparison** -- select papers and get a structured methodology/results comparison via GPT-4o.
-- **Citation tracking** -- monitor a paper's citation velocity and predicted impact.
-- **BibTeX export** -- download selected papers as a `.bib` file.
-- **Conversational follow-ups** -- ask the AI assistant questions about your results.
+- **Voice input** — record a question and Whisper transcribes it into a search query.
+- **Multi-source search** — scrapes ArXiv, PubMed, Semantic Scholar, Google Scholar, IEEE Xplore, SSRN, CORE, and DOAJ simultaneously.
+- **Paper comparison** — select papers and get a structured methodology/results comparison.
+- **Citation tracking** — monitor a paper's citation velocity and predicted impact.
+- **BibTeX export** — download selected papers as a `.bib` file.
+- **Conversational follow-ups** — ask the AI assistant questions about your results.
 
 ---
 
 ## TinyFish API Usage
 
-The core integration lives in `lib/tinyfish.ts`. Here is the SSE call that drives every search:
+The core integration lives in `lib/tinyfish.ts`. The app uses `@tiny-fish/sdk` to dispatch one Agent per academic portal. Each agent navigates the portal's live DOM, reads search results, and returns structured paper metadata:
 
-```ts
-const res = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.TINYFISH_API_KEY!,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
+```typescript
+import { TinyFish, EventType, RunStatus } from '@tiny-fish/sdk';
+
+const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
+
+const stream = await client.agent.stream(
+  {
     url,
     goal,
-    browser_profile: stealth ? "stealth" : "lite",
-  }),
-});
-
-// Parse the SSE stream
-const reader = res.body!.getReader();
-const decoder = new TextDecoder();
-let buffer = "";
-let result = null;
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  buffer += decoder.decode(value, { stream: true });
-  const lines = buffer.split("\n");
-  buffer = lines.pop() || "";
-  for (const line of lines) {
-    if (line.startsWith("data: ")) {
-      const event = JSON.parse(line.slice(6));
-      if (event.type === "COMPLETE") result = event.resultJson;
-    }
+    browser_profile: stealth ? 'stealth' : 'lite',
+  },
+  {
+    onComplete: (event) => {
+      if (event.status === RunStatus.COMPLETED) {
+        result = event.result ?? null;
+      } else if (event.status === RunStatus.FAILED) {
+        console.error('Run failed:', event.error?.message);
+      }
+    },
   }
+);
+
+// Drain the stream so the onComplete callback fires
+for await (const event of stream) {
+  if (event.type === EventType.COMPLETE) break;
 }
 ```
+
+Each portal gets a tight, focused goal prompt — for example, ArXiv:
+
+```typescript
+`Go to https://arxiv.org/search/?query=${encodeURIComponent(topic)}&searchtype=all
+ — you are already on the results page. DO NOT navigate elsewhere.
+ Extract the first 5 papers visible on screen RIGHT NOW.
+ For each paper return: title, authors (array), abstract, arxivId, publishedDate, url, pdfUrl.
+ Return ONLY a JSON array. No explanations.`
+```
+
+Google Scholar and IEEE Xplore use `browser_profile: 'stealth'` to bypass bot detection.
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 14 (App Router) |
-| Web scraping | TinyFish API (SSE) |
-| LLM | OpenAI GPT-4o |
+|---|---|
+| Framework | Next.js (App Router) |
+| Web scraping | TinyFish Agent API (`@tiny-fish/sdk`) |
 | Speech-to-text | OpenAI Whisper |
 | Styling | Tailwind CSS |
 | Icons | Lucide React |
@@ -93,8 +97,8 @@ npm install
 cp .env.local.example .env.local
 
 # 3. Add your API keys to .env.local
-#    TINYFISH_API_KEY  -- get one at https://tinyfish.ai
-#    OPENAI_API_KEY    -- get one at https://platform.openai.com
+#    TINYFISH_API_KEY  — get one at https://agent.tinyfish.ai/api-keys
+#    OPENAI_API_KEY    — get one at https://platform.openai.com
 
 # 4. Start the dev server
 npm run dev
@@ -145,11 +149,11 @@ research-sentry/
 │   ├── comparator.ts
 │   ├── conversation.ts
 │   ├── email-utils.ts
-│   ├── intent-parser.ts              # GPT-4o query parsing
+│   ├── intent-parser.ts               # Query intent parsing
 │   ├── pdf-utils.ts
-│   ├── search.ts                     # Multi-source search engine
+│   ├── search.ts                      # Multi-source search engine
 │   ├── summarizer.ts
-│   ├── tinyfish.ts                   # TinyFish SSE client
+│   ├── tinyfish.ts                    # TinyFish Agent client
 │   ├── types.ts
 │   └── workflows.ts
 └── .env.local.example
@@ -162,15 +166,11 @@ research-sentry/
 ```mermaid
 graph TD
   User((User)) -->|Voice/Text| UI[Search Interface]
-  UI -->|Intent| Parser[Intent Parser GPT-4o]
+  UI -->|Intent| Parser[Intent Parser]
   Parser -->|Plan| Engine[Search Engine]
-  Engine -->|Dispatch| Agent1[TinyFish Agent: ArXiv]
-  Engine -->|Dispatch| Agent2[TinyFish Agent: PubMed]
-  Engine -->|Dispatch| Agent3[TinyFish Agent: Scholar]
-  Agent1 -->|Scraping| Web[Live Web DOM]
-  Agent2 -->|Scraping| Web
-  Agent3 -->|Scraping| Web
-  Web -->|Result| Aggregator[Synthesis & Deduplication]
-  Aggregator -->|JSON Payload| UI
-  UI -->|Visuals| Terminal[Live Log Terminal]
+  Engine -->|Dispatch x8 parallel| Agents[TinyFish Agents]
+  Agents -->|ArXiv / PubMed / Scholar / IEEE / SSRN / CORE / DOAJ| Web[Live Web DOM]
+  Web -->|Structured JSON| Aggregator[Aggregation & Deduplication]
+  Aggregator -->|Ranked Papers| UI
+  UI -->|Live logs| Terminal[Agent Terminal]
 ```

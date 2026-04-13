@@ -1,39 +1,75 @@
 # TinyFish - Logistics Intelligence Sentry
-Live Demo: [https://inventory-agent-three.vercel.app/](https://inventory-agent-three.vercel.app/)
+
+**Live Demo:** [https://inventory-agent-three.vercel.app/](https://inventory-agent-three.vercel.app/)
 
 A comprehensive logistics intelligence platform that helps supply chain teams track port congestion, carrier advisories, and operational risks across multiple sources simultaneously. Uses the **Discovery → Scouting → Synthesis** pipeline pattern with parallel TinyFish browser agents to provide real-time, source-backed operational signals.
 
 ## Demo
-![Demo Video](Demo%20Video.mp4)
 
-## How TinyFish API is Used
-The TinyFish API powers the core execution layer. The orchestrator deploys **multiple TinyFish Agents** to navigate the live DOM of target logistics sites, bypassing static API limitations. These agents extract "Deep Metrics" (wait times, vessel counts, specific alerts) and return structured operational signals.
+> Add your demo video or screenshot here
+
+## How TinyFish APIs are Used
+
+This app uses two TinyFish APIs:
+
+**Search API** — used in the discovery phase when a port or carrier is not in the knowledge base. Instead of sending a browser agent to DuckDuckGo, the Search API finds the right official URLs directly:
+
+```javascript
+import { TinyFish } from "@tiny-fish/sdk";
+
+const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
+
+const res = await client.search.query({
+    query: "Port of Rotterdam port authority operations status advisories",
+});
+
+const urls = res.results.slice(0, 2).map(r => r.url);
+```
+
+**Agent API** — used in the scouting phase to navigate discovered URLs, extract deep metrics, quotes, and operational signals:
+
+```javascript
+const stream = await client.agent.stream(
+    { url, goal, browser_profile: "stealth" }
+);
+
+for await (const event of stream) {
+    if (event.type === EventType.COMPLETE) {
+        // event.result contains structured signals JSON
+        break;
+    }
+}
+```
 
 ## Intelligence Lifecycle
-The following sequence diagram illustrates the end-to-end flow of a risk assessment, from discovery to synthesis.
 
 ```mermaid
 sequenceDiagram
     participant User
     participant API as Orchestrator (API)
     participant KB as Knowledge Base
-    participant TinyFish as TinyFish Agents
+    participant Search as TinyFish Search API
+    participant Agent as TinyFish Agent API
     participant Web as Live Logistics Web
     participant Logic as Risk Engine
 
     User->>API: POST /risk-assessment (Context)
     API->>KB: Resolve Target URLs
-    Note right of API: Discovery mode triggered if no matches
-    
-    API->>TinyFish: Spawn Parallel Swarm (URL + Mission)
-    
-    par Agent Orchestration
-        TinyFish->>Web: Navigate & Analyze DOM
-        Web-->>TinyFish: HTML Content
-        TinyFish->>TinyFish: Extract Metrics & Quotes
+
+    alt Port/Carrier not in Knowledge Base
+        API->>Search: Search for official URLs
+        Search-->>API: Ranked results with URLs
     end
-    
-    TinyFish-->>API: Return Structured Signals (JSON)
+
+    API->>Agent: Spawn Parallel Swarm (URL + Mission)
+
+    par Agent Orchestration
+        Agent->>Web: Navigate & Analyze DOM
+        Web-->>Agent: HTML Content
+        Agent->>Agent: Extract Metrics & Quotes
+    end
+
+    Agent-->>API: Return Structured Signals (JSON)
     API->>Logic: Synthesize Findings
     Logic->>Logic: Apply Decision Matrix
     Logic-->>API: Consolidated Risk Profile
@@ -41,82 +77,41 @@ sequenceDiagram
 ```
 
 ## Risk Decision Logic
-The system normalizes unstructured signals into a coherent risk level based on the following state logic.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Scanning
-    
+
     Scanning --> Normal: No Negative Signals Found
     Scanning --> SignalsDetected: Metrics/Quotes Extracted
-    
+
     SignalsDetected --> LowRisk: Minor Congestion (wait < 2 days)
     SignalsDetected --> MediumRisk: Moderate Congestion (wait 2-4 days)
     SignalsDetected --> HighRisk: Strike / Force Majeure / Severe Wait (> 4 days)
-    
+
     LowRisk --> Monitoring: "Continue monitoring"
     MediumRisk --> AlertSubscriber: "Anticipate berthing delay"
     HighRisk --> CrisisAction: "Divert cargo immediately"
-    
+
     Normal --> [*]
     Monitoring --> [*]
     AlertSubscriber --> [*]
     CrisisAction --> [*]
 ```
 
-## Code Snippet
-```javascript
-// Example: Requesting a Risk Assessment in the Logistics Sentry
-const response = await fetch("/api/logistics/risk-assessment", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    origin_port: "Port of Los Angeles",
-    carrier: "Maersk",
-    mode: "Sea Freight"
-  }),
-});
-
-const data = await response.json();
-// Returns a structured Risk Profile with confidence scores and root causes
-```
-
 ## How to Run
+
 ### Prerequisites
+
 - Node.js 18+
-- TinyFish API key (get from [tinyfish.ai](https://tinyfish.ai))
+- TinyFish API key ([get one here](https://agent.tinyfish.ai/api-keys))
 
 ### Setup
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-2. **Configure Environment**:
-   Create a `.env.local` file with:
-   ```bash
-   TINYFISH_API_KEY=xxx
-   ```
-3. **Run development server**:
-   ```bash
-   npm run dev
-   ```
 
-## Architecture Diagram
-```mermaid
-graph TD
-    UI[USER INTERFACE<br/>Next.js 14 + Framer Motion]
-    API[Risk Orchestrator<br/>api/logistics/risk-assessment]
-    
-    TinyFish[TINYFISH BROWSER AGENTS<br/>Execution Layer]
-    Web[LIVE PUBLIC WEB<br/>Ports / Carriers / Alerts]
-    Logic[RISK ENGINE<br/>Synthesis & Decisioning]
-    
-    UI -->|Route Context| API
-    API -->|1. Discovery| API
-    API -->|2. Parallel Swarm| TinyFish
-    TinyFish -->|3. Scrape & Reason| Web
-    Web -->|Unstructured Data| TinyFish
-    TinyFish -->|Structured Signals| Logic
-    Logic -->|JSON Risk Profile| API
-    API -->|4. Assessment| UI
+1. Install dependencies:
+
+```bash
+npm install
 ```
+
+2. Create a `.env.local` file:

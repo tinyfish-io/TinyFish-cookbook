@@ -2,49 +2,48 @@
 
 **Live:** [https://restaurant-comparison-tool.vercel.app](https://restaurant-comparison-tool.vercel.app)
 
-SafeDine is a pre-visit restaurant safety intelligence tool that compares 2–5 restaurants before dining by analyzing Google Maps reviews, menu photos, and allergen signals. It uses the TinyFish API to dispatch parallel web agents — one per restaurant — that each navigate Google Maps, read 8–12 reviews, check menu images, and return a structured safety report with scores, allergen risks, and dietary suitability ratings.
+SafeDine is a pre-visit restaurant safety intelligence tool that compares 2–5 restaurants before dining by analyzing Google Maps reviews, menu photos, and allergen signals. It uses the TinyFish Agent API to dispatch parallel web agents — one per restaurant — that each navigate Google Maps, read 8–12 reviews, check menu images, and return a structured safety report with scores, allergen risks, and dietary suitability ratings.
 
 ## Demo
 
 https://github.com/user-attachments/assets/c684dac5-5e89-43fe-9592-0665a31513f6
 
-
 ## TinyFish API Usage
 
-The app calls the TinyFish SSE endpoint once per restaurant, in parallel. Each agent navigates Google Maps, samples reviews for safety signals, checks menu photos for allergen labeling, and returns a structured JSON report:
+The app calls the TinyFish Agent API once per restaurant, in parallel, via a Next.js API route. Each agent navigates Google Maps, samples reviews for safety signals, checks menu photos for allergen labeling, and returns a structured JSON report:
 
 ```typescript
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": import.meta.env.VITE_TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: "https://www.google.com/maps",
-    goal: `You are a fast food-safety research agent. Investigate "${restaurantName}" in ${city}.
-           Stay ONLY on Google Maps — do NOT visit external websites.
+import { TinyFish, EventType, RunStatus } from "@tiny-fish/sdk";
 
-           STEP 1 — FIND THE RESTAURANT on Google Maps:
-           Search "${restaurantName} ${city}". Confirm the correct listing.
+const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
 
-           STEP 2 — SAMPLE REVIEWS (keep it fast):
-           Open the Reviews tab. Read 8–12 recent reviews. Prioritize mentions of:
-           - Food poisoning, allergic reactions, cross-contamination
-           - Hygiene, cleanliness, staff responsiveness
-           Focus on user allergens: ${allergenList}
+const stream = await client.agent.stream(
+  { url: "https://www.google.com/maps", goal },
+  {
+    onStreamingUrl: (event) => {
+      // live browser preview URL
+    },
+    onProgress: (event) => {
+      // agent progress updates
+    },
+    onComplete: (event) => {
+      // structured safety JSON result
+    },
+  }
+);
 
-           STEP 3 — CHECK MENU IMAGES (if available on Maps):
-           Look at the Menu tab or Photos section (3–4 images max).
-
-           STEP 4 — RETURN RESULTS as JSON:
-           { "restaurantName": "...", "overallSafetyScore": 75,
-             "allergenRisks": [...], "safetySignals": [...], ... }`,
-  }),
-});
+for await (const event of stream) {
+  if (event.type === EventType.COMPLETE) {
+    if (event.status === RunStatus.FAILED) {
+      // handle error
+    } else {
+      // event.result contains the structured safety report
+    }
+  }
+}
 ```
 
-The response streams SSE events including a `streamingUrl` (live view of the agent navigating Google Maps) and a final `COMPLETE` event with the extracted safety data JSON.
+The stream emits events including a `streamingUrl` (live view of the agent navigating Google Maps) and a final `COMPLETE` event with the extracted safety data JSON.
 
 ## How to Run
 
@@ -62,10 +61,10 @@ cd restaurant-comparison-tool
 npm install
 ```
 
-2. Create a `.env` file with your TinyFish API key:
+2. Create a `.env.local` file with your TinyFish API key:
 
 ```
-VITE_TINYFISH_API_KEY=your_tinyfish_api_key_here
+TINYFISH_API_KEY=your_tinyfish_api_key_here
 ```
 
 3. Start the dev server:
@@ -74,7 +73,7 @@ VITE_TINYFISH_API_KEY=your_tinyfish_api_key_here
 npm run dev
 ```
 
-4. Open [http://localhost:5173](http://localhost:5173)
+4. Open [http://localhost:3000](http://localhost:3000)
 
 ## Architecture Diagram
 
@@ -82,7 +81,7 @@ npm run dev
 ┌──────────────────────────────────────────────────────────────┐
 │                      User (Browser)                          │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │   React + Vite Frontend (Tailwind + shadcn + Framer)   │  │
+│  │         Next.js 15 Frontend (Tailwind + shadcn)        │  │
 │  │                                                        │  │
 │  │  1. Enter city + 2–5 restaurant names                  │  │
 │  │  2. Select allergens & dietary preferences              │  │
@@ -91,19 +90,19 @@ npm run dev
 │  │  5. View ranked safety cards + detail panel             │  │
 │  └────────────────────┬───────────────────────────────────┘  │
 └───────────────────────┼──────────────────────────────────────┘
-                        │  POST /v1/automation/run-sse (x N restaurants, parallel)
+                        │  POST /api/scrape (x N restaurants, parallel)
                         ▼
 ┌──────────────────────────────────────────────────────────────┐
-│              TinyFish API (agent.tinyfish.ai)                 │
+│              Next.js API Route (/api/scrape)                  │
 │                                                              │
-│  Receives goal prompt + Google Maps URL per restaurant       │
-│  Spins up a web agent for each request                       │
+│  @tiny-fish/sdk — client.agent.stream() per restaurant       │
+│  TINYFISH_API_KEY stored server-side in .env.local           │
 │                                                              │
 │  SSE Stream Events:                                          │
-│    • streamingUrl → live browser preview (iframe)            │
-│    • STEP         → agent progress updates                   │
-│    • COMPLETE     → structured safety JSON                   │
-│    • ERROR        → failure message                          │
+│    • STREAMING_URL → live browser preview (iframe)           │
+│    • STEP          → agent progress updates                  │
+│    • COMPLETE      → structured safety JSON                  │
+│    • ERROR         → failure message                         │
 └────────┬──────────────┬──────────────┬───────────────────────┘
          │              │              │
          ▼              ▼              ▼

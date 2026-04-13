@@ -1,8 +1,4 @@
-const fetch = require("node-fetch");
-
-// Use the synchronous endpoint — waits for completion, returns plain JSON
-// Much simpler than SSE streaming and perfect for Node.js
-const TINYFISH_API = "https://agent.tinyfish.ai/v1/automation/run";
+const { TinyFish, RunStatus } = require("@tiny-fish/sdk");
 
 async function runAgent(url, goal) {
   const apiKey = process.env.TINYFISH_API_KEY;
@@ -10,33 +6,21 @@ async function runAgent(url, goal) {
 
   console.log(`  -> Agent: ${url.slice(0, 70)}...`);
 
-  const res = await fetch(TINYFISH_API, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": apiKey,
-    },
-    body: JSON.stringify({
-      url,
-      goal,
-      browser_profile: "stealth",
-    }),
+  const client = new TinyFish({ apiKey });
+
+  const run = await client.agent.run({
+    url,
+    goal,
+    browser_profile: "stealth",
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`TinyFish error: ${res.status} — ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-
-  if (data.status !== "COMPLETED") {
-    console.log(`  -> Agent failed: ${data.error?.message || "unknown"}`);
+  if (run.status !== RunStatus.COMPLETED) {
+    console.log(`  -> Agent failed: ${run.error?.message || "unknown"}`);
     return null;
   }
 
   console.log(`  -> Agent done`);
-  return data.result || null;
+  return run.result || null;
 }
 
 // Check all services in parallel

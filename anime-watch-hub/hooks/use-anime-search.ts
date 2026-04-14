@@ -70,10 +70,22 @@ export function useAnimeSearch() {
                 }
 
                 if (data.type === 'COMPLETE') {
-                  if (data.status === 'failed') {
+                  const statusUpper = typeof data.status === 'string' ? data.status.toUpperCase() : data.status
+                  const isFailure =
+                    statusUpper === 'FAILED' ||
+                    statusUpper === 'CANCELLED' ||
+                    data.status === 'failed' ||
+                    data.type === 'ERROR'
+
+                  if (isFailure) {
                     updateAgent(platform.id, {
                       status: 'error',
-                      statusMessage: data.error?.message ?? 'Automation failed',
+                      statusMessage:
+                        data.error?.message ??
+                        data.error ??
+                        data.help_message ??
+                        data.message ??
+                        'Automation failed',
                       streamingUrl: undefined,
                     })
                   } else {

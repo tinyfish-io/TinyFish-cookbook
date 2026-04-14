@@ -14,24 +14,21 @@ https://github.com/user-attachments/assets/5425211a-43b9-40c1-b5f7-8451c7549931
 
 1. **User enters an anime title** -- e.g., "Attack on Titan"
 2. **OpenAI discovers platform URLs** -- GPT-4o Mini generates search URLs for 6-8 streaming platforms (Crunchyroll, Netflix, Hulu, etc.)
-3. **TinyFish agents check each platform in parallel** -- One browser agent per platform navigates to the search URL, dismisses popups, reads search results, and determines availability
+3. **TinyFish agents check each platform in parallel** -- One browser agent per platform navigates to the search URL, dismisses popups, reads search results, and determines availability (invoked via the TinyFish SDK)
 4. **Results streamed back live** -- Each agent streams SSE events back to the UI with live browser previews and final availability results
 
 ## TinyFish API Usage
 
-After getting search URLs from OpenAI, the app calls the TinyFish SSE endpoint for each platform simultaneously. Each call spawns a browser agent that navigates to the platform's search page and verifies the anime's presence.
+After getting search URLs from OpenAI, the app uses the TinyFish SDK in SSE streaming mode for each platform simultaneously. Each call spawns a browser agent that navigates to the platform's search page and verifies the anime's presence.
 
 ```typescript
 // app/api/check-platform/route.ts
-const tinyFishResponse = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: searchUrl,
-    goal: `You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
+import { TinyFish } from "@tiny-fish/sdk";
+
+const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
+const stream = await client.agent.stream({
+  url: searchUrl,
+  goal: `You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
 
 STEP 1 - HANDLE POPUPS:
 Dismiss any cookie banners, login prompts, or modal dialogs.
@@ -49,8 +46,12 @@ STEP 4 - RETURN RESULT:
   "watchUrl": "URL if available",
   "message": "Brief description of what was found"
 }`,
-  }),
 });
+
+for await (const event of stream) {
+  // Forward each event as SSE to the browser client
+  console.log(event);
+}
 ```
 
 The app processes the SSE stream to show live browser status updates and provides a "Live View" iframe via the `streaming_url` event.
@@ -100,7 +101,7 @@ graph TD
     OpenAI -->|Returns Search URLs| FE
 
     subgraph TinyFish_Agents [Stage 2: Verification]
-        FE -->|POST /run-sse| API[TinyFish API]
+        FE -->|TinyFish SDK stream| API[TinyFish API]
         API --> A1[Agent: Crunchyroll]
         API --> A2[Agent: Netflix]
         API --> A3[Agent: Hulu]

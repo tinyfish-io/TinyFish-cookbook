@@ -27,7 +27,7 @@ Anime Watch Hub is an application that helps users find where a specific anime i
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    STAGE 2: PARALLEL AVAILABILITY CHECK                      │
-│                   (TinyFish API - 6-8 concurrent calls)                      │
+│                (TinyFish SDK/Agent - 6-8 concurrent calls)                   │
 │                                                                              │
 │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌──────────────┐ │
 │  │ TinyFish       │ │ TinyFish       │ │ TinyFish       │ │ TinyFish     │ │
@@ -58,7 +58,7 @@ Anime Watch Hub is an application that helps users find where a specific anime i
 | Stage | API | Calls Per Search | Purpose |
 |-------|-----|------------------|---------|
 | 1 | OpenAI API | 1 | Generate platform-specific search URLs |
-| 2 | TinyFish API | 6-8 (parallel) | Browse each platform and verify availability |
+| 2 | TinyFish (SDK) | 6-8 (parallel) | Browse each platform and verify availability |
 
 **Total API calls per search: 7-9 calls** (1 OpenAI + 6-8 TinyFish)
 
@@ -69,9 +69,9 @@ Anime Watch Hub is an application that helps users find where a specific anime i
 ### 1. OpenAI API (Platform Discovery)
 - **When called**: Once at the start of each search
 - **Purpose**: Generates intelligent search URLs for each streaming platform
-- **Output feeds into**: TinyFish API calls (provides URLs for browser automation)
+- **Output feeds into**: TinyFish checks (provides URLs for browser automation)
 
-### 2. TinyFish API (Browser Automation)
+### 2. TinyFish (Browser Automation)
 - **When called**: Once per platform, all in parallel
 - **Purpose**: Spawns browser agents that navigate to search URLs and verify anime availability
 - **Depends on**: OpenAI API output (search URLs)
@@ -129,6 +129,7 @@ export async function POST(request: NextRequest) {
 // Returns: Server-Sent Events (SSE) stream
 
 import { NextRequest } from 'next/server';
+import { TinyFish } from '@tiny-fish/sdk';
 
 export async function POST(request: NextRequest) {
   const { animeTitle, platformName, searchUrl } = await request.json();
@@ -160,21 +161,21 @@ Return a JSON object with these fields:
 
 If the anime is NOT found or not available, set available to false and explain why in the message.`;
 
-  // Call TinyFish API with SSE
-  const tinyFishResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
+  const client = new TinyFish({ apiKey });
+
+  const stream = await client.agent.stream({ url: searchUrl, goal });
+
+  const encoder = new TextEncoder();
+  const readable = new ReadableStream({
+    async start(controller) {
+      for await (const event of stream as any) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      }
+      controller.close();
     },
-    body: JSON.stringify({
-      url: searchUrl,
-      goal: goal,
-    }),
   });
 
-  // Stream the response back to client
-  return new Response(tinyFishResponse.body, {
+  return new Response(readable, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -268,7 +269,7 @@ curl -X POST https://your-app.vercel.app/api/check-platform \
   }'
 ```
 
-#### 3. Direct TinyFish API Call
+#### 3. Direct TinyFish API Call (Alternative to SDK)
 
 ```bash
 curl -X POST https://agent.tinyfish.ai/v1/automation/run-sse \

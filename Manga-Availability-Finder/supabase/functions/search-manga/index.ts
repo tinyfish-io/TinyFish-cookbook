@@ -1,9 +1,31 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { TinyFish } from "npm:@tiny-fish/sdk@0.0.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+type TinyFishAgentEvent = {
+  type?: string;
+  status?: string;
+  message?: string;
+  streamingUrl?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  resultJson?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  result?: any;
+  step?: number;
+  totalSteps?: number;
+};
+
+function isCompleteEvent(event: TinyFishAgentEvent): boolean {
+  return event.type === "COMPLETE" && event.status === "COMPLETED";
+}
+
+function isErrorEvent(event: TinyFishAgentEvent): boolean {
+  return event.type === "ERROR" || event.status === "FAILED";
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -20,9 +42,9 @@ serve(async (req) => {
       );
     }
 
-    const MINO_API_KEY = Deno.env.get("MINO_API_KEY");
-    if (!MINO_API_KEY) {
-      throw new Error("MINO_API_KEY is not configured");
+    const apiKey = Deno.env.get("TINYFISH_API_KEY") || Deno.env.get("MINO_API_KEY");
+    if (!apiKey) {
+      throw new Error("TINYFISH_API_KEY is not configured");
     }
 
     const goal = `You are searching for a manga/webtoon called "${mangaTitle}" on this website.
@@ -47,25 +69,6 @@ Return a JSON object:
 
 IMPORTANT: Only return "found": true if you see a clear match for "${mangaTitle}" in the results.`;
 
-    const response = await fetch("https://mino.ai/v1/automation/run-sse", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": MINO_API_KEY,
-      },
-      body: JSON.stringify({
-        url,
-        goal,
-        timeout: 60000,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Mino API error:", response.status, errorText);
-      throw new Error(`Mino API error: ${response.status}`);
-    }
-
     // Stream SSE events back to client
     const sseHeaders = {
       ...corsHeaders,
@@ -74,72 +77,75 @@ IMPORTANT: Only return "found": true if you see a clear match for "${mangaTitle}
       "Connection": "keep-alive",
     };
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body");
-    }
-
     const stream = new ReadableStream({
       async start(controller) {
-        const decoder = new TextDecoder();
         const encoder = new TextEncoder();
         let streamingUrlSent = false;
 
-        let buffer = "";
-
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+          const client = new TinyFish({ apiKey });
+          const tinyfishStream = await client.agent.stream({ url, goal });
 
-            buffer += decoder.decode(value, { stream: true }); 
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-            
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                try {
-                  const data = JSON.parse(line.slice(6));
+          for await (const rawEvent of tinyfishStream) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sdkEvent: any = rawEvent;
 
-                  // Send streaming URL immediately when available
-                  if (data.streamingUrl && !streamingUrlSent) {
-                    streamingUrlSent = true;
-                    const event = `data: ${JSON.stringify({ type: "stream", streamingUrl: data.streamingUrl })}\n\n`;
-                    controller.enqueue(encoder.encode(event));
-                  }
+            const event: TinyFishAgentEvent = {
+              type: sdkEvent.type,
+              status: sdkEvent.status,
+              message: sdkEvent.message,
+              streamingUrl: sdkEvent.streamingUrl,
+              resultJson: sdkEvent.resultJson ?? sdkEvent.result,
+              result: sdkEvent.result,
+              step: sdkEvent.step,
+              totalSteps: sdkEvent.totalSteps,
+            };
 
-                  // Check for completion
-                  if (data.type === "COMPLETE" && data.resultJson) {
-                    let found = false;
-                    try {
-                      const resultData = typeof data.resultJson === 'string' 
-                        ? JSON.parse(data.resultJson) 
-                        : data.resultJson;
-                      found = resultData.found === true;
-                    } catch {
-                      const resultStr = JSON.stringify(data.resultJson).toLowerCase();
-                      found = resultStr.includes('"found": true') || resultStr.includes('"found":true');
-                    }
-                    const event = `data: ${JSON.stringify({ type: "complete", found })}\n\n`;
-                    controller.enqueue(encoder.encode(event));
-                  }
+            // Send streaming URL immediately when available
+            if (event.streamingUrl && !streamingUrlSent) {
+              streamingUrlSent = true;
+              const sse = `data: ${JSON.stringify({ type: "stream", streamingUrl: event.streamingUrl })}\n\n`;
+              controller.enqueue(encoder.encode(sse));
+            }
 
-                  // Handle errors
-                  if (data.type === "ERROR") {
-                    const event = `data: ${JSON.stringify({ type: "error", error: data.message || "Search failed" })}\n\n`;
-                    controller.enqueue(encoder.encode(event));
-                  }
-                } catch {
-                  // Ignore parse errors
-                }
+            // Check for completion
+            if (isCompleteEvent(event)) {
+              const payload = event.resultJson;
+              let found = false;
+              try {
+                const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+                found = parsed?.found === true;
+              } catch {
+                const resultStr = JSON.stringify(payload ?? "").toLowerCase();
+                found = resultStr.includes('"found": true') || resultStr.includes('"found":true');
               }
+
+              const sse = `data: ${JSON.stringify({ type: "complete", found })}\n\n`;
+              controller.enqueue(encoder.encode(sse));
+              controller.close();
+              return;
+            }
+
+            // Handle errors
+            if (isErrorEvent(event)) {
+              const sse = `data: ${JSON.stringify({ type: "error", error: event.message || "Search failed" })}\n\n`;
+              controller.enqueue(encoder.encode(sse));
+              controller.close();
+              return;
             }
           }
+
+          const sse = `data: ${JSON.stringify({ type: "error", error: "Stream ended without completion signal" })}\n\n`;
+          controller.enqueue(encoder.encode(sse));
         } catch (error) {
-          const event = `data: ${JSON.stringify({ type: "error", error: "Stream error" })}\n\n`;
-          controller.enqueue(encoder.encode(event));
+          const sse = `data: ${JSON.stringify({ type: "error", error: error instanceof Error ? error.message : "Stream error" })}\n\n`;
+          controller.enqueue(encoder.encode(sse));
         } finally {
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            // no-op
+          }
         }
       },
     });

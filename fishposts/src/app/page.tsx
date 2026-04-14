@@ -14,6 +14,7 @@ import {
   NEON_COLORS,
   SPARKLE_BURST,
   MODE_FLAVOR,
+  MEME_MODES,
 } from "./constants";
 
 import { BootScreen } from "./components/BootScreen";
@@ -34,6 +35,7 @@ export default function Home() {
   /* ---- Screen phase (boot → login → desktop) ---- */
   const [screenPhase, setScreenPhase] = useState<ScreenPhase>("booting");
   const [crtEnabled, setCrtEnabled] = useState(false);
+  const [memeMethod, setMemeMethod] = useState<"api" | "tinyfish">("api");
   const [showFullscreenHint, setShowFullscreenHint] = useState(false);
 
   /* ---- App state ---- */
@@ -107,12 +109,23 @@ export default function Home() {
     if (localStorage.getItem("fishposts-crt") === "1") {
       setCrtEnabled(true);
     }
+    if (localStorage.getItem("fishposts-meme-method") === "tinyfish") {
+      setMemeMethod("tinyfish");
+    }
   }, []);
 
   const toggleCrt = useCallback(() => {
     setCrtEnabled((prev) => {
       const next = !prev;
       localStorage.setItem("fishposts-crt", next ? "1" : "0");
+      return next;
+    });
+  }, []);
+
+  const toggleMemeMethod = useCallback(() => {
+    setMemeMethod((prev) => {
+      const next = prev === "api" ? "tinyfish" : "api";
+      localStorage.setItem("fishposts-meme-method", next);
       return next;
     });
   }, []);
@@ -338,6 +351,7 @@ export default function Home() {
      GENERATE HANDLER
      ================================================================ */
 
+  const isMemeMode = MEME_MODES.includes(activeMode);
   const flavor = MODE_FLAVOR[activeMode];
   const canGenerate =
     flavor.inputType === "none"
@@ -391,7 +405,7 @@ export default function Home() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const body: Record<string, string> = { mode: activeMode };
+    const body: Record<string, string> = { mode: activeMode, memeMethod };
     if (flavor.inputType === "url") {
       body.url = url.trim();
     } else if (flavor.inputType === "text") {
@@ -955,6 +969,9 @@ export default function Home() {
         crtEnabled={crtEnabled}
         onCrtToggle={toggleCrt}
         onFullscreenToggle={toggleFullscreen}
+        memeMethod={memeMethod}
+        onMemeMethodToggle={toggleMemeMethod}
+        isMemeMode={isMemeMode}
       />
 
       {showFullscreenHint && (

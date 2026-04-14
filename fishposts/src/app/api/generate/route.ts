@@ -8,6 +8,7 @@ import { generateWithGroq, generateMemeText } from "@/lib/groq";
 import { generateMeme, getTemplateListForLLM } from "@/lib/imgflip";
 import { fetchPageContent } from "@/lib/tinyfish-fetch";
 import { rateLimit } from "@/lib/rate-limit";
+import { generateMemeViaBrowser } from "@/lib/tinyfish-meme";
 
 export const maxDuration = 120; // reduced from 300 — pipeline is much faster now
 
@@ -205,11 +206,13 @@ export async function POST(request: NextRequest) {
   let url: string | undefined;
   let text: string | undefined;
   let mode: ContentMode;
+  let memeMethod: "api" | "tinyfish" = "api";
 
   try {
     const body = await request.json();
     url = body.url;
     text = body.text;
+    memeMethod = (body.memeMethod === "tinyfish") ? "tinyfish" : "api";
 
     if (body.mode && VALID_MODES.includes(body.mode)) {
       mode = body.mode;
@@ -326,11 +329,22 @@ export async function POST(request: NextRequest) {
           percent: 75,
         });
 
-        /* ---- STEP 3: Generate meme image via Imgflip API ---- */
-        const meme = await generateMeme(
-          memeText.template_id,
-          memeText.texts,
-        );
+        /* ---- STEP 3: Generate meme image ---- */
+        let meme: { imageUrl: string; pageUrl: string };
+
+        if (memeMethod === "tinyfish") {
+          meme = await generateMemeViaBrowser(
+            memeText.template_name,
+            memeText.template_id,
+            memeText.texts,
+            (msg, pct) => { send({ type: "progress", message: msg, percent: pct }); },
+          );
+        } else {
+          meme = await generateMeme(
+            memeText.template_id,
+            memeText.texts,
+          );
+        }
 
         await send({
           type: "done",

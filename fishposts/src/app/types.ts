@@ -1,6 +1,7 @@
 export type AppState = "idle" | "generating" | "done" | "error";
 export type WindowId = "fishposts" | "recent_memes";
 export type ScreenPhase = "booting" | "login" | "desktop";
+export type MemeMethod = "api" | "tinyfish";
 
 export interface ProgressEvent {
   type: "progress" | "done" | "error";

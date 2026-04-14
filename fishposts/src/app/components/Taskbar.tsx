@@ -15,6 +15,9 @@ export function Taskbar({
   crtEnabled,
   onCrtToggle,
   onFullscreenToggle,
+  memeMethod,
+  onMemeMethodToggle,
+  isMemeMode,
 }: {
   memeCount: number;
   windows: Record<WindowId, WindowState>;
@@ -26,6 +29,9 @@ export function Taskbar({
   crtEnabled: boolean;
   onCrtToggle: () => void;
   onFullscreenToggle: () => void;
+  memeMethod: "api" | "tinyfish";
+  onMemeMethodToggle: () => void;
+  isMemeMode: boolean;
 }) {
   const [time, setTime] = useState("");
 
@@ -82,6 +88,20 @@ export function Taskbar({
             {"\uD83D\uDD25"} {memeCount}
           </span>
         )}
+        <button
+          className={`tray-btn${!isMemeMode ? " tray-btn-dimmed" : ""}`}
+          title={
+            isMemeMode
+              ? memeMethod === "api"
+                ? "Meme: API (fast)"
+                : "Meme: TinyFish (browser)"
+              : "Only applies to meme modes"
+          }
+          onClick={isMemeMode ? onMemeMethodToggle : undefined}
+          disabled={!isMemeMode}
+        >
+          {memeMethod === "api" ? "\u26A1" : "\uD83D\uDC1F"}
+        </button>
         <button
           className="tray-btn"
           title={`CRT: ${crtEnabled ? "ON" : "OFF"}`}

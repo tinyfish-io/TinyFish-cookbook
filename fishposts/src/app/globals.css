@@ -1274,6 +1274,11 @@ body {
   background: rgba(0,0,0,0.15);
 }
 
+.tray-btn-dimmed {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* ==============================================================
    FULLSCREEN HINT — Win98 tooltip balloon
    ============================================================== */

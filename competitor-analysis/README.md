@@ -2,7 +2,7 @@
 
 **Live Demo:** https://competitor-priceanalysis.vercel.app/
 
-A comprehensive competitive pricing intelligence platform that helps product and sales teams track competitor pricing across 10-15 competitors simultaneously. Uses the **Source → Extract → Present** pipeline pattern with AI-powered URL generation, parallel Mino browser agents for scraping, and intelligent analysis to provide strategic market insights.
+A comprehensive competitive pricing intelligence platform that helps product and sales teams track competitor pricing across 10-15 competitors simultaneously. Uses the **Source → Extract → Present** pipeline pattern with AI-powered URL generation, parallel Tinyfish Agent runs for scraping, and intelligent analysis to provide strategic market insights.
 
 **Status**: ✅ Working
 
@@ -14,9 +14,9 @@ A comprehensive competitive pricing intelligence platform that helps product and
 
 ---
 
-## How Mino API is Used
+## How Tinyfish Agent is Used
 
-The Mino API powers browser automation for this use case. See the code snippet below for implementation details.
+Tinyfish Agent powers browser automation for this use case. See the code snippet below for implementation details.
 
 ### Code Snippet
 
@@ -34,7 +34,7 @@ npm run dev
 ### Prerequisites
 
 - Node.js 18+
-- Mino API key (get from [mino.ai](https://mino.ai))
+- Tinyfish API key (set `TINYFISH_API_KEY`)
 
 ### Setup
 
@@ -119,7 +119,7 @@ sequenceDiagram
     participant API2 as /api/scrape-pricing
     participant API3 as /api/analyze-pricing
     participant AI as OpenRouter AI
-    participant M as Mino Agents
+    participant M as Tinyfish Agent Runs
     U->>FE: Enter baseline pricing
     FE->>Ctx: Store baseline
     U->>FE: Add 10-15 competitors

@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Default to a dark/cyber theme */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 6.5%;
+    --card-foreground: 210 40% 98%;
+    --primary: 262 83% 57%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 198 93% 60%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 12.5%;
+    --muted-foreground: 215 20.2% 70%;
+    --accent: 292 84% 60%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 18%;
+    --input: 217.2 32.6% 18%;
+    --ring: 262 83% 57%;
+    --success: 142.1 76.2% 44.3%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent;
+  }
+
+  .bg-gradient-neon {
+    @apply bg-gradient-to-r from-primary via-accent to-secondary;
+  }
+
+  .hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-0.5;
+  }
+
+  .status-searching {
+    @apply text-secondary bg-secondary/10;
+  }
+  .status-found {
+    @apply text-[hsl(var(--success))] bg-[hsl(var(--success)/0.1)];
+  }
+  .status-not-found {
+    @apply text-destructive bg-destructive/10;
+  }
+
+  .cyber-grid {
+    background-image:
+      linear-gradient(hsl(var(--border)/0.35) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border)/0.35) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+}
+

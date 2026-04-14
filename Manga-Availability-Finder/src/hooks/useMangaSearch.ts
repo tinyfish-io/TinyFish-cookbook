@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { AgentStatus } from "@/components/AgentCard";
 
 export interface SiteAgent {
@@ -15,6 +14,7 @@ export function useMangaSearch() {
   const [isSearching, setIsSearching] = useState(false);
   const [agents, setAgents] = useState<SiteAgent[]>([]);
   const [mangaTitle, setMangaTitle] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const updateAgent = useCallback((id: string, updates: Partial<SiteAgent>) => {
     setAgents((prev) =>
@@ -30,17 +30,12 @@ export function useMangaSearch() {
       });
 
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
         const response = await fetch(
-          `${supabaseUrl}/functions/v1/search-manga`,
+          `/api/search-manga`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${supabaseKey}`,
-              apikey: supabaseKey,
             },
             body: JSON.stringify({ url: agent.siteUrl, mangaTitle: title }),
           }
@@ -150,19 +145,24 @@ export function useMangaSearch() {
       setIsSearching(true);
       setMangaTitle(title);
       setAgents([]);
+      setError(null);
 
       try {
-        const { data: urlsData, error: urlsError } =
-          await supabase.functions.invoke("discover-manga-sites", {
-            body: { mangaTitle: title },
-          });
+        const discoveryRes = await fetch(`/api/discover-manga-sites`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ mangaTitle: title }),
+        });
 
-        if (urlsError) {
-          throw new Error(urlsError.message);
+        if (!discoveryRes.ok) {
+          const errorText = await discoveryRes.text().catch(() => "");
+          throw new Error(`discover-manga-sites failed: ${discoveryRes.status} ${errorText}`);
         }
 
-        const sites: Array<{ name: string; url: string }> =
-          urlsData?.sites || [];
+        const urlsData = await discoveryRes.json();
+        const sites: Array<{ name: string; url: string }> = urlsData?.sites || [];
 
         if (sites.length === 0) {
           setIsSearching(false);
@@ -183,6 +183,7 @@ export function useMangaSearch() {
         );
       } catch (error) {
         console.error("Search error:", error);
+        setError(error instanceof Error ? error.message : "Search failed");
       } finally {
         setIsSearching(false);
       }
@@ -194,6 +195,7 @@ export function useMangaSearch() {
     isSearching,
     agents,
     mangaTitle,
+    error,
     search,
   };
 }

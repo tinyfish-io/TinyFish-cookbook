@@ -21,23 +21,11 @@ https://github.com/user-attachments/assets/7b3ef9be-d4ba-43be-b3b5-ed9ea246c591
 ## Code Snippet
 
 ```typescript
-// Call TinyFish Web Agent API with SSE streaming for real-time browser automation
-
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-API-Key": process.env.MINO_API_KEY,
-  },
-  body: JSON.stringify({
-    url,  // e.g., "https://mangadex.org/search?q=One+Piece"
-    goal: `You are searching for a manga/webtoon called "${mangaTitle}"...
-           STEP 1: Find and use the search bar to enter the title
-           STEP 2: Analyze the search results for matches
-           STEP 3: Return JSON with { found: boolean, match_confidence: string }`,
-    stream: true,
-  }),
-});
+// Supabase Edge Function uses TinyFish SDK streaming under the hood
+// and forwards a simplified SSE stream to the frontend:
+//   - { type: "stream", streamingUrl }
+//   - { type: "complete", found }
+//   - { type: "error", error }
 
 // Stream SSE events back to client for live preview
 const reader = response.body?.getReader();
@@ -60,8 +48,9 @@ while (true) {
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `MINO_API_KEY` | TinyFish Web Agent [API key](https://mino.ai) | ✅ |
-| `GEMINI_API_KEY` | API key from [Google AI Studio](https://makersuite.google.com) | ✅ |
+| `TINYFISH_API_KEY` | TinyFish API key from `agent.tinyfish.ai/api-keys` | ✅ |
+| `GEMINI_API_KEY` | API key from [Google AI Studio](https://makersuite.google.com) | ⚠️ (fallback sites used if missing) |
+| `PORT` | Local API server port (default: 8787) | ❌ |
 
 ### Setup
 
@@ -73,12 +62,12 @@ cd webtoon-hunter
 # 2. Install dependencies
 npm install
 
-# 3. Add secrets to your Lovable Cloud / Supabase project
-# Navigate to Settings → Secrets and add:
-#   - TinyFish Web Agent AI KEY
-#   - GEMINI_API_KEY
+# 3. Create Manga-Availability-Finder/.env.local
+# Copy Manga-Availability-Finder/.env.example and fill in keys:
+#   - TINYFISH_API_KEY
+#   - (optional) GEMINI_API_KEY
 
-# 4. Start development server
+# 4. Start development server (runs both the Vite app + local API)
 npm run dev
 ```
 

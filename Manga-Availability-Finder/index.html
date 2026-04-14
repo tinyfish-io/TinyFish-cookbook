@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manga Finder</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div style="padding:16px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial">
+        This app requires JavaScript, but JavaScript is disabled.
+      </div>
+    </noscript>
+    <script>
+      // This runs even if module scripts fail to load.
+      (function () {
+        var el = document.getElementById("root");
+        if (el && !el.innerHTML) {
+          el.innerHTML =
+            '<div style="padding:16px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial">Inline script ran. Loading app bundle…</div>';
+        }
+        console.log("[boot] inline script ran");
+
+        function showError(title, detail) {
+          var root = document.getElementById("root");
+          if (!root) return;
+          var safeDetail = String(detail || "").replace(/[<>&]/g, function (c) {
+            return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+          });
+          root.innerHTML =
+            '<div style="padding:16px;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial">' +
+            '<div style="font-weight:700;color:#b91c1c;margin-bottom:8px">' +
+            title +
+            "</div>" +
+            '<pre style="margin:0;white-space:pre-wrap;color:#111827;background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">' +
+            safeDetail +
+            "</pre>" +
+            "</div>";
+        }
+
+        window.addEventListener("error", function (e) {
+          showError("Runtime error", e.error && (e.error.stack || e.error.message) ? e.error.stack || e.error.message : e.message);
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var reason = e.reason && (e.reason.stack || e.reason.message) ? e.reason.stack || e.reason.message : e.reason;
+          showError("Unhandled promise rejection", reason);
+        });
+        window.__showBootError = showError;
+      })();
+    </script>
+    <script
+      type="module"
+      src="/src/main.tsx"
+      onerror="window.__showBootError && window.__showBootError('Failed to load /src/main.tsx', 'The module script failed to load. Check DevTools → Network for /src/main.tsx and related requests.')"
+    ></script>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-# Mino API Integration Documentation
+# TinyFish Agent Integration Documentation
 
 ## Product Architecture Overview
 
@@ -18,15 +18,14 @@ This application is a **Manga/Webtoon Finder** that uses AI-powered browser auto
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Edge Functions (Supabase)                            │
+│                           Local API (Node.js)                                │
 │                                                                             │
-│  ┌────────────────────────┐         ┌────────────────────────────────────┐  │
-│  │  discover-manga-sites  │         │         search-manga (x6)          │  │
-│  │  (Called: 1x)          │         │         (Called: 6x parallel)      │  │
-│  │                        │         │                                    │  │
-│  │  Gemini API → Get URLs │         │  Mino API → Browser Automation     │  │
-│  │  (with fallback sites) │         │  (SSE Streaming)                   │  │
-│  └────────────────────────┘         └────────────────────────────────────┘  │
+│  ┌────────────────────────────┐     ┌───────────────────────────────────┐   │
+│  │  /api/discover-manga-sites  │     │      /api/search-manga (x6)       │   │
+│  │  (Called: 1x)               │     │      (Called: 6x parallel)        │   │
+│  │  Gemini (optional) → URLs   │     │  TinyFish Agent → Browser auto     │   │
+│  │  (fallback sites if missing)│     │  (SSE Streaming)                   │   │
+│  └────────────────────────────┘     └───────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -34,8 +33,8 @@ This application is a **Manga/Webtoon Finder** that uses AI-powered browser auto
 │                            External APIs                                     │
 │                                                                             │
 │  ┌────────────────────────┐         ┌────────────────────────────────────┐  │
-│  │      Gemini API        │         │           Mino API                 │  │
-│  │  (Site Discovery)      │         │    (Browser Automation + SSE)      │  │
+│  │      Gemini API        │         │        TinyFish Agent              │  │
+│  │  (Site Discovery)      │         │ (Browser automation + streaming)   │  │
 │  └────────────────────────┘         └────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -45,7 +44,7 @@ This application is a **Manga/Webtoon Finder** that uses AI-powered browser auto
 | API | Purpose | Calls per Search | Response Type |
 |-----|---------|------------------|---------------|
 | Gemini API | Discover manga reading sites | 1x | JSON |
-| Mino API | Automate browser search on each site | 5-6x (parallel) | SSE Stream |
+| TinyFish Agent (via SDK) | Automate browser search on each site | 5-6x (parallel) | Streaming (forwarded as SSE) |
 
 ### Orchestration Flow
 
@@ -53,14 +52,14 @@ This application is a **Manga/Webtoon Finder** that uses AI-powered browser auto
 2. **Site Discovery** → `discover-manga-sites` edge function calls Gemini API (or uses fallback)
 3. **Agent Initialization** → Client creates 5-6 agent cards in "idle" state
 4. **Parallel Browser Automation** → `search-manga` edge function called for each site simultaneously
-5. **Real-time Updates** → Mino SSE stream provides live browser preview URL + final result
+5. **Real-time Updates** → TinyFish streaming provides live browser preview URL + final result (forwarded as SSE)
 6. **Results Display** → Each agent card updates independently as results arrive
 
 ---
 
 ## Code Snippets
 
-### 1. Calling the Mino API (Edge Function)
+### 1. Calling TinyFish Agent (Edge Function)
 
 ```typescript
 // supabase/functions/search-manga/index.ts
@@ -78,27 +77,13 @@ serve(async (req) => {
   }
 
   const { url, mangaTitle } = await req.json();
-  const MINO_API_KEY = Deno.env.get("MINO_API_KEY");
+  const apiKey = Deno.env.get("TINYFISH_API_KEY") || Deno.env.get("MINO_API_KEY");
 
   // Define the automation goal (see Goal section below)
   const goal = `You are searching for a manga/webtoon called "${mangaTitle}"...`;
 
-  // Call Mino API with SSE streaming
-  const response = await fetch("https://mino.ai/v1/automation/run-sse", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": MINO_API_KEY,
-    },
-    body: JSON.stringify({
-      url,           // Starting URL (e.g., mangadex.org/search?q=One+Piece)
-      goal,          // Natural language instruction for the browser agent
-      timeout: 60000 // Maximum execution time in milliseconds
-    }),
-  });
-
-  // Stream SSE events back to client
-  // ... (see full implementation below)
+  // Stream TinyFish Agent events and forward a simplified SSE stream to client
+  // (see `supabase/functions/search-manga/index.ts`)
 });
 ```
 
@@ -156,24 +141,9 @@ const searchSite = async (agent: SiteAgent, title: string) => {
 };
 ```
 
-### 3. cURL Example
-
-```bash
-curl -X POST "https://mino.ai/v1/automation/run-sse" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: YOUR_MINO_API_KEY" \
-  -d '{
-    "url": "https://mangadex.org/search?q=One%20Piece",
-    "goal": "You are searching for a manga/webtoon called \"One Piece\" on this website...",
-    "timeout": 60000
-  }'
-```
-
----
-
 ## Goal (Prompt)
 
-The following natural language prompt is sent to the Mino API to instruct the browser automation agent:
+The following natural language prompt is sent to **TinyFish Agent** to instruct the browser automation agent:
 
 ```
 You are searching for a manga/webtoon called "${mangaTitle}" on this website.
@@ -212,62 +182,34 @@ IMPORTANT: Only return "found": true if you see a clear match for "${mangaTitle}
 
 ## Sample Output
 
-### SSE Stream Events
+### Stream Events
 
-The Mino API returns Server-Sent Events (SSE) during execution. Here's the sequence:
+The `search-manga` edge function forwards a simplified Server-Sent Events (SSE) stream during execution. Sequence:
 
 #### Event 1: Streaming URL (Immediate)
 
 ```json
 data: {
   "type": "STREAM_URL",
-  "streamingUrl": "https://stream.mino.ai/session/abc123xyz"
+  "streamingUrl": "https://stream.tinyfish.ai/session/abc123xyz"
 }
 ```
 
 This URL can be embedded in an iframe to show **live browser automation** in real-time.
 
-#### Event 2: Progress Updates (During Execution)
-
-```json
-data: {
-  "type": "PROGRESS",
-  "step": "Entering search query...",
-  "screenshot": "base64_encoded_screenshot_data"
-}
-```
-
-```json
-data: {
-  "type": "PROGRESS", 
-  "step": "Analyzing search results...",
-  "screenshot": "base64_encoded_screenshot_data"
-}
-```
-
 #### Event 3: Completion (Final Result)
 
 ```json
-data: {
-  "type": "COMPLETE",
-  "resultJson": {
-    "found": true,
-    "manga_title": "One Piece",
-    "site_url": "https://mangadex.org/title/a1c7c817-4e59-43b7-9365-09675a149a6f/one-piece",
-    "match_confidence": "high",
-    "notes": "Found 'One Piece' by Eiichiro Oda with 1100+ chapters available"
-  },
-  "duration": 12453
-}
+data: {"type":"complete","found":true}
 ```
 
 ### Processed Client Events
 
-The edge function transforms Mino events into simplified client events:
+The edge function transforms TinyFish Agent events into simplified client events:
 
 ```json
 // Live preview available
-data: {"type": "stream", "streamingUrl": "https://stream.mino.ai/session/abc123xyz"}
+data: {"type": "stream", "streamingUrl": "https://stream.tinyfish.ai/session/abc123xyz"}
 
 // Search complete - manga found
 data: {"type": "complete", "found": true}
@@ -298,7 +240,7 @@ const defaultSites = [
 ];
 ```
 
-### Mino API Errors
+### TinyFish Errors
 
 ```typescript
 if (data.type === "ERROR") {
@@ -316,18 +258,20 @@ if (data.type === "ERROR") {
 
 | Variable | Purpose | Where Used |
 |----------|---------|------------|
-| `MINO_API_KEY` | Authenticate with Mino API | `search-manga` edge function |
-| `GEMINI_API_KEY` | Authenticate with Gemini API | `discover-manga-sites` edge function |
+| `TINYFISH_API_KEY` | Authenticate with TinyFish | local API `/api/search-manga` |
+| `GEMINI_API_KEY` | Authenticate with Gemini API (optional) | local API `/api/discover-manga-sites` |
+| `PORT` | Local API port (default 8787) | local API server |
 
 ---
 
 ## Quick Start
 
-1. **Set up secrets** in your Supabase/Lovable Cloud project:
-   - `MINO_API_KEY` - Get from [mino.ai](https://mino.ai)
-   - `GEMINI_API_KEY` - Get from [Google AI Studio](https://makersuite.google.com)
+1. **Create** `Manga-Availability-Finder/.env.local`:
+   - `TINYFISH_API_KEY` - Create at `agent.tinyfish.ai/api-keys`
+   - `GEMINI_API_KEY` - Optional (fallback sites used if missing)
 
-2. **Deploy edge functions** (automatic in Lovable)
+2. **Run local dev**:
+   - `npm run dev` (starts Vite + the local API server)
 
 3. **Test the flow**:
    ```typescript
@@ -352,7 +296,7 @@ sequenceDiagram
     participant Discover as discover-manga-sites
     participant Search as search-manga (x6)
     participant Gemini as Gemini API
-    participant Mino as Mino API
+    participant Agent as TinyFish Agent
 
     User->>Client: Enter "One Piece"
     Client->>Discover: POST /discover-manga-sites
@@ -362,17 +306,17 @@ sequenceDiagram
     
     par Parallel searches
         Client->>Search: POST /search-manga (MangaDex)
-        Search->>Mino: run-sse (MangaDex URL)
-        Mino-->>Search: SSE: streamingUrl
+        Search->>Agent: stream run (MangaDex URL)
+        Agent-->>Search: streamingUrl
         Search-->>Client: SSE: {type: "stream", streamingUrl}
-        Mino-->>Search: SSE: COMPLETE
+        Agent-->>Search: COMPLETE
         Search-->>Client: SSE: {type: "complete", found: true}
     and
         Client->>Search: POST /search-manga (MangaKakalot)
-        Search->>Mino: run-sse (MangaKakalot URL)
-        Mino-->>Search: SSE: streamingUrl
+        Search->>Agent: stream run (MangaKakalot URL)
+        Agent-->>Search: streamingUrl
         Search-->>Client: SSE: {type: "stream", streamingUrl}
-        Mino-->>Search: SSE: COMPLETE
+        Agent-->>Search: COMPLETE
         Search-->>Client: SSE: {type: "complete", found: false}
     end
     

@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { useDiscoveryContext } from '@/context/DiscoveryContext';
 import { generateSearchQueries } from '@/lib/query-generator';
-import { generateSmartQueries } from '@/lib/openrouter-client';
+import { extractConceptFromText, generateSmartQueries } from '@/lib/openrouter-client';
 import { executeSearches } from '@/lib/search-engines';
 import { buildAgentGoal } from '@/lib/goal-builder';
 import { startTinyFishAgent } from '@/lib/tinyfish-client';
@@ -98,84 +98,210 @@ export function useConceptDiscovery() {
           return;
         }
 
-        addLog(`🤖 Dispatching ${uniqueResults.length} browser agents...`, 'info');
+        const hasOpenRouterKeyForExtraction = !!import.meta.env.VITE_OPENROUTER_API_KEY;
+        const nonSO = uniqueResults.filter((r) => r.platform !== 'stackoverflow');
+        const previewTargets = nonSO.slice(0, 2); // keep 2 live streams for UX
+        const fetchTargets = nonSO.slice(2);
+        const soTargets = uniqueResults.filter((r) => r.platform === 'stackoverflow');
+
+        addLog(
+          `🤖 Dispatching ${previewTargets.length} live agents + fetching ${fetchTargets.length} pages...`,
+          'info'
+        );
 
         // Track timeouts
         const timeoutMap = new Map<string, ReturnType<typeof setTimeout>>();
 
-        uniqueResults.forEach((result) => {
+        const startStreamingAgent = (result: (typeof uniqueResults)[number]) => {
           const id = generateAgentId(result.platform);
 
-            // Dispatch AGENT_CONNECTING
+          dispatch({
+            type: 'AGENT_CONNECTING',
+            payload: { id, url: result.url, platform: result.platform },
+          });
+
+          const goal = buildAgentGoal(result.url, result.platform, userInput, result);
+
+          const agentUrl = result.url;
+
+          const controller = startTinyFishAgent(
+            { url: agentUrl, goal },
+            {
+              onStep: (event) => {
+                const msg = event.purpose || event.action || event.message || 'Processing...';
+                dispatch({ type: 'AGENT_STEP', payload: { id, step: msg } });
+              },
+              onStreamingUrl: (streamingUrl) => {
+                dispatch({
+                  type: 'AGENT_STREAMING_URL',
+                  payload: { id, streamingUrl },
+                });
+              },
+              onComplete: (resultJson) => {
+                const timeout = timeoutMap.get(id);
+                if (timeout) {
+                  clearTimeout(timeout);
+                  timeoutMap.delete(id);
+                }
+
+                const data = resultJson as ConceptData;
+                dispatch({
+                  type: 'AGENT_COMPLETE',
+                  payload: { id, result: data },
+                });
+                addLog(`✓ Extracted: ${data.projectName}`, 'success');
+              },
+              onError: (error) => {
+                const timeout = timeoutMap.get(id);
+                if (timeout) {
+                  clearTimeout(timeout);
+                  timeoutMap.delete(id);
+                }
+
+                dispatch({ type: 'AGENT_ERROR', payload: { id, error } });
+                addLog(`✗ Agent failed for ${result.title}: ${error}`, 'error');
+              },
+            }
+          );
+
+          const timeout = setTimeout(() => {
+            controller.abort();
+            timeoutMap.delete(id);
             dispatch({
-              type: 'AGENT_CONNECTING',
-              payload: { id, url: result.url, platform: result.platform },
+              type: 'AGENT_ERROR',
+              payload: { id, error: 'Timeout: Agent took longer than 6 minutes' },
+            });
+            addLog(`⏱ Timeout: ${result.title} exceeded 6 minutes`, 'warning');
+          }, 360000);
+
+          timeoutMap.set(id, timeout);
+          controllersRef.current.push(controller);
+        };
+
+        // 1) Start two live streaming agents
+        previewTargets.forEach(startStreamingAgent);
+
+        // Helper: limited concurrency map
+        async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) {
+          const ret: R[] = [];
+          const executing = new Set<Promise<void>>();
+          for (const item of items) {
+            const p = (async () => {
+              const r = await fn(item);
+              ret.push(r);
+            })();
+            executing.add(p.then(() => executing.delete(p)));
+            if (executing.size >= limit) {
+              await Promise.race(executing);
+            }
+          }
+          await Promise.all(executing);
+          return ret;
+        }
+
+        // 2) StackOverflow: extract via OpenRouter from existing snippet/apiData when available
+        if (soTargets.length > 0) {
+          if (!hasOpenRouterKeyForExtraction) {
+            soTargets.forEach(startStreamingAgent);
+          } else {
+            await mapPool(soTargets, 3, async (result) => {
+              const id = generateAgentId(result.platform);
+              dispatch({
+                type: 'AGENT_CONNECTING',
+                payload: { id, url: result.url, platform: result.platform },
+              });
+              dispatch({ type: 'AGENT_STEP', payload: { id, step: 'Analyzing Stack Overflow data...' } });
+              try {
+                const text = [
+                  `Title: ${result.title}`,
+                  `URL: ${result.url}`,
+                  `Snippet: ${result.snippet ?? ''}`,
+                  result.apiData ? `API Data: ${JSON.stringify(result.apiData)}` : '',
+                ].join('\n');
+
+                const data = await extractConceptFromText({
+                  userInput,
+                  platform: 'stackoverflow',
+                  url: result.url,
+                  title: result.title,
+                  snippet: result.snippet,
+                  text,
+                });
+                dispatch({ type: 'AGENT_COMPLETE', payload: { id, result: data } });
+                addLog(`✓ Extracted: ${data.projectName}`, 'success');
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                dispatch({ type: 'AGENT_ERROR', payload: { id, error: msg } });
+                addLog(`✗ Extract failed for ${result.title}: ${msg}`, 'error');
+              }
+              return null as unknown as void;
+            });
+          }
+        }
+
+        // 3) Remaining pages: batch Fetch + OpenRouter extraction (fallback to agents if no OpenRouter)
+        if (fetchTargets.length > 0) {
+          if (!hasOpenRouterKeyForExtraction) {
+            fetchTargets.forEach(startStreamingAgent);
+          } else {
+            const urls = fetchTargets.map((r) => r.url);
+            const fetchRes = await fetch('/api/tinyfish/fetch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ urls, format: 'markdown', links: true, image_links: false }),
             });
 
-            // Build goal prompt (SO gets search result data for reasoning)
-            const goal = buildAgentGoal(result.url, result.platform, userInput, result);
+            if (!fetchRes.ok) {
+              fetchTargets.forEach(startStreamingAgent);
+            } else {
+              const fetched = (await fetchRes.json()) as {
+                results?: Array<{ url?: string; text?: string; title?: string; description?: string }>;
+                errors?: Array<{ url?: string; error?: string }>;
+              };
 
-            // SO agents use a dummy URL — they reason about API data, not browse
-            const agentUrl = result.platform === 'stackoverflow' ? 'https://example.com' : result.url;
-
-            // Start TinyFish agent with SSE stream
-            const controller = startTinyFishAgent(
-              { url: agentUrl, goal },
-              {
-                onStep: (event) => {
-                  const msg =
-                    event.purpose || event.action || event.message || 'Processing...';
-                  dispatch({ type: 'AGENT_STEP', payload: { id, step: msg } });
-                },
-                onStreamingUrl: (streamingUrl) => {
-                  dispatch({
-                    type: 'AGENT_STREAMING_URL',
-                    payload: { id, streamingUrl },
-                  });
-                },
-                onComplete: (resultJson) => {
-                  // Clear timeout on completion
-                  const timeout = timeoutMap.get(id);
-                  if (timeout) {
-                    clearTimeout(timeout);
-                    timeoutMap.delete(id);
-                  }
-
-                  const data = resultJson as ConceptData;
-                  dispatch({
-                    type: 'AGENT_COMPLETE',
-                    payload: { id, result: data },
-                  });
-                  addLog(`✓ Extracted: ${data.projectName}`, 'success');
-                },
-                onError: (error) => {
-                  // Clear timeout on error
-                  const timeout = timeoutMap.get(id);
-                  if (timeout) {
-                    clearTimeout(timeout);
-                    timeoutMap.delete(id);
-                  }
-
-                  dispatch({ type: 'AGENT_ERROR', payload: { id, error } });
-                  addLog(`✗ Agent failed for ${result.title}: ${error}`, 'error');
-                },
+              const byUrl = new Map<string, { text: string; title?: string; description?: string }>();
+              for (const r of fetched.results ?? []) {
+                if (typeof r.url === 'string' && typeof r.text === 'string') {
+                  byUrl.set(r.url, { text: r.text, title: r.title, description: r.description });
+                }
               }
-            );
 
-            // Set 6-minute timeout
-            const timeout = setTimeout(() => {
-              controller.abort();
-              timeoutMap.delete(id);
-              dispatch({
-                type: 'AGENT_ERROR',
-                payload: { id, error: 'Timeout: Agent took longer than 6 minutes' }
+              await mapPool(fetchTargets, 3, async (result) => {
+                const id = generateAgentId(result.platform);
+                dispatch({
+                  type: 'AGENT_CONNECTING',
+                  payload: { id, url: result.url, platform: result.platform },
+                });
+                dispatch({ type: 'AGENT_STEP', payload: { id, step: 'Fetching & summarizing…' } });
+
+                const page = byUrl.get(result.url);
+                if (!page?.text) {
+                  dispatch({ type: 'AGENT_ERROR', payload: { id, error: 'Fetch failed' } });
+                  addLog(`✗ Fetch failed for ${result.title}`, 'error');
+                  return null as unknown as void;
+                }
+
+                try {
+                  const data = await extractConceptFromText({
+                    userInput,
+                    platform: result.platform,
+                    url: result.url,
+                    title: page.title || result.title,
+                    snippet: page.description || result.snippet,
+                    text: page.text,
+                  });
+                  dispatch({ type: 'AGENT_COMPLETE', payload: { id, result: data } });
+                  addLog(`✓ Extracted: ${data.projectName}`, 'success');
+                } catch (e) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  dispatch({ type: 'AGENT_ERROR', payload: { id, error: msg } });
+                  addLog(`✗ Extract failed for ${result.title}: ${msg}`, 'error');
+                }
+                return null as unknown as void;
               });
-              addLog(`⏱ Timeout: ${result.title} exceeded 6 minutes`, 'warning');
-            }, 360000); // 6 minutes = 360000ms
-
-            timeoutMap.set(id, timeout);
-            controllersRef.current.push(controller);
-          });
+            }
+          }
+        }
 
         addLog(
           `⏳ Extraction in progress... Results will appear as they complete.`,

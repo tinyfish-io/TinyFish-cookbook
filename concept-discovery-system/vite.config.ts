@@ -9,6 +9,112 @@ function tinyFishDevProxy(apiKey: string | undefined): Plugin {
   return {
     name: 'tinyfish-dev-proxy',
     configureServer(server) {
+      server.middlewares.use('/api/tinyfish/search', async (req, res, next) => {
+        if (req.method !== 'POST') return next()
+        if (!apiKey) {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Missing VITE_TINYFISH_API_KEY' }))
+          return
+        }
+
+        let body = ''
+        req.on('data', (chunk) => (body += chunk))
+        req.on('end', async () => {
+          try {
+            const parsed = JSON.parse(body || '{}') as {
+              query?: string
+              location?: string
+              language?: string
+              limit?: number
+            }
+            const query = parsed.query?.trim()
+            if (!query) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Missing query' }))
+              return
+            }
+
+            const client = new TinyFish({ apiKey })
+            const response = await client.search.query({
+              query,
+              location: parsed.location,
+              language: parsed.language,
+            })
+
+            const limit = Math.max(1, Math.min(10, parsed.limit ?? 10))
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end(
+              JSON.stringify({
+                query: response.query,
+                total_results: response.total_results,
+                results: (response.results ?? []).slice(0, limit),
+              }),
+            )
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(
+              JSON.stringify({
+                error: e instanceof Error ? e.message : String(e),
+              }),
+            )
+          }
+        })
+      })
+
+      server.middlewares.use('/api/tinyfish/fetch', async (req, res, next) => {
+        if (req.method !== 'POST') return next()
+        if (!apiKey) {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Missing VITE_TINYFISH_API_KEY' }))
+          return
+        }
+
+        let body = ''
+        req.on('data', (chunk) => (body += chunk))
+        req.on('end', async () => {
+          try {
+            const parsed = JSON.parse(body || '{}') as {
+              urls?: string[]
+              format?: 'markdown' | 'html' | 'json'
+              links?: boolean
+              image_links?: boolean
+            }
+            const urls = Array.isArray(parsed.urls) ? parsed.urls.filter(Boolean) : []
+            if (urls.length === 0) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Missing urls' }))
+              return
+            }
+
+            const client = new TinyFish({ apiKey })
+            const response = await client.fetch.getContents({
+              urls: urls.slice(0, 10),
+              format: parsed.format ?? 'markdown',
+              links: parsed.links ?? true,
+              image_links: parsed.image_links ?? false,
+            })
+
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(response))
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(
+              JSON.stringify({
+                error: e instanceof Error ? e.message : String(e),
+              }),
+            )
+          }
+        })
+      })
+
       server.middlewares.use('/api/tinyfish/stream', async (req, res, next) => {
         if (req.method !== 'POST') return next()
         if (!apiKey) {

@@ -128,6 +128,57 @@ export interface AnalysisResult {
   analysis: string;
 }
 
+export async function extractConceptFromText(args: {
+  userInput: string;
+  platform: string;
+  url: string;
+  title?: string;
+  snippet?: string;
+  text: string;
+}): Promise<ConceptData> {
+  const systemPrompt = `You extract structured project metadata for a "concept discovery" app.
+
+Return ONLY valid JSON matching this TypeScript interface (no markdown, no code fences):
+{
+  "projectName": string,
+  "projectUrl": string,
+  "platform": "github" | "devto" | "stackoverflow",
+  "summary": string,
+  "techStack": string[],
+  "alignmentExplanation": string,
+  "features"?: string[],
+  "stars"?: number,
+  "votes"?: number,
+  "tags"?: string[],
+  "isAccepted"?: boolean,
+  "lastUpdated"?: string,
+  "sourceUrl": string
+}
+
+Rules:
+- Be factual; do NOT invent details.
+- If information is missing, omit the field or use an empty array.
+- "alignmentExplanation" must be <= 120 characters.
+- "projectUrl" should be the best canonical URL for the project/article/Q&A (often equals sourceUrl).`;
+
+  const userPrompt = `USER IDEA: "${args.userInput}"
+
+SOURCE:
+- platform: ${args.platform}
+- url: ${args.url}
+- title: ${args.title ?? '(unknown)'}
+- snippet: ${args.snippet ?? '(none)'}
+
+PAGE TEXT (may be truncated):
+${args.text.slice(0, 12000)}
+
+Return JSON only.`;
+
+  const content = await callOpenRouter(systemPrompt, userPrompt);
+  const parsed = extractJSON(content) as ConceptData;
+  return parsed;
+}
+
 /**
  * Generate a brief analysis of the user's idea based on discovered projects.
  * Called once all agents have completed.

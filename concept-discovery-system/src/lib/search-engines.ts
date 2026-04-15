@@ -61,30 +61,37 @@ async function searchGitHub(
  */
 async function searchDevTo(query: string): Promise<SearchResult[]> {
   try {
-    const searchQuery = query.toLowerCase().split(' ').slice(0, 2).join(' ');
+    const searchQuery = query.toLowerCase().split(' ').slice(0, 4).join(' ').trim();
+    if (!searchQuery) return [];
 
-    console.log('[Dev.to] Searching for:', searchQuery);
+    // Use TinyFish Search to get direct Dev.to article URLs
+    const res = await fetch('/api/tinyfish/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `site:dev.to ${searchQuery}`,
+        location: 'US',
+        language: 'en',
+        limit: 6,
+      }),
+    });
 
-    return [
-      {
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      results?: Array<{ title?: string; snippet?: string; url?: string }>;
+    };
+
+    const urls = (data.results ?? [])
+      .map((r) => ({
         platform: 'devto' as const,
-        url: `https://dev.to/search?q=${encodeURIComponent(searchQuery)}`,
-        title: `Dev.to Search: ${searchQuery}`,
-        snippet: `Search results for ${searchQuery}`,
-      },
-      {
-        platform: 'devto' as const,
-        url: `https://dev.to/t/${encodeURIComponent(query.split(' ')[0])}`,
-        title: `Dev.to Tag: ${query.split(' ')[0]}`,
-        snippet: `Articles tagged with ${query.split(' ')[0]}`,
-      },
-      {
-        platform: 'devto' as const,
-        url: `https://dev.to/search?q=${encodeURIComponent(searchQuery)}&sort=relevant`,
-        title: `Dev.to Relevant: ${searchQuery}`,
-        snippet: `Relevant articles for ${searchQuery}`,
-      },
-    ];
+        url: String(r.url ?? ''),
+        title: String(r.title ?? 'Dev.to result'),
+        snippet: String(r.snippet ?? ''),
+      }))
+      .filter((r) => r.url.startsWith('https://dev.to/'))
+      .slice(0, 3);
+
+    return urls;
   } catch (error) {
     console.error('Dev.to search error:', error);
     return [];

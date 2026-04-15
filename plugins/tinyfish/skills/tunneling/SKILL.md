@@ -1,6 +1,6 @@
 ---
 name: tunneling
-description: Expose local ports to the internet as public HTTPS URLs using tinyfi.sh SSH tunnels. Use when you need to share a locally running app, test webhooks, demo a prototype, or get a public URL for any local service. No signup, no API key, no installation beyond SSH.
+description: Expose local ports to the internet as public HTTPS URLs using tinyfi.sh SSH tunnels. Use when you need to expose a locally running app, test webhooks, or give TinyFish access to a site that is only hosted locally — tunnel it first, then point TinyFish to the tunneled URL. No signup, no API key, no installation beyond SSH.
 ---
 
 # TinyFish Tunneling (tinyfi.sh)

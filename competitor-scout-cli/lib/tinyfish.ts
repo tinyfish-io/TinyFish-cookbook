@@ -99,3 +99,59 @@ export async function waitForCompletion(
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
 }
+
+export type TinyfishSearchResult = {
+  position: number;
+  site_name: string;
+  title: string;
+  snippet: string;
+  url: string;
+};
+
+export async function searchWeb(params: {
+  query: string;
+  location?: string;
+  language?: string;
+}): Promise<{ query: string; results: TinyfishSearchResult[]; total_results: number }> {
+  const res = await getClient().search.query({
+    query: params.query,
+    ...(params.location ? { location: params.location } : {}),
+    ...(params.language ? { language: params.language } : {}),
+  });
+  return res as unknown as {
+    query: string;
+    results: TinyfishSearchResult[];
+    total_results: number;
+  };
+}
+
+export type TinyfishFetchPage = {
+  url: string;
+  final_url?: string | null;
+  title?: string | null;
+  description?: string | null;
+  language?: string | null;
+  format?: "markdown" | "html" | "json";
+  text?: unknown;
+  links?: string[];
+  image_links?: string[];
+  latency_ms?: number | null;
+};
+
+export async function fetchContents(params: {
+  urls: string[];
+  format?: "markdown" | "html" | "json";
+  links?: boolean;
+  image_links?: boolean;
+}): Promise<{ results: TinyfishFetchPage[]; errors: { url: string; error: string }[] }> {
+  const res = await getClient().fetch.getContents({
+    urls: params.urls,
+    ...(params.format ? { format: params.format } : {}),
+    ...(params.links != null ? { links: params.links } : {}),
+    ...(params.image_links != null ? { image_links: params.image_links } : {}),
+  });
+  return res as unknown as {
+    results: TinyfishFetchPage[];
+    errors: { url: string; error: string }[];
+  };
+}

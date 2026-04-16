@@ -1,26 +1,10 @@
 # The TinyFish Cookbook
 
 <a href="https://www.tinyfish.ai/accelerator">
-  <img width="1920" height="1080" alt="Tinyfish Accelerator banner" src="https://github.com/user-attachments/assets/bc32bf8b-1a9e-41ea-b690-4bacf41ee132" />
+  <img width="1034" height="407" alt="CKBOOK" src="https://github.com/user-attachments/assets/ce4fccb9-70b8-4023-8022-4e8e3b244fbe" />
 </a>
----
 
 <div align="center">
-
-<table>
-<tr>
-<td align="center">
-
-### ⛊ &nbsp;&nbsp; **The TinyFish Accelerator is now accepting applications**  &nbsp;&nbsp;  ⛊
-
-*$2M investment seed pool💰* • *9-week program* • *Free credits* • *Engineering support* • *Business mentorship* 
-
-### **[👉 Apply Now 👈](https://www.tinyfish.ai/accelerator)**
-
-</td>
-</tr>
-</table>
-
 </div>
 
 
@@ -39,7 +23,6 @@
 
 
 
-
 ## About This Repository
 
 Welcome to the **TinyFish Cookbook!** This is a growing collection of recipes, demos, and automations built with TinyFish.
@@ -52,6 +35,16 @@ Welcome to the **TinyFish Cookbook!** This is a growing collection of recipes, d
 
 The same infrastructure and agents used by big enterprises (like Google, Doordash and Classpass), now for everyone!
 
+### Core Endpoints
+
+TinyFish provides four distinct endpoints, each designed to tackle different layers of web interaction—from lightning-fast search to fully managed, hardcore browser automation.
+
+| Endpoint | What It Does | Best For | Speed |
+|----------|--------------|----------|-------|
+| **Agent** | Provide a URL and a natural language goal. The agent navigates, acts, and returns clean JSON. | Multi-step flows, complex tasks, and data extraction. | ~10s to minutes |
+| **Search** | Lightning-fast indexed search (like Google for your agent). Finds relevant online sources. | Quick discovery and gathering surface-level context. | < 1 second |
+| **Fetch** | Give it a link, and it strips out the heavy HTML/CSS, returning the page content as clean Markdown. | Reading specific pages and feeding content to LLMs. | A few seconds |
+| **Browser**| Rent a fully managed cloud browser from us. Connect and power your own Playwright or Selenium automations. | Hardcore developers running custom agents or scripts. | Real-time |
 
 ## Why TinyFish?
 - 🕸️ **Fully managed browser and agent infra in one API**
@@ -93,6 +86,8 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | [viet-bike-scout](./viet-bike-scout) | Motorbike rental price comparison tool across Vietnamese cities using parallel browser agents |
 | [waifu-deal-sniper](./waifu-deal-sniper) | Discord bot for anime figure collectors finding discounted pre-owned figures from AmiAmi, Mercari, and Solaris Japan |
 | [wing-command](./wing-command) | Chicken wing tracker using AI-powered scraping to find the best wings near you by flavor preference |
+| Many more! | this list is updated quite often! |
+
 
 ### n8n Workflows
 

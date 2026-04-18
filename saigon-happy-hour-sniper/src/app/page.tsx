@@ -255,7 +255,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Action row: Search / Cancel + cache toggle */}
+        {/* Action row: Search / Cancel */}
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <Button

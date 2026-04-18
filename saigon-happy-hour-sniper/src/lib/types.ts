@@ -32,8 +32,6 @@ export interface Venue {
   website: string;
   deals: Deal[];
   notes: string | null;
-  source?: 'cache' | 'live';
-  cached_at?: string;
 }
 
 export interface StreamingPreview {

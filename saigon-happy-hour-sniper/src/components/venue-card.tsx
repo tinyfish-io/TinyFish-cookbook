@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Zap } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { DealBadge } from './deal-badge';
 import type { Venue, Deal, DealItem } from '@/lib/types';
 
@@ -93,8 +93,6 @@ interface VenueCardProps {
 
 export function VenueCard({ venue }: VenueCardProps) {
   const districtLabel = DISTRICT_LABELS[venue.district] ?? venue.district;
-  const isLive = venue.source === 'live';
-  const isCached = venue.source === 'cache';
 
   return (
     <Card className="overflow-hidden transition-shadow duration-200 hover:shadow-md">
@@ -103,18 +101,6 @@ export function VenueCard({ venue }: VenueCardProps) {
           <div className="space-y-0.5">
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-xl font-bold text-zinc-900">{venue.name}</CardTitle>
-              {isLive && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 border border-green-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
-                  Live
-                </span>
-              )}
-              {isCached && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
-                  <Zap className="w-3 h-3" />
-                  Cached
-                </span>
-              )}
             </div>
             <p className="text-sm text-zinc-500">
               {districtLabel}

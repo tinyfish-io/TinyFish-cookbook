@@ -1,205 +1,160 @@
-# 🍻 Saigon Happy Hour Sniper
+# Saigon Happy Hour Sniper
+**Live Demo:** _add URL after deploy_
 
-> Find happy hour deals across Saigon in seconds — powered by [TinyFish](https://tinyfish.ai/) parallel browser agents.
+**Real-time happy hour and deals tracker for Ho Chi Minh City — powered by TinyFish parallel browser agents.**
 
-**Live demo → [saigon-happy-hour-sniper.vercel.app](https://saigon-happy-hour-sniper.vercel.app)**
+Select a district and the app fires one TinyFish browser agent per venue simultaneously, extracting happy hours, ladies' nights, live music events, and weekly specials in real time. Results stream back as each venue completes.
 
----
-
-## What it does
-
-Happy hour deals in Saigon are scattered across dozens of bar websites, each with different layouts, languages, and formats. This app sends TinyFish browser agents to all of them **simultaneously**, extracts structured deal data, and streams results back to a unified dashboard in real time.
-
-- Search **3 districts at once** — District 1, Thao Dien, District 3
-- Filter by **deal type** — Happy Hour, Ladies Night, Brunch, Live Music, Daily Specials
-- **Sort by time** and **filter by venue name** (Pasteur Street, Heart of Darkness, Saigon Outcast, etc.)
-- Watch **live browser agent iframes** — up to 5 active agent windows per search, auto-removed when done
-- Toggle between **live scraping** and **cached results** (6-hour TTL)
-- Results stream in as each venue completes — no waiting for the slowest one
-
----
-
-## Demo
-
-> 📹 Demo video coming soon
-
----
-
-## How it works
+## Architecture
 
 ```
-User clicks Search
-       │
-       ▼
-POST /api/search
-       │
-       ├── Cache hit? → stream result instantly via SSE
-       │
-        └── Cache miss? → fire TinyFish SDK requests for all venues in parallel
-                              │
-                              ├── STREAMING_URL event → forward iframe URL to client
-                              │
-                              └── COMPLETE event → parse JSON, stream to client, upsert to cache
+┌─────────────────────────────────────────────────────────┐
+│                     Browser (Client)                    │
+│                                                         │
+│  District selector → VenueCard grid                     │
+│                      (results stream in as done)        │
+└──────────────────────────┬──────────────────────────────┘
+                           │ POST /api/search { district }
+                           │ (SSE — results stream as agents finish)
+┌──────────────────────────▼──────────────────────────────┐
+│                   Next.js App Router                    │
+│                                                         │
+│  /api/search/route.ts                                   │
+│    │                                                    │
+│    ├─ env check ─────► explicit 500 if key missing      │
+│    │                                                    │
+│    └─ TinyFish SDK ──► Promise.allSettled               │
+│         client.agent.stream({ url, goal })              │
+│         │                                               │
+│         ├── Agent → Pasteur Street Brewing (D1)         │
+│         ├── Agent → Heart of Darkness Brewery (D1)      │
+│         ├── Agent → Chill Saigon (D1)                   │
+│         ├── Agent → The Deck Saigon (Thảo Điền)         │
+│         └── Agent → ... (3–5 venues per district)       │
+│                                                         │
+│         onStreamingUrl → live iframe shown in UI        │
+│         onComplete → venue data sent to client via SSE  │
+└─────────────────────────────────────────────────────────┘
+
+No database. No cache. Pure in-memory — results fetched live every search.
 ```
 
-Each district has 2–5 target venues. TinyFish handles all the hard parts: cookie banners, dynamic loading, Vietnamese language translation, pagination. The API route streams results via **Server-Sent Events** so the UI updates as venues finish — typically within 15–30 seconds for a full district scrape.
+### TinyFish SDK event flow
 
----
+```
+client.agent.stream({ url, goal }, {
+  onStreamingUrl: (event) => forward iframe URL to client,
+  onComplete:     (event) => parse event.result → VENUE_RESULT → SSE → client,
+})
 
-## TinyFish API snippet
-
-Here's how the app calls TinyFish to scrape each venue:
-
-```typescript
-import { TinyFish } from "@tiny-fish/sdk";
-
-const client = new TinyFish();
-
-const stream = await client.agent.stream(
-  {
-    url: venueUrl,
-    goal: GOAL_PROMPT,
-  },
-  {
-    onStreamingUrl: (event) => {
-      console.log(event.streaming_url);
-    },
-    onComplete: (event) => {
-      console.log(event.run_id);
-      console.log(event.result);
-    },
-  },
-);
-
+// for-await loop drains the stream as fallback if callbacks don't fire
 for await (const event of stream) {
-  if (event.type === "COMPLETE") {
-    // Parse JSON and stream to client
-  }
+  if (event.type === EventType.COMPLETE) → VENUE_RESULT → SSE
 }
 ```
 
-The `GOAL_PROMPT` tells TinyFish exactly what to extract: deal name, type, days/times, prices, and conditions. TinyFish returns structured JSON with all deals found on the venue's website.
+## Covered Venues
 
----
+| District | Venues |
+|---|---|
+| 🏙️ District 1 | Pasteur Street Brewing, Heart of Darkness Brewery, Chill Saigon, Momento Rooftop, Mia Saigon |
+| 🌴 Thảo Điền | The Deck Saigon, Saigon Outcast, Biacraft |
+| 🍜 District 3 | Pasteur Street Brewing, Biacraft |
 
-## Tech stack
+## Deal Types Extracted
 
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | Next.js 16 (App Router) | SSE streaming via Node.js runtime |
-| UI | React 19 + Tailwind CSS 4 + shadcn/ui | Fast, clean, no design system overhead |
-| Scraping | [TinyFish API](https://tinyfish.ai/) | Parallel browser agents, structured JSON output |
-| Caching | Supabase (Postgres) | 6-hour TTL, graceful degradation if unavailable |
-| Hosting | Vercel | Zero-config, auto-deploys |
-| Validation | Zod 4 | Type-safe schema validation |
+| Type | Description |
+|---|---|
+| `happy_hour` | Time-limited drink/food discounts |
+| `ladies_night` | Ladies' night specials |
+| `brunch` | Weekend brunch deals |
+| `live_music` | Live music events |
+| `daily_special` | Daily or weekly recurring specials |
 
----
+Each deal includes: name, days of week, time window, description, individual item prices in VND, and any conditions.
 
-## Running locally
+## Scraping Flow
+
+1. User selects a district
+2. `/api/search` resolves the list of venue URLs for that district
+3. One TinyFish browser agent fires per venue — all in parallel via `Promise.allSettled`
+4. Each agent handles popups, cookie banners, and Vietnamese-language pages automatically
+5. `onStreamingUrl` forwards live iframe URLs to the client as agents start
+6. `onComplete` → parse `event.result` → stream structured deal data to client
+7. UI updates as each venue finishes — no waiting for the slowest one
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- TinyFish API key
+
+### Environment Variables
 
 ```bash
-git clone https://github.com/tinyfish-io/tinyfish-cookbook.git
-cd tinyfish-cookbook/saigon-happy-hour-sniper
-npm install
+cp .env.example .env.local
 ```
 
-Create a `.env.local` file:
+Then fill in:
 
 ```env
-# Required — get a key at https://tinyfish.ai/
-TINYFISH_API_KEY=your_key_here
-
-# Optional — for result caching (app works fine without it)
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# TinyFish (required) — https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=your-tinyfish-api-key
 ```
 
-Then:
+### Install & Run
 
 ```bash
+npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open http://localhost:3000
 
----
-
-## Architecture diagram
-
-```mermaid
-graph TD
-    A["🖥️ Browser<br/>React Component"] -->|POST /api/search| B["⚡ Next.js API Route<br/>SSE Endpoint"]
-    
-    B -->|useCache?| C{Cache Hit?}
-    C -->|Yes| D["📦 Supabase<br/>deal_cache table"]
-    D -->|Stream cached| A
-    
-    C -->|No| E["🔄 Parallel TinyFish<br/>Requests"]
-    E -->|POST run-sse| F["🤖 TinyFish Agents<br/>Browser Automation"]
-    
-    F -->|Visit venue| G["🌐 Venue Websites<br/>Pasteur, HOD, Outcast, etc."]
-    G -->|Extract deals| F
-    
-    F -->|STREAMING_URL| B
-    F -->|COMPLETED + JSON| B
-    
-    B -->|Upsert| D
-    B -->|Stream live| A
-    
-    A -->|Display deals| H["📊 Dashboard<br/>Filter & Sort UI"]
-```
-
----
-
-## Covered venues
-
-| District | Venue | URL |
-|---|---|---|
-| 🏙️ District 1 | Pasteur Street | https://pasteurstreet.com/events/ |
-| 🏙️ District 1 | Heart of Darkness Brewery | https://heartofdarknessbrewery.com/ |
-| 🏙️ District 1 | Chill Saigon | https://www.chillsaigon.com/ |
-| 🏙️ District 1 | Momento Rooftop | https://momentorooftop.com/happy-hour-momento-rooftop/ |
-| 🏙️ District 1 | Mia Saigon | https://www.miasaigon.com/offers/rooftop-happy-hour-at-the-muse/ |
-| 🌴 Thao Dien | The Deck Saigon | https://www.thedecksaigon.com/bar/ |
-| 🌴 Thao Dien | Saigon Outcast | https://www.saigonoutcast.com/ |
-| 🌴 Thao Dien | Bia Craft | https://biacraft.com/ |
-| 🍜 District 3 | Pasteur Street | https://pasteurstreet.com/ |
-| 🍜 District 3 | Bia Craft | https://biacraft.com/ |
-
----
-
-## Features
-
-- **Real-time streaming** — Results appear as venues finish scraping, not all at once
-- **Graceful degradation** — App works without Supabase; caching is optional
-- **Live agent preview** — Watch TinyFish browser agents work in real-time iframes
-- **Smart caching** — 6-hour TTL keeps results fresh without hammering venues
-- **Vietnamese support** — TinyFish translates deal descriptions to English automatically
-- **Responsive design** — Works on mobile, tablet, desktop
-- **Type-safe** — Full TypeScript + Zod validation end-to-end
-
----
-
-## Project structure
+## Project Structure
 
 ```
-src/
-├── app/
-│   ├── page.tsx              # Main UI — district selection, filter toolbar, results
-│   └── api/search/route.ts   # SSE endpoint — cache lookup + TinyFish orchestration
-├── hooks/
-│   └── use-search.ts         # SSE client, state management, streaming logic
-├── lib/
-│   ├── district-sites.ts     # Venue URLs, goal prompt, cache TTL
-│   ├── supabase.ts           # Supabase admin client (graceful degradation)
-│   └── types.ts              # TypeScript types (District, Deal, etc.)
-└── components/
-    ├── search-form.tsx       # District + deal type selector
-    ├── results-grid.tsx      # Venue cards grouped by district
-    ├── deal-card.tsx         # Individual deal listing
-    └── live-preview-grid.tsx # Live iframe grid (max 5 active per search)
+saigon-happy-hour-sniper/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx                  # Root layout
+│   │   ├── page.tsx                    # Main UI — district selector, results grid
+│   │   ├── globals.css
+│   │   └── api/
+│   │       └── search/route.ts         # POST /api/search — SSE + TinyFish orchestration
+│   ├── components/
+│   │   ├── venue-card.tsx              # Venue + deals display
+│   │   ├── deal-badge.tsx              # Deal type badge
+│   │   ├── live-preview-grid.tsx       # Live agent iframe grid
+│   │   ├── results-grid.tsx            # Venue results grid
+│   │   └── ui/                         # badge, button, card, skeleton, switch
+│   ├── hooks/
+│   │   └── use-deal-search.ts          # SSE client + state management
+│   └── lib/
+│       ├── district-sites.ts           # Venue URLs + goal prompt per district
+│       ├── types.ts                    # TypeScript definitions
+│       ├── normalize.ts                # Result normalization
+│       ├── env.ts                      # Environment validation
+│       └── utils.ts                    # Shared helpers
+├── next.config.ts
+└── package.json
 ```
 
----
+## Constraint Checklist
 
-Built as a take-home demo for [TinyFish](https://tinyfish.ai) — showing what's possible when you give TinyFish a list of niche local websites and let it run in parallel.
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Cache layer used? | NO (all results fetched live) |
+| Scraping parallel? | YES (`Promise.allSettled` across 3–5 venues per district) |
+| Live browser preview? | YES (`onStreamingUrl` → iframe) |
+| Vietnamese page handling? | YES (agent translates deal descriptions to English) |
+| VND pricing extracted? | YES (per-item promo and regular prices) |
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

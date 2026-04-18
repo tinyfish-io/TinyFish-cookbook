@@ -5,9 +5,9 @@ export function calculateAdjustedScore(
   allergens: Allergen[],
   preferences: DietaryPreference[]
 ): number {
-  let score = data.overallSafetyScore;
+  let score = data.overallSafetyScore ?? 70;
 
-  for (const risk of data.allergenRisks) {
+  for (const risk of (data.allergenRisks ?? [])) {
     if (allergens.includes(risk.allergen)) {
       switch (risk.riskLevel) {
         case 'critical': score -= 15; break;

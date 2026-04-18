@@ -1,3 +1,5 @@
+'use client';
+
 import { AlertTriangle } from 'lucide-react';
 import { AllergenRiskBadge } from './AllergenRiskBadge';
 import type { AllergenRisk } from '@/types';

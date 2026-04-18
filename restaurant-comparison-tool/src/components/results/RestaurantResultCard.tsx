@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { Star, Award, AlertTriangle, ChevronRight, ShieldCheck, ShieldAlert, HelpCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -51,7 +53,7 @@ export function RestaurantResultCard({ result, searchParams, rank, index, onClic
   const isBestFit = rank === 1;
   const fit = getFitLabel(adjustedScore);
   const ConfIcon = CONFIDENCE_ICON[result.confidenceLevel];
-  const highRisks = result.allergenRisks.filter(r => r.riskLevel === 'high' || r.riskLevel === 'critical');
+  const highRisks = (result.allergenRisks ?? []).filter(r => r.riskLevel === 'high' || r.riskLevel === 'critical');
 
   return (
     <motion.div
@@ -115,7 +117,7 @@ export function RestaurantResultCard({ result, searchParams, rank, index, onClic
           {/* Allergen risk flags */}
           {searchParams.allergens.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {result.allergenRisks
+              {(result.allergenRisks ?? [])
                 .filter(r => searchParams.allergens.includes(r.allergen))
                 .map((risk) => (
                   <span

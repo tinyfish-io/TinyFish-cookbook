@@ -1,14 +1,14 @@
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 
-function getOpenAI() {
-    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+function getGroq() {
+    return new Groq({ apiKey: process.env.GROQ_API_KEY! });
 }
 
 export async function transcribeAudio(buffer: Buffer, filename = 'audio.webm') {
     const file = new File([new Uint8Array(buffer)], filename, { type: 'audio/webm' });
-    const result = await getOpenAI().audio.transcriptions.create({
+    const result = await getGroq().audio.transcriptions.create({
         file,
-        model: 'whisper-1',
+        model: 'whisper-large-v3',
     });
     return result.text;
 }

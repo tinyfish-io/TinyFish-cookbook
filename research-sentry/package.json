@@ -10,10 +10,11 @@
   "dependencies": {
     "lucide-react": "^0.344.0",
     "next": "^16.2.1",
-    "openai": "^4.28.0",
     "pdf-parse": "^2.4.5",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "@tiny-fish/sdk": "latest",
+    "groq-sdk": "^0.7.0"
   },
   "devDependencies": {
     "@types/node": "^20",

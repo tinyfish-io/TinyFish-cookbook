@@ -1,176 +1,182 @@
 # Research Sentry
+**Live: https://cookbook-research-sentry.vercel.app/**
 
-**A voice-first academic research co-pilot** that scans live portals (ArXiv, PubMed, Semantic Scholar, IEEE Xplore, Google Scholar, SSRN, CORE, DOAJ) to assemble verified paper metadata and summaries. It uses the **TinyFish Web Agent** to automate multi-step portal navigation and extract structured results in real time.
+**Voice-first academic research co-pilot — AI agents scrape 8 live research portals in parallel and assemble verified paper metadata in real time.**
 
-Live: https://cookbook-research-sentry.vercel.app/
+Speak or type a research query. Research Sentry parses your intent, dispatches one TinyFish browser agent per academic portal simultaneously, aggregates and deduplicates the results, and streams them back as each portal completes. Then ask follow-up questions, compare papers side-by-side, track citations, or export BibTeX.
 
-Demo video: https://cookbook-research-sentry.vercel.app/
+## Architecture
 
----
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  VoiceRecorder / SearchInterface → ResultsGrid              │
+│  ConversationInterface → PaperComparison → CitationTracker  │
+│  TinyFishAgentTerminal (live agent log)                     │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+              ┌────────────┼─────────────┐
+              ▼            ▼             ▼
+    /api/search/text  /api/search/voice  /api/compare
+    /api/summarize    /api/conversation  /api/citations/track
+    /api/export/bibtex
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    lib/tinyfish.ts                          │
+│                                                             │
+│  runTinyFishAutomation(url, goal, stealth?)                 │
+│  Throws TinyFishError with typed codes:                     │
+│    MISSING_API_KEY | RUN_FAILED | TIMEOUT |                 │
+│    STREAM_ERROR    | NO_RESULT                              │
+│                                                             │
+│  client.agent.stream({ url, goal, browser_profile })        │
+│    onComplete → RunStatus.COMPLETED → return result         │
+│              → RunStatus.FAILED    → throw RUN_FAILED       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ Promise.allSettled (x8 parallel)
+         ┌─────────┬───────┼────────┬─────────┐
+         ▼         ▼       ▼        ▼         ▼
+      ArXiv    PubMed  Semantic  Google    IEEE
+                       Scholar   Scholar   Xplore
+         +  SSRN  +  CORE  +  DOAJ
 
-## How It Works
+Google Scholar + IEEE Xplore use browser_profile: 'stealth'
+```
 
-1. **Voice / text input** -- speak or type your research query.
-2. **GPT-4o parses intent** -- OpenAI extracts topic, keywords, and target sources from your query.
-3. **TinyFish agents scrape 8 academic portals in parallel** -- each portal gets its own headless browser session via the TinyFish API.
-4. **Results aggregated & deduplicated** -- papers from every source are merged, normalized, and ranked by citation count.
-5. **Summarize, compare, export** -- ask follow-up questions, compare papers side-by-side, track citations, or export BibTeX.
+### Groq usage
 
----
+```
+lib/intent-parser.ts    → parse topic, keywords, sources from query
+lib/summarizer.ts       → summarize individual papers
+lib/comparator.ts       → structured methodology/results comparison
+lib/conversation.ts     → conversational follow-up answers
+lib/citation-tracker.ts → citation velocity and impact prediction
+lib/whisper.ts          → speech-to-text via Groq's Whisper endpoint
+```
 
 ## Key Features
 
-- **Voice input** -- record a question and Whisper transcribes it into a search query.
-- **Multi-source search** -- scrapes ArXiv, PubMed, Semantic Scholar, Google Scholar, IEEE Xplore, SSRN, CORE, and DOAJ simultaneously.
-- **Paper comparison** -- select papers and get a structured methodology/results comparison via GPT-4o.
-- **Citation tracking** -- monitor a paper's citation velocity and predicted impact.
-- **BibTeX export** -- download selected papers as a `.bib` file.
-- **Conversational follow-ups** -- ask the AI assistant questions about your results.
+- **Voice input** — record a question, Groq Whisper transcribes it into a search query
+- **Multi-source search** — 8 portals scraped simultaneously: ArXiv, PubMed, Semantic Scholar, Google Scholar, IEEE Xplore, SSRN, CORE, DOAJ
+- **Paper comparison** — structured methodology/results comparison across selected papers
+- **Citation tracking** — monitor citation velocity and predicted impact
+- **BibTeX export** — download selected papers as a `.bib` file
+- **Conversational follow-ups** — ask the AI assistant questions about your results
+- **Live agent terminal** — watch each TinyFish agent's progress in real time
 
----
+## Scraping Flow
 
-## TinyFish API Usage
-
-The core integration lives in `lib/tinyfish.ts`. Here is the SSE call that drives every search:
-
-```ts
-const res = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.TINYFISH_API_KEY!,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url,
-    goal,
-    browser_profile: stealth ? "stealth" : "lite",
-  }),
-});
-
-// Parse the SSE stream
-const reader = res.body!.getReader();
-const decoder = new TextDecoder();
-let buffer = "";
-let result = null;
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  buffer += decoder.decode(value, { stream: true });
-  const lines = buffer.split("\n");
-  buffer = lines.pop() || "";
-  for (const line of lines) {
-    if (line.startsWith("data: ")) {
-      const event = JSON.parse(line.slice(6));
-      if (event.type === "COMPLETE") result = event.resultJson;
-    }
-  }
-}
-```
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 14 (App Router) |
-| Web scraping | TinyFish API (SSE) |
-| LLM | OpenAI GPT-4o |
-| Speech-to-text | OpenAI Whisper |
-| Styling | Tailwind CSS |
-| Icons | Lucide React |
-
----
+1. User speaks or types a research query
+2. Groq (`intent-parser.ts`) extracts topic, keywords, and target sources
+3. One TinyFish agent fires per portal — all in parallel via `Promise.allSettled`
+4. Each agent navigates the portal's live DOM with a tight, focused goal prompt
+5. Results stream back to the aggregator as each agent completes
+6. `aggregator.ts` deduplicates and ranks by citation count
+7. Results appear in the UI as portals finish — no waiting for the slowest one
 
 ## Setup
 
+### Prerequisites
+
+- Node.js 18+
+- TinyFish API key
+- Groq API key
+
+### Environment Variables
+
 ```bash
-# 1. Install dependencies
+cp .env.example .env.local
+```
+
+Then fill in:
+
+```env
+# TinyFish (required) — https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=your-tinyfish-key-here
+
+# Groq (required) — https://console.groq.com
+GROQ_API_KEY=your-groq-key-here
+```
+
+### Install & Run
+
+```bash
 npm install
-
-# 2. Create your env file
-cp .env.local.example .env.local
-
-# 3. Add your API keys to .env.local
-#    TINYFISH_API_KEY  -- get one at https://tinyfish.ai
-#    OPENAI_API_KEY    -- get one at https://platform.openai.com
-
-# 4. Start the dev server
 npm run dev
 ```
 
-Open http://localhost:3000 to use the app.
+Open http://localhost:3000
 
----
-
-## Folder Structure
+## Project Structure
 
 ```
 research-sentry/
 ├── app/
-│   ├── api/
-│   │   ├── citations/track/route.ts   # Citation velocity analysis
-│   │   ├── compare/route.ts           # Paper comparison endpoint
-│   │   ├── conversation/route.ts      # Conversational follow-ups
-│   │   ├── emails/extract/route.ts    # Author email extraction
-│   │   ├── export/bibtex/route.ts     # BibTeX export
-│   │   ├── health/route.ts            # Health check
-│   │   ├── search/text/route.ts       # Text search endpoint
-│   │   ├── search/voice/route.ts      # Voice search endpoint
-│   │   └── summarize/route.ts         # Paper summarization
-│   ├── globals.css
 │   ├── layout.tsx
-│   └── page.tsx                       # Main UI
+│   ├── page.tsx                          # Main UI
+│   ├── globals.css
+│   └── api/
+│       ├── citations/track/route.ts      # Citation velocity analysis
+│       ├── compare/route.ts              # Paper comparison
+│       ├── conversation/route.ts         # Conversational follow-ups
+│       ├── emails/extract/route.ts       # Author email extraction
+│       ├── export/bibtex/route.ts        # BibTeX export
+│       ├── health/route.ts               # Health check
+│       ├── search/text/route.ts          # Text search
+│       ├── search/voice/route.ts         # Voice search
+│       └── summarize/route.ts            # Paper summarization
 ├── components/
-│   ├── CitationTracker.tsx
-│   ├── ConversationInterface.tsx
-│   ├── CoPilotMode.tsx
-│   ├── ErrorMessage.tsx
-│   ├── LoadingSpinner.tsx
+│   ├── SearchInterface.tsx
+│   ├── VoiceRecorder.tsx
+│   ├── ResultsGrid.tsx
 │   ├── PaperCard.tsx
 │   ├── PaperComparison.tsx
 │   ├── PaperSummary.tsx
-│   ├── ResultsGrid.tsx
-│   ├── SearchInterface.tsx
-│   ├── TinyFishAgentTerminal.tsx      # Live agent log display
-│   ├── VoiceRecorder.tsx
-│   └── WorkflowSelector.tsx
+│   ├── CitationTracker.tsx
+│   ├── ConversationInterface.tsx
+│   ├── CoPilotMode.tsx
+│   ├── WorkflowSelector.tsx
+│   ├── TinyFishAgentTerminal.tsx         # Live agent log display
+│   ├── ErrorMessage.tsx
+│   └── LoadingSpinner.tsx
 ├── hooks/
 │   └── useVoiceCommands.ts
 ├── lib/
-│   ├── aggregator.ts                  # Deduplication & ranking
+│   ├── tinyfish.ts                       # TinyFish agent client (typed errors)
+│   ├── intent-parser.ts                  # Groq — query intent parsing
+│   ├── summarizer.ts                     # Groq — paper summarization
+│   ├── comparator.ts                     # Groq — paper comparison
+│   ├── conversation.ts                   # Groq — conversational follow-ups
+│   ├── citation-tracker.ts               # Groq — citation velocity
+│   ├── whisper.ts                        # Groq Whisper — speech-to-text
+│   ├── aggregator.ts                     # Deduplication & ranking
+│   ├── search.ts                         # Multi-source search orchestration
+│   ├── workflows.ts
 │   ├── audio-utils.ts
-│   ├── citation-tracker.ts
-│   ├── comparator.ts
-│   ├── conversation.ts
 │   ├── email-utils.ts
-│   ├── intent-parser.ts              # GPT-4o query parsing
 │   ├── pdf-utils.ts
-│   ├── search.ts                     # Multi-source search engine
-│   ├── summarizer.ts
-│   ├── tinyfish.ts                   # TinyFish SSE client
-│   ├── types.ts
-│   └── workflows.ts
-└── .env.local.example
+│   └── types.ts
+├── .env.example
+└── package.json
 ```
 
----
+## Constraint Checklist
 
-## Architecture
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Scraping parallel? | YES (`Promise.allSettled` across 8 portals) |
+| Bot-protected sites handled? | YES (Google Scholar + IEEE use `browser_profile: 'stealth'`) |
+| SDK errors surfaced? | YES (typed `TinyFishError` with code — no silent `null` returns) |
+| Voice input? | YES (Groq Whisper transcription) |
+| BibTeX export? | YES |
 
-```mermaid
-graph TD
-  User((User)) -->|Voice/Text| UI[Search Interface]
-  UI -->|Intent| Parser[Intent Parser GPT-4o]
-  Parser -->|Plan| Engine[Search Engine]
-  Engine -->|Dispatch| Agent1[TinyFish Agent: ArXiv]
-  Engine -->|Dispatch| Agent2[TinyFish Agent: PubMed]
-  Engine -->|Dispatch| Agent3[TinyFish Agent: Scholar]
-  Agent1 -->|Scraping| Web[Live Web DOM]
-  Agent2 -->|Scraping| Web
-  Agent3 -->|Scraping| Web
-  Web -->|Result| Aggregator[Synthesis & Deduplication]
-  Aggregator -->|JSON Payload| UI
-  UI -->|Visuals| Terminal[Live Log Terminal]
-```
+## Tech Stack
+
+- **Framework:** Next.js (App Router), TypeScript, Tailwind CSS
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **LLM + Speech-to-text:** Groq (`llama` models + Whisper endpoint)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

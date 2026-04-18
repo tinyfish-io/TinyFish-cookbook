@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ResearchPaper } from '@/lib/types';
-import { ExternalLink, FileText, Award, Calendar, Activity, Sparkles, Copy, Mail } from 'lucide-react';
+import { ExternalLink, FileText, Award, Calendar, Activity, Sparkles, Copy, Mail, X } from 'lucide-react';
 import PaperSummary from './PaperSummary';
 
 interface AuthorInfo {
@@ -24,6 +24,7 @@ export default function PaperCard({ paper, onSelect, selected, onTrack }: PaperC
     const [isExtractingAuthors, setIsExtractingAuthors] = useState(false);
     const [authorError, setAuthorError] = useState<string | null>(null);
     const [authorsCopied, setAuthorsCopied] = useState(false);
+    const [authorModalOpen, setAuthorModalOpen] = useState(false);
 
     const formatDate = (dateStr: string) => {
         try {
@@ -34,6 +35,8 @@ export default function PaperCard({ paper, onSelect, selected, onTrack }: PaperC
     };
 
     const extractAuthors = async () => {
+        setAuthorModalOpen(true);
+        if (authors.length > 0) return; // already extracted, just reopen
         setIsExtractingAuthors(true);
         setAuthorError(null);
         setAuthorsCopied(false);
@@ -209,75 +212,105 @@ export default function PaperCard({ paper, onSelect, selected, onTrack }: PaperC
                     <PaperSummary paper={paper} title="AI Summary" />
                 </div>
 
-                {/* Author information (PDF extraction) */}
+                {/* Author information — compact trigger + modal */}
                 {(paper.pdfUrl || paper.url) && (
-                    <div className="pt-2">
-                        <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex flex-col gap-3">
-                            <div className="flex items-start justify-between gap-3">
+                    <>
+                        <div className="pt-2">
+                            <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex items-center justify-between gap-3">
                                 <div className="min-w-0">
-                                    <h4 className="text-sm font-medium text-slate-200 line-clamp-1 flex items-center gap-2">
+                                    <h4 className="text-sm font-medium text-slate-200 flex items-center gap-2">
                                         <Mail className="w-4 h-4 text-emerald-400" />
                                         Author information
                                     </h4>
-                                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
-                                        Extract author names and emails from the paper PDF
-                                    </p>
+                                    <p className="text-[11px] text-slate-500 mt-1">Extract author names and emails</p>
                                 </div>
+                                <button
+                                    onClick={extractAuthors}
+                                    disabled={isExtractingAuthors}
+                                    className="text-xs bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white px-3 py-1.5 rounded-full flex items-center gap-1 shrink-0"
+                                >
+                                    {isExtractingAuthors ? 'Extracting…' : 'Extract'}
+                                </button>
+                            </div>
+                        </div>
 
-                                <div className="flex items-center gap-2">
-                                    {authors.length > 0 && (
+                        {/* Author Modal */}
+                        {authorModalOpen && (
+                            <div
+                                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+                                onClick={(e) => { if (e.target === e.currentTarget) setAuthorModalOpen(false); }}
+                            >
+                                <div className="relative w-full max-w-lg max-h-[70vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl shadow-black/60">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <Mail className="w-4 h-4 text-emerald-400" />
+                                            <span className="text-sm font-semibold text-slate-200">Author Information</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {authors.length > 0 && (
+                                                <button
+                                                    onClick={copyAllAuthors}
+                                                    className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-full flex items-center gap-1"
+                                                >
+                                                    <Copy className="w-3 h-3" />
+                                                    {authorsCopied ? 'Copied!' : 'Copy all'}
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setAuthorModalOpen(false)}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Paper title */}
+                                    <div className="px-6 py-3 border-b border-slate-800 shrink-0">
+                                        <p className="text-xs text-slate-400 font-medium line-clamp-2">{paper.title}</p>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 overflow-y-auto px-6 py-5">
+                                        {isExtractingAuthors && (
+                                            <div className="flex items-center gap-3 text-slate-400">
+                                                <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                                                <span className="text-sm">Extracting author information…</span>
+                                            </div>
+                                        )}
+                                        {authorError && <p className="text-sm text-red-400">{authorError}</p>}
+                                        {authors.length > 0 && (
+                                            <div className="flex flex-col gap-2">
+                                                {authors.map((author, idx) => {
+                                                    const name = [author.firstName, author.lastName].filter(Boolean).join(' ').trim();
+                                                    return (
+                                                        <div key={`${author.email}-${idx}`} className="px-3 py-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 hover:border-emerald-500/40 transition-colors">
+                                                            {name && <div className="text-sm font-medium text-slate-200 mb-1">{name}</div>}
+                                                            <a href={`mailto:${author.email}`} className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">{author.email}</a>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        {!isExtractingAuthors && !authorError && authors.length === 0 && (
+                                            <p className="text-sm text-slate-500">No author information found.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="px-6 py-3 border-t border-slate-800 shrink-0">
                                         <button
-                                            onClick={copyAllAuthors}
-                                            className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-full flex items-center gap-1"
-                                            title="Copy all author information"
+                                            onClick={() => setAuthorModalOpen(false)}
+                                            className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition-colors"
                                         >
-                                            <Copy className="w-3 h-3" />
-                                            {authorsCopied ? 'Copied' : 'Copy all'}
+                                            Close
                                         </button>
-                                    )}
-                                    <button
-                                        onClick={extractAuthors}
-                                        disabled={isExtractingAuthors}
-                                        className="text-xs bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white px-3 py-1.5 rounded-full flex items-center gap-1"
-                                    >
-                                        {isExtractingAuthors ? 'Extracting…' : 'Extract'}
-                                    </button>
+                                    </div>
                                 </div>
                             </div>
-
-                            {authorError && <div className="text-xs text-red-300">{authorError}</div>}
-
-                            {authors.length > 0 ? (
-                                <div className="flex flex-col gap-2">
-                                    {authors.map((author, idx) => {
-                                        const name = [author.firstName, author.lastName].filter(Boolean).join(' ').trim();
-                                        return (
-                                            <div
-                                                key={`${author.email}-${idx}`}
-                                                className="px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-700/60 hover:border-emerald-500/40 transition-colors"
-                                            >
-                                                {name && (
-                                                    <div className="text-sm font-medium text-slate-200 mb-1">
-                                                        {name}
-                                                    </div>
-                                                )}
-                                                <a
-                                                    href={`mailto:${author.email}`}
-                                                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                                                    title="Open mail client"
-                                                >
-                                                    {author.email}
-                                                </a>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                !isExtractingAuthors &&
-                                !authorError && <div className="text-xs text-slate-500">No author information found.</div>
-                            )}
-                        </div>
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>

@@ -2,67 +2,26 @@ import { SearchCriteria, SearchResult, SourceType, ResearchPaper } from './types
 import { aggregateAndDeduplicate } from './aggregator';
 import { runTinyFishAutomation } from './tinyfish';
 
-/**
- * HYBRID SEARCH ENGINE
- * Primary: TinyFish Web Agent (Real-time, Deep Scraping)
- * Fallback: Direct API calls (Reliability)
- */
+// ── JSON parsing ──────────────────────────────────────────────────────────────
 
-// ============================================
-// UTILITIES (Robustness layer)
-// ============================================
-
-/**
- * Hyper-robust JSON parser that handles markdown blocks and recursive scanning
- */
-function parseTinyFishResponse(rawResponse: any): any[] {
-    // If it's already an array, just return it
-    if (Array.isArray(rawResponse)) return rawResponse;
-
-    // If it's a string, it might be stringified JSON or markdown
-    if (typeof rawResponse === 'string') {
+function parseTinyFishResponse(raw: any): any[] {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
         try {
-            // Remove markdown code blocks if present
-            const cleanJson = rawResponse.replace(/```json\n?|```/g, '').trim();
-            const parsed = JSON.parse(cleanJson);
+            const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
             return findPapersArray(parsed);
-        } catch (e) {
-            console.error('[TinyFish-Parser] Failed to parse stringified response:', e);
-            return [];
-        }
+        } catch { return []; }
     }
-
-    // If it's an object, find the array within it
-    if (rawResponse && typeof rawResponse === 'object') {
-        return findPapersArray(rawResponse);
-    }
-
+    if (raw && typeof raw === 'object') return findPapersArray(raw);
     return [];
 }
 
-/**
- * Deep-scans an object for any array containing paper-like objects
- */
 function findPapersArray(obj: any): any[] {
     if (Array.isArray(obj)) return obj;
     if (!obj || typeof obj !== 'object') return [];
-
-    // Check common keys first for speed
-    const fastKeys = ['papers', 'results', 'data', 'articles', 'items', 'result'];
-    for (const key of fastKeys) {
+    for (const key of ['papers', 'results', 'data', 'articles', 'items', 'result']) {
         if (Array.isArray(obj[key])) return obj[key];
-
-        // Sometimes the key contains stringified JSON
-        if (typeof obj[key] === 'string' && (obj[key].includes('[') || obj[key].includes('{'))) {
-            try {
-                const inner = JSON.parse(obj[key].replace(/```json\n?|```/g, '').trim());
-                const innerArray = findPapersArray(inner);
-                if (innerArray.length > 0) return innerArray;
-            } catch (e) { }
-        }
     }
-
-    // Recursive search for any array
     for (const key in obj) {
         if (Array.isArray(obj[key])) return obj[key];
         if (typeof obj[key] === 'object') {
@@ -73,29 +32,18 @@ function findPapersArray(obj: any): any[] {
     return [];
 }
 
-// ============================================
-// FALLBACKS (Reliability layer)
-// ============================================
+// ── Fallbacks ─────────────────────────────────────────────────────────────────
 
 async function fallbackArxiv(topic: string): Promise<ResearchPaper[]> {
     try {
-        const query = encodeURIComponent(topic);
-        const res = await fetch(`https://export.arxiv.org/api/query?search_query=all:${query}&start=0&max_results=10`);
+        const res = await fetch(`https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(topic)}&start=0&max_results=10`);
         const xml = await res.text();
-        const entries = xml.split('<entry>').slice(1);
-        return entries.map(entry => {
-            const get = (tag: string) => {
-                const m = entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`));
-                return m ? m[1].trim().replace(/\s+/g, ' ') : '';
-            };
+        return xml.split('<entry>').slice(1).map(entry => {
+            const get = (tag: string) => { const m = entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`)); return m ? m[1].trim().replace(/\s+/g, ' ') : ''; };
             const id = get('id').split('/abs/').pop() || '';
-            return {
-                id, title: get('title'), authors: (entry.match(/<name>([^<]+)<\/name>/g) || []).map(a => a.replace(/<\/?name>/g, '')),
-                abstract: get('summary'), publishedDate: get('published').split('T')[0],
-                source: 'arxiv' as SourceType, url: `https://arxiv.org/abs/${id}`, pdfUrl: `https://arxiv.org/pdf/${id}.pdf`, citations: 0
-            };
+            return { id, title: get('title'), authors: (entry.match(/<name>([^<]+)<\/name>/g) || []).map(a => a.replace(/<\/?name>/g, '')), abstract: get('summary'), publishedDate: get('published').split('T')[0], source: 'arxiv' as SourceType, url: `https://arxiv.org/abs/${id}`, pdfUrl: `https://arxiv.org/pdf/${id}.pdf`, citations: 0 };
         });
-    } catch (e) { return []; }
+    } catch { return []; }
 }
 
 async function fallbackSemanticScholar(topic: string): Promise<ResearchPaper[]> {
@@ -103,84 +51,59 @@ async function fallbackSemanticScholar(topic: string): Promise<ResearchPaper[]> 
         const res = await fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(topic)}&limit=10&fields=paperId,title,abstract,authors,year,citationCount,openAccessPdf`);
         if (!res.ok) return [];
         const data = await res.json();
-        return (data.data || []).map((p: any) => ({
-            id: p.paperId, title: p.title || 'Untitled', authors: p.authors?.map((a: any) => a.name) || ['Unknown'],
-            abstract: p.abstract || 'No abstract', publishedDate: p.year ? `${p.year}-01-01` : new Date().toISOString().split('T')[0],
-            source: 'semantic_scholar' as SourceType,
-            url: `https://semanticscholar.org/paper/${p.paperId}`,
-            pdfUrl: p.openAccessPdf?.url,
-            citations: p.citationCount || 0
-        }));
-    } catch (e) { return []; }
+        return (data.data || []).map((p: any) => ({ id: p.paperId, title: p.title || 'Untitled', authors: p.authors?.map((a: any) => a.name) || ['Unknown'], abstract: p.abstract || 'No abstract', publishedDate: p.year ? `${p.year}-01-01` : new Date().toISOString().split('T')[0], source: 'semantic_scholar' as SourceType, url: `https://semanticscholar.org/paper/${p.paperId}`, pdfUrl: p.openAccessPdf?.url, citations: p.citationCount || 0 }));
+    } catch { return []; }
 }
 
-// ============================================
-// CORE TINYFISH ENGINE
-// ============================================
+// ── Tight goal prompts ────────────────────────────────────────────────────────
 
-async function scrapeWithTinyFish(
-    url: string,
-    goal: string,
-    source: SourceType,
-    stealth = false,
-    timeoutMs?: number
-): Promise<ResearchPaper[]> {
+const GOALS: Record<string, (topic: string) => string> = {
+    arxiv: (t) => `Go to https://arxiv.org/search/?query=${encodeURIComponent(t)}&searchtype=all — you are already on the results page. DO NOT navigate elsewhere. Extract the first 5 papers visible on screen RIGHT NOW. For each paper return: title, authors (array), abstract, arxivId, publishedDate, url, pdfUrl. Return ONLY a JSON array. No explanations.`,
+
+    pubmed: (t) => `Go to https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(t)} — you are on the results page. DO NOT click any links or navigate away. Extract the first 5 articles visible. For each: title, authors (array), abstract, pmid, url. Return ONLY a JSON array. No explanations.`,
+
+    semantic_scholar: (t) => `Go to https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(t)}&limit=5&fields=paperId,title,abstract,authors,year,citationCount,openAccessPdf — this is a JSON API. Parse the response and return the papers array as-is. Return ONLY valid JSON. No explanations.`,
+
+    google_scholar: (t) => `Go to https://scholar.google.com/scholar?q=${encodeURIComponent(t)} — you are on the results page. DO NOT click links. Extract the first 5 results visible: title, authors (array), snippet (as abstract), citations count, link (url). Return ONLY a JSON array. No explanations.`,
+
+    ieee: (t) => `Go to https://ieeexplore.ieee.org/search/searchresult.jsp?queryText=${encodeURIComponent(t)} — you are on the results page. DO NOT navigate away. Extract the first 5 papers: title, authors (array), abstract, doi, url. Return ONLY a JSON array. No explanations.`,
+
+    ssrn: (t) => `Go to https://www.ssrn.com/index.cfm/en/ssrn-search-results/?query=${encodeURIComponent(t)} — you are on the results page. DO NOT navigate away. Extract the first 5 papers: title, authors (array), abstract, url. Return ONLY a JSON array. No explanations.`,
+
+    core: (t) => `Go to https://core.ac.uk/search?q=${encodeURIComponent(t)} — you are on the results page. DO NOT navigate away. Extract the first 5 results: title, authors (array), abstract, url. Return ONLY a JSON array. No explanations.`,
+
+    doaj: (t) => `Go to https://doaj.org/search/articles?source=%7B%22query%22%3A%7B%22query_string%22%3A%7B%22query%22%3A%22${encodeURIComponent(t)}%22%7D%7D%7D — you are on the results page. DO NOT navigate away. Extract the first 5 articles: title, authors (array), abstract, url. Return ONLY a JSON array. No explanations.`,
+};
+
+// ── Core scraper ──────────────────────────────────────────────────────────────
+
+async function scrapeWithTinyFish(url: string, goal: string, source: SourceType, stealth = false, timeoutMs?: number): Promise<ResearchPaper[]> {
     const rawResult = await runTinyFishAutomation(url, goal, stealth, timeoutMs ? { timeoutMs } : undefined);
+    const result = parseTinyFishResponse(rawResult);
+    if (result.length === 0) return [];
 
-    let result = parseTinyFishResponse(rawResult);
-
-    if (result.length === 0) {
-        console.warn(`[TinyFish] ${source} return 0 papers. RAW STRUCTURE:`, JSON.stringify(rawResult).slice(0, 300));
-        return [];
-    }
-
-    console.log(`[TinyFish] ${source} found ${result.length} papers via web automation`);
-
-    return result
-        .filter((p: any) => p && typeof p === 'object')
-        .map((p: any) => {
-        // Case-insensitive key lookup helper
-        const getV = (keys: string[]) => {
-            const lowerKeys = keys.map(k => k.toLowerCase());
-            for (const actualKey in p) {
-                if (lowerKeys.includes(actualKey.toLowerCase())) return p[actualKey];
-            }
-            return null;
-        };
-
+    return result.filter((p: any) => p && typeof p === 'object').map((p: any) => {
+        const getV = (keys: string[]) => { for (const k of keys) { for (const ak in p) { if (ak.toLowerCase() === k.toLowerCase()) return p[ak]; } } return null; };
         const paperId = getV(['paperId', 'id', 'paper_id']);
         const arxivId = getV(['arxivId', 'arxiv_id', 'arxiv']);
         const pmid = getV(['pmid', 'pubmed_id']);
         const doi = getV(['doi']);
-
         const id = paperId || arxivId || pmid || doi || `${source}-${Date.now()}-${Math.random()}`;
 
-        // Synthesize URLs if missing but ID is present
-        let url = getV(['url', 'link', 'href', 'paperUrl', 'paperLink']) || '#';
+        let paperUrl = getV(['url', 'link', 'href', 'paperUrl', 'paperLink']) || '#';
         let pdfUrl = getV(['pdfUrl', 'pdfLink', 'pdf', 'fullText', 'pdf_url']);
 
-        if (url === '#' || !url) {
-            if (source === 'arxiv' && arxivId) url = `https://arxiv.org/abs/${arxivId}`;
-            else if (source === 'pubmed' && pmid) url = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
-            else if (source === 'semantic_scholar' && paperId) url = `https://www.semanticscholar.org/paper/${paperId}`;
-            else if (source === 'google_scholar' && p.title) url = `https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`;
+        if (paperUrl === '#' || !paperUrl) {
+            if (source === 'arxiv' && arxivId) paperUrl = `https://arxiv.org/abs/${arxivId}`;
+            else if (source === 'pubmed' && pmid) paperUrl = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+            else if (source === 'semantic_scholar' && paperId) paperUrl = `https://www.semanticscholar.org/paper/${paperId}`;
+            else if (p.title) paperUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`;
         }
-
-        if (!pdfUrl) {
-            if (source === 'arxiv' && arxivId) pdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
+        if (!pdfUrl && source === 'arxiv' && arxivId) pdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
+        if (source === 'arxiv' && typeof pdfUrl === 'string' && pdfUrl.includes('arxiv.org/abs/')) {
+            const idPart = pdfUrl.split('arxiv.org/abs/')[1]?.split(/[?#]/)[0];
+            if (idPart) pdfUrl = `https://arxiv.org/pdf/${idPart}.pdf`;
         }
-        // Normalize arXiv pdf URLs (TinyFish often returns without ".pdf")
-        if (source === 'arxiv' && typeof pdfUrl === 'string') {
-            if (pdfUrl.includes('arxiv.org/abs/')) {
-                const idPart = pdfUrl.split('arxiv.org/abs/')[1]?.split(/[?#]/)[0];
-                if (idPart) pdfUrl = `https://arxiv.org/pdf/${idPart}.pdf`;
-            } else if (pdfUrl.includes('arxiv.org/pdf/') && !pdfUrl.endsWith('.pdf')) {
-                pdfUrl = `${pdfUrl.split(/[?#]/)[0]}.pdf`;
-            }
-        }
-
-        // Trace logging for debugging
-        console.log(`[Link-Trace] ${source}:${p.title?.substring(0, 15)} | Link: ${url !== '#'} | PDF: ${!!pdfUrl}`);
 
         return {
             id,
@@ -188,110 +111,51 @@ async function scrapeWithTinyFish(
             authors: Array.isArray(p.authors) ? p.authors : (p.authors ? [p.authors] : ['Unknown']),
             abstract: p.abstract || p.snippet || p.summary || 'No abstract available',
             publishedDate: p.publishedDate || p.publicationDate || p.date || (p.year ? `${p.year}-01-01` : new Date().toISOString().split('T')[0]),
-            source: source,
-            url,
+            source,
+            url: paperUrl,
             pdfUrl: pdfUrl || undefined,
             citations: p.citations || p.citationCount || p.downloads || 0,
-            doi: doi
+            doi,
         };
-        });
+    });
 }
 
-// Scraper Wrappers
+// ── Source scrapers ───────────────────────────────────────────────────────────
 
-async function scrapeArxiv(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const goal = `Search ArXiv for "${criteria.topic}". Extract top 5 papers. For each paper, MUST extract: title, authors array, abstract, publishedDate, arxivId, url, and pdfUrl. Return JSON array. ${criteria.fullPrompt ? `Instruction: ${criteria.fullPrompt}` : ''}`;
-    const tinyFishResults = await scrapeWithTinyFish('https://arxiv.org/search', goal, 'arxiv', false, timeoutMs);
-    if (tinyFishResults.length > 0) return tinyFishResults;
-    console.log(`[TinyFish-Search] ArXiv zero results. Triggering fallback API...`);
-    return fallbackArxiv(criteria.topic);
-}
-
-async function scrapePubmed(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const goal = `Search PubMed for "${criteria.topic}". Extract top 5 papers. MUST extract: title, authors array, abstract, pmid, and link (url). Return JSON array.`;
-    const tinyFishResults = await scrapeWithTinyFish('https://pubmed.ncbi.nlm.nih.gov/', goal, 'pubmed', false, timeoutMs);
-    if (tinyFishResults.length > 0) return tinyFishResults;
-    return fallbackSemanticScholar(`${criteria.topic} pubmed`);
-}
-
-async function scrapeSemanticScholar(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const goal = `Search Semantic Scholar for "${criteria.topic}". Extract top 5 papers. MUST extract: title, authors array, abstract, year, paperId, url, and pdfUrl. Return JSON array. ${criteria.fullPrompt ? `Instruction: ${criteria.fullPrompt}` : ''}`;
-    const tinyFishResults = await scrapeWithTinyFish('https://www.semanticscholar.org/', goal, 'semantic_scholar', false, timeoutMs);
-    if (tinyFishResults.length > 0) return tinyFishResults;
-    return fallbackSemanticScholar(criteria.topic);
-}
-
-async function scrapeGoogleScholar(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const searchUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(criteria.topic)}`;
-    const goal = `Extract papers from this Google Scholar page: title, authors, snippet (abstract), citations count, link. Return JSON array.`;
-    return scrapeWithTinyFish(searchUrl, goal, 'google_scholar', true, timeoutMs);
-}
-
-async function scrapeIEEE(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const goal = `Search IEEE Xplore for "${criteria.topic}". Extract first 5 papers: title, authors, abstract, doi. Return JSON array.`;
-    const tinyFishResults = await scrapeWithTinyFish('https://ieeexplore.ieee.org/', goal, 'ieee', true, timeoutMs);
-    if (tinyFishResults.length > 0) return tinyFishResults;
-    return fallbackSemanticScholar(`${criteria.topic} ieee`);
-}
-
-async function scrapeSSRN(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const goal = `Search SSRN for "${criteria.topic}". Extract top 5 papers: title, authors, abstract. Return JSON.`;
-    return scrapeWithTinyFish('https://www.ssrn.com/', goal, 'ssrn', false, timeoutMs);
-}
-
-async function scrapeCORE(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const goal = `Search CORE for "${criteria.topic}". Extract 5 results with title, abstract, link. Return JSON.`;
-    return scrapeWithTinyFish('https://core.ac.uk/', goal, 'core', false, timeoutMs);
-}
-
-async function scrapeDOAJ(criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
-    const goal = `Search DOAJ for "${criteria.topic}". Extract 5 articles with title, abstract, link. Return JSON.`;
-    return scrapeWithTinyFish('https://doaj.org/', goal, 'doaj', false, timeoutMs);
-}
-
-async function scrapeSource(source: string, criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
+export async function scrapeSourceStreaming(source: string, criteria: SearchCriteria, timeoutMs?: number): Promise<ResearchPaper[]> {
     const s = source.toLowerCase().replace(/[\s_]+/g, '');
-    switch (s) {
-        case 'arxiv': return scrapeArxiv(criteria, timeoutMs);
-        case 'pubmed': return scrapePubmed(criteria, timeoutMs);
-        case 'semanticscholar': return scrapeSemanticScholar(criteria, timeoutMs);
-        case 'googlescholar': return scrapeGoogleScholar(criteria, timeoutMs);
-        case 'ieee': case 'ieeexplore': return scrapeIEEE(criteria, timeoutMs);
-        case 'ssrn': return scrapeSSRN(criteria, timeoutMs);
-        case 'core': return scrapeCORE(criteria, timeoutMs);
-        case 'doaj': return scrapeDOAJ(criteria, timeoutMs);
-        default: return [];
-    }
+    const topic = criteria.topic;
+
+    // Map source key to goal function
+    const goalKey = s === 'semanticscholar' ? 'semantic_scholar' : s;
+    const goalFn = GOALS[goalKey];
+    if (!goalFn) return [];
+
+    const goal = goalFn(topic);
+    const stealth = s === 'googlescholar' || s === 'ieee';
+
+    // Extract the real target URL from the goal so the agent starts there directly
+    const urlMatch = goal.match(/Go to (https?:\/\/[^\s—]+)/);
+    const startUrl = urlMatch ? urlMatch[1] : 'https://www.google.com';
+
+    const tinyFishResults = await scrapeWithTinyFish(startUrl, goal, s as SourceType, stealth, timeoutMs);
+    if (tinyFishResults.length > 0) return tinyFishResults;
+
+    // Fallback
+    if (s === 'arxiv') return fallbackArxiv(topic);
+    if (s === 'pubmed' || s === 'semanticscholar' || s === 'ieee') return fallbackSemanticScholar(topic);
+    return [];
 }
+
+// ── Legacy sync export (for other routes that call searchResearchPapers) ──────
 
 export async function searchResearchPapers(criteria: SearchCriteria): Promise<SearchResult> {
-    console.log(`\n=================================================`);
-    console.log(`DISCOVERY: "${criteria.topic}"`);
-    console.log(`SOURCES: ${criteria.sources.join(', ')}`);
-    console.log(`=================================================`);
-
-    // Prevent one slow portal from forcing a platform timeout.
-    // Each source gets a time budget for TinyFish automation.
     const perSourceTimeoutMs = 40_000;
-
     const results = await Promise.all(
-        criteria.sources.map((s) =>
-            scrapeSource(s, criteria, perSourceTimeoutMs).catch((e: any) => {
-                console.error(`[Search/${s}] Failed:`, e?.message);
-                return [];
-            })
+        criteria.sources.map((s: string) =>
+            scrapeSourceStreaming(s, criteria, perSourceTimeoutMs).catch(() => [] as ResearchPaper[])
         )
     );
-
     const papers = aggregateAndDeduplicate(results);
-
-    console.log(`\n=================================================`);
-    console.log(`TOTAL DISCOVERY YIELD: ${papers.length}`);
-    console.log(`=================================================\n`);
-
-    return {
-        query: criteria.topic,
-        papers: papers.slice(0, criteria.maxResults),
-        totalFound: papers.length,
-    };
+    return { query: criteria.topic, papers: papers.slice(0, criteria.maxResults), totalFound: papers.length };
 }

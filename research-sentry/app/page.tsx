@@ -45,9 +45,13 @@ export default function Home() {
         setSearchSources(sources);
         setAgentLogs([]);
         setAgentComplete(false);
+        setResults(null);
 
         addAgentLog('TinyFish Agent initialized. Connecting to browser instance...', 'info');
         addAgentLog(`Targeting [${sources.join(', ')}] for discovery.`, 'info');
+
+        // Accumulate papers across sources as they stream in
+        const allPapers: import('@/lib/types').ResearchPaper[] = [];
 
         try {
             const response = await fetch('/api/search/text', {
@@ -56,15 +60,45 @@ export default function Home() {
                 body: JSON.stringify({ query, sources }),
             });
 
-            if (!response.ok) {
-                addAgentLog(`Search request failed: ${response.statusText}`, 'error');
-                throw new Error(`Search failed: ${response.statusText}`);
-            }
+            if (!response.ok) throw new Error(`Search failed: ${response.statusText}`);
+            if (!response.body) throw new Error('No response body');
 
-            const data = await response.json();
-            addAgentLog(`Discovery complete. Found ${data.totalFound ?? 0} papers.`, 'success');
-            setAgentComplete(true);
-            setResults(data);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    let event: Record<string, unknown>;
+                    try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+                    if (event.type === 'SEARCH_STARTED') {
+                        addAgentLog(`Searching ${event.total} sources in parallel...`, 'info');
+                    } else if (event.type === 'SOURCE_COMPLETE') {
+                        const papers = (event.papers as import('@/lib/types').ResearchPaper[]) ?? [];
+                        addAgentLog(`${event.source}: found ${papers.length} papers.`, papers.length > 0 ? 'success' : 'info');
+                        if (papers.length > 0) {
+                            allPapers.push(...papers);
+                            // Show results immediately as each source completes
+                            setResults({ query, papers: [...allPapers], totalFound: allPapers.length });
+                        }
+                    } else if (event.type === 'SOURCE_ERROR') {
+                        addAgentLog(`${event.source}: failed — ${event.error}`, 'error');
+                    } else if (event.type === 'SEARCH_COMPLETE') {
+                        addAgentLog(`Discovery complete. Found ${allPapers.length} papers total.`, 'success');
+                        setAgentComplete(true);
+                        setLoading(false);
+                    }
+                }
+            }
         } catch (err) {
             addAgentLog(err instanceof Error ? err.message : 'An error occurred', 'error');
             setAgentComplete(true);
@@ -183,7 +217,7 @@ export default function Home() {
                     Your AI Research Co-Pilot
                 </p>
                 <p className="text-slate-400 max-w-2xl mx-auto text-lg leading-relaxed">
-                    Search academic papers using your voice or text. Powered by <span className="text-emerald-400 font-semibold">OpenAI</span>, <span className="text-teal-400 font-semibold">GPT-4</span>, and <span className="text-amber-400 font-semibold">TinyFish Web Agent</span>.
+                    Search academic papers using your voice or text. Powered by <span className="text-emerald-400 font-semibold">Groq</span> and <span className="text-amber-400 font-semibold">TinyFish Web Agent</span>.
                 </p>
 
                 {/* Features badges */}
@@ -289,7 +323,7 @@ export default function Home() {
                             />
                         </div>
 
-                        {/* Loading State */}
+                        {/* Loading State — terminal visible while searching */}
                         {loading && (
                             <div className="max-w-4xl mx-auto py-8">
                                 <div className="text-center mb-8 animate-fade-in">
@@ -303,10 +337,29 @@ export default function Home() {
 
                                 <TinyFishAgentTerminal logs={agentLogs} isComplete={agentComplete} />
 
-                                <div className="mt-12 text-center animate-pulse">
-                                    <LoadingSpinner size="md" />
-                                    <p className="text-slate-500 text-[10px] font-bold tracking-[0.3em] mt-6 uppercase">Compiling findings from 8 research nodes</p>
-                                </div>
+                                {/* Show results as they arrive while other agents run */}
+                                {results && results.papers.length > 0 ? (
+                                    <div className="mt-8 animate-fade-in">
+                                        <div className="flex items-center gap-2 mb-4 px-1">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            <p className="text-emerald-400 text-[10px] font-bold tracking-[0.2em] uppercase">
+                                                Live results — {results.papers.length} papers found so far, more agents still running…
+                                            </p>
+                                        </div>
+                                        <ResultsGrid
+                                            results={results}
+                                            selectedPapers={selectedPapers}
+                                            onToggleSelect={togglePaperSelection}
+                                            onExport={handleExport}
+                                            onTrackCitation={(id) => setTrackingPaperId(id)}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="mt-12 text-center animate-pulse">
+                                        <LoadingSpinner size="md" />
+                                        <p className="text-slate-500 text-[10px] font-bold tracking-[0.3em] mt-6 uppercase">Compiling findings from research nodes…</p>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -350,7 +403,7 @@ export default function Home() {
                             </div>
                         )}
 
-                        {/* Results */}
+                        {/* Final Results — shown after all agents complete */}
                         {!loading && results && (
                             <div className="animate-fade-in">
                                 <ResultsGrid

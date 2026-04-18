@@ -21,7 +21,6 @@ export interface BikeShop {
   website: string;
   bikes: Bike[];
   notes: string | null;
-  source?: 'live';
 }
 
 export interface StreamingPreview {
@@ -211,7 +210,6 @@ export function useBikeSearch(): {
                 });
               } else if (event.type === 'SHOP_RESULT') {
                 const shop = normalizeShop(event.shop);
-                shop.source = 'live';
                 setState((prev) => ({
                   ...prev,
                   shops: [...prev.shops, shop],

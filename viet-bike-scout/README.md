@@ -1,86 +1,65 @@
-# 🛵 Vietnam Bike Price Scout
+# Viet Bike Scout
+**Live Demo: https://viet-bike-scout.vercel.app**
 
-> Compare motorbike rental prices across Vietnam in seconds — powered by [TinyFish](https://tinyfish.ai/) parallel browser agents.
+**Real-time motorbike rental price comparison across Vietnam — powered by TinyFish parallel browser agents.**
 
-**Live demo → [viet-bike-scout.vercel.app](https://viet-bike-scout.vercel.app)**
+Rental shops in Vietnam don't list prices on any aggregator. You have to visit 5–10 different websites, each with different layouts, currencies, and formats. This app sends TinyFish browser agents to all of them simultaneously, extracts structured pricing data, and streams results back to a unified dashboard in real time.
 
----
+## Architecture
 
-## What it does
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Browser (Client)                    │
+│                                                         │
+│  City selector → Bike type filter → Results grid        │
+│                  (results stream in as shops complete)  │
+└──────────────────────────┬──────────────────────────────┘
+                           │ POST /api/search { city }
+                           │ (SSE — results stream as agents finish)
+┌──────────────────────────▼──────────────────────────────┐
+│                   Next.js App Router                    │
+│                                                         │
+│  /api/search/route.ts                                   │
+│    │                                                    │
+│    ├─ getEnv() ──────► explicit 500 if key missing      │
+│    │                                                    │
+│    └─ TinyFish SDK ──► Promise.allSettled               │
+│         client.agent.stream({ url, goal })              │
+│         │                                               │
+│         ├── Agent → Tigit Motorbikes (HCMC)             │
+│         ├── Agent → Wheelie Saigon (HCMC)               │
+│         ├── Agent → Off Road Vietnam (Hanoi)            │
+│         ├── Agent → Da Nang Motorbikes                  │
+│         └── Agent → ... (5–6 shops per city)            │
+│                                                         │
+│         Each agent streams EventType.STREAMING_URL      │
+│         → live iframe shown in UI                       │
+│         Each agent fires EventType.COMPLETE             │
+│         → shop result sent to client via SSE            │
+└─────────────────────────────────────────────────────────┘
 
-Rental shops in Vietnam don't list prices on any aggregator. You have to visit 5–10 different websites, each with different layouts, currencies, and formats. This app sends TinyFish browser agents to all of them **simultaneously**, extracts structured pricing data, and streams results back to a unified dashboard in real time.
+No database. No cache. Pure in-memory — results live only for the request.
+```
 
-- Search up to **4 cities at once** — HCMC, Hanoi, Da Nang, Nha Trang
+### TinyFish SDK event flow
+
+```
+client.agent.stream({ url, goal })
+  │
+  ├── EventType.STREAMING_URL  → live iframe URL forwarded to client
+  └── EventType.COMPLETE
+        └── RunStatus.COMPLETED → parse event.result → SHOP_RESULT → SSE → client
+```
+
+## Features
+
+- Search up to **4 cities** — HCMC, Hanoi, Da Nang, Nha Trang
 - Filter by **bike type** — Scooter, Semi-Auto, Manual, Adventure
-- **Sort by price** (low→high or high→low) and **filter by model name** (Honda, Vespa, Yamaha, etc.)
+- **Sort by price** (low→high or high→low) and **filter by model** (Honda, Vespa, Yamaha, etc.)
 - Watch **live browser agent iframes** — up to 5 active agent windows per search, auto-removed when done
-- Toggle between **live scraping** and **cached results** (6-hour TTL)
 - Results stream in as each shop completes — no waiting for the slowest one
 
----
-
-## How it works
-
-```
-User clicks Search
-       │
-       ▼
-POST /api/search
-       │
-       ├── Cache hit? → stream result instantly via SSE
-       │
-        └── Cache miss? → fire TinyFish SSE requests for all shops in parallel
-                              │
-                              ├── STREAMING_URL event → forward iframe URL to client
-                              │
-                              └── COMPLETED event → parse JSON, stream to client, upsert to cache
-```
-
-Each city has 5–6 target shops. TinyFish handles all the hard parts: cookie banners, dynamic loading, VND→USD conversion, pagination. The API route streams results via **Server-Sent Events** so the UI updates as shops finish — typically within 15–30 seconds for a full city scrape.
-
----
-
-## Tech stack
-
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | Next.js 16 (App Router) | SSE streaming via Node.js runtime |
-| UI | React 19 + Tailwind CSS 4 + shadcn/ui | Fast, clean, no design system overhead |
-| Scraping | [TinyFish API](https://tinyfish.ai/) | Parallel browser agents, structured JSON output |
-| Caching | Supabase (Postgres) | 6-hour TTL, graceful degradation if unavailable |
-| Hosting | Vercel | Zero-config, auto-deploys |
-
----
-
-## Running locally
-
-```bash
-git clone https://github.com/tinyfish-io/tinyfish-cookbook
-cd tinyfish-cookbook/vietnam-bike-price-scout
-npm install
-```
-
-Create a `.env.local` file:
-
-```env
-TINYFISH_API_KEY=your_key_here
-
-# Optional — for result caching (app works fine without it)
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
-
-Get a TinyFish API key at [tinyfish.ai](https://tinyfish.ai/).
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
----
-
-## Covered shops
+## Covered Shops
 
 | City | Shops |
 |---|---|
@@ -89,55 +68,110 @@ Open [http://localhost:3000](http://localhost:3000).
 | 🌊 Da Nang | Motorbike Rental Da Nang, Da Nang Motorbikes, Da Nang Bike, Motorbike Rental Hoi An, Hoi An Bike Rental, Tuan Motorbike |
 | 🏖️ Nha Trang | Moto4Free, Motorbike Mui Ne |
 
----
+## Scraping Flow
 
-## TinyFish prompt
+1. User selects city and bike type
+2. `/api/search` resolves the list of 5–6 shop URLs for that city
+3. One TinyFish browser agent fires per shop — all in parallel via `Promise.allSettled`
+4. Each agent handles cookie banners, dynamic loading, and VND→USD conversion automatically
+5. `EventType.STREAMING_URL` events forward live iframe URLs to the client as agents start
+6. `EventType.COMPLETE` + `RunStatus.COMPLETED` → parse `event.result` → stream shop data to client
+7. UI updates as each shop finishes — typically 15–30 seconds for a full city
+
+## TinyFish Prompt
 
 The same goal prompt is sent to every shop URL:
 
 ```
-You are extracting motorbike rental pricing from this website.
+Extract motorbike rental pricing from this website. Be fast and efficient.
 
-1. Navigate to the pricing or rental page if not already there
-2. Handle any popups or cookie banners by dismissing them
-3. Find ALL motorbike/scooter listings with their prices
-4. If there is a "Load More" button or pagination, click through all pages
-5. Extract: bike name, engine size (cc), type, daily/weekly/monthly price in USD,
+1. Go directly to the pricing or rental page
+2. Dismiss any popups or cookie banners
+3. Find ALL motorbike/scooter listings with prices
+4. Extract: bike name, engine size (cc), type, daily/weekly/monthly price in USD,
    deposit, availability, and link to the bike's detail page
+
+Return ONLY structured JSON — shop name, city, website, and a bikes[] array.
 ```
 
-Output is a structured JSON object — shop name, city, website, and a `bikes[]` array. TinyFish handles currency conversion from VND automatically.
+TinyFish handles currency conversion from VND automatically (1 USD ≈ 25,000 VND).
 
----
+## Setup
 
-## Caching
+### Prerequisites
 
-Results are cached in Supabase with a 6-hour TTL, keyed by `(city, website)`. The cache toggle on the UI lets you choose between instant cached results and a fresh live scrape. The app degrades gracefully — if Supabase is unreachable, all requests go live without any error.
+- Node.js 18+
+- TinyFish API key
 
----
+### Environment Variables
 
-## Live browser agent iframes
-
-When a live scrape is running, TinyFish returns a `streaming_url` for each agent — a real browser session you can watch in an iframe. Up to 5 active agent windows are shown per search (deduped by site, capped to prevent browser overload). Done iframes are automatically removed from the DOM to free memory. A collapse button lets you minimize the grid.
-
----
-
-## Project structure
-
-```
-src/
-├── app/
-│   ├── page.tsx              # Main UI — city/type selection, sort/filter toolbar, results, iframes
-│   └── api/search/route.ts   # SSE endpoint — cache lookup + TinyFish orchestration
-├── hooks/
-│   └── use-bike-search.ts    # SSE client, state management, StreamingPreview type
-└── components/
-    ├── live-preview-grid.tsx  # Live iframe grid (max 5 active per search, auto-cleanup)
-    ├── results-grid.tsx       # Shop cards grouped by store
-    ├── shop-group.tsx         # Individual shop section
-    └── bike-card.tsx          # Single bike listing card
+```bash
+cp .env.example .env.local
 ```
 
----
+Then fill in:
 
-Built as a take-home demo for [TinyFish](https://tinyfish.ai) — showing what's possible when you give TinyFish a list of niche local websites and let it run in parallel.
+```env
+# TinyFish (required) — https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=your-tinyfish-api-key
+```
+
+### Install & Run
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+## Deployment
+
+Deployed on Vercel. Any Node-compatible host works — no external services to provision.
+
+`maxDuration = 800` is set on the API route to accommodate long-running parallel scrapes.
+
+## Project Structure
+
+```
+viet-bike-scout/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx                # Root layout
+│   │   ├── page.tsx                  # Main UI — city/type selection, results, iframes
+│   │   ├── globals.css               # Global styles
+│   │   └── api/
+│   │       └── search/route.ts       # POST /api/search — SSE + TinyFish orchestration
+│   ├── components/
+│   │   ├── live-preview-grid.tsx     # Live iframe grid (max 5 active, auto-cleanup)
+│   │   ├── results-grid.tsx          # Shop cards grouped by store
+│   │   ├── shop-group.tsx            # Individual shop section
+│   │   ├── bike-card.tsx             # Single bike listing card
+│   │   └── ui/                       # badge, button, card, skeleton, switch
+│   ├── hooks/
+│   │   └── use-bike-search.ts        # SSE client + state management
+│   └── lib/
+│       ├── env.ts                    # Environment validation (throws if key missing)
+│       └── utils.ts                  # Shared helpers
+├── next.config.ts
+└── package.json
+```
+
+## Constraint Checklist
+
+| Constraint | Status |
+|-----------|--------|
+| External database used? | NO (pure in-memory) |
+| Cache layer used? | NO (all results fetched live) |
+| Google Places / Yelp API used? | NO |
+| Scraping parallel? | YES (`Promise.allSettled` across 5–6 shops per city) |
+| Live browser preview? | YES (`EventType.STREAMING_URL` → iframe) |
+| VND→USD conversion? | YES (handled automatically by TinyFish agent) |
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4
+- **UI:** React 19 + shadcn/ui (5 components — badge, button, card, skeleton, switch)
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

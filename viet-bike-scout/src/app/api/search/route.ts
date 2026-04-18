@@ -108,7 +108,7 @@ async function runAgentForSite(
           ? JSON.parse(event.result)
           : event.result;
 
-        enqueue({ type: "SHOP_RESULT", siteUrl: url, shop: result, source: "live" });
+        enqueue({ type: "SHOP_RESULT", siteUrl: url, shop: result });
         enqueue({ type: "STREAMING_DONE", siteUrl: url, success: true });
         console.log(`[TINYFISH] Complete: ${url} (${elapsedSeconds(startedAt)}s)`);
         return true;

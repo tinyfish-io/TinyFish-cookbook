@@ -2,15 +2,15 @@
 
 **Live Demo:** [https://discord.com/oauth2/authorize?client_id=1465346765611077871&permissions=277025508352&scope=bot]
 
-A Discord bot that helps anime figure collectors find discounted pre-owned figures by scraping deals in real-time from multiple sites using the TinyFish API.
+A Discord bot that helps anime figure collectors find discounted pre-owned figures by scraping deals in real-time from multiple sites using the **TinyFish agent SDK** (`@tiny-fish/sdk`).
 
 ---
 
 ## 🎯 What It Does
 
-Waifu Deal Sniper lets users search for anime figures across **AmiAmi**, **Mercari US**, and **Solaris Japan** directly from Discord. The bot uses TinyFish's TinyFish API to scrape real-time pricing, condition grades, and availability — then presents results with a fun, personality-driven interface including gacha mode, roast mode, and copium dispensary.
+Waifu Deal Sniper lets users search for anime figures across **AmiAmi**, **Mercari US**, and **Solaris Japan** directly from Discord. The bot uses the TinyFish agent to scrape real-time pricing, condition grades, and availability — then presents results with a fun, personality-driven interface including gacha mode, roast mode, and copium dispensary.
 
-**Where TinyFish API is used:** The TinyFish API powers all figure searches by scraping e-commerce sites with natural language goals, extracting structured data (prices, conditions, images, stock status) from pages that don't have public APIs.
+**Where TinyFish is used:** All figure searches go through `client.agent.run({ url, goal })` with natural-language goals per site, extracting structured data (prices, conditions, images, stock status) from pages that do not expose public APIs.
 
 ---
 
@@ -29,15 +29,17 @@ https://github.com/user-attachments/assets/demo.mp4
 
 ## 📦 TinyFish SDK Integration
 
+The bot uses `@tiny-fish/sdk` (see `package.json`). Set `TINYFISH_API_KEY` in your environment; the SDK reads it automatically.
+
 ```javascript
 import { TinyFish } from "@tiny-fish/sdk";
-const client = new TinyFish(); // Reads TINYFISH_API_KEY from environment
+
+const client = new TinyFish();
 
 async function searchSite(siteKey, query, maxPrice = null) {
   const site = SITES[siteKey];
   const searchUrl = site.searchUrl(query);
-  
-  // Natural language goal for TinyFish
+
   const goal = `Scrape pre-owned figure listings from this page.
     For each product (max 8), extract:
     - raw_title: Full product title
@@ -54,14 +56,17 @@ async function searchSite(siteKey, query, maxPrice = null) {
 }
 ```
 
+This repository’s `bot.js` uses the same API from CommonJS via dynamic `import()` of `@tiny-fish/sdk`.
+
 ---
 
 ## 🚀 How to Run
 
 ### Prerequisites
 - Node.js 18+
-- Discord Bot Token
-- TinyFish API Key
+- Discord bot token
+- TinyFish API key (`TINYFISH_API_KEY`)
+- In the Discord Developer Portal, enable **Bot → Privileged Gateway Intents → Message Content Intent** (required so the bot can read message text for commands)
 
 ### 1. Clone the repository
 ```bash
@@ -80,15 +85,22 @@ export DISCORD_TOKEN=your_discord_bot_token
 export TINYFISH_API_KEY=your_tinyfish_api_key
 ```
 
-Or create a `.env` file:
+Or create a `.env` file in this directory (loaded on startup). Optional: add `.env.local` for machine-specific overrides (loaded after `.env`).
+
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 TINYFISH_API_KEY=your_tinyfish_api_key
 ```
 
+Optional:
+
+```env
+DATABASE_PATH=./data/waifu.db
+```
+
 ### 4. Run the bot
 ```bash
-node bot.js
+npm start
 ```
 
 ### 5. Invite the bot to your server
@@ -125,9 +137,9 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
                                                         │
                                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      TINYFISH AGENT SDK                               │
+│                      TINYFISH AGENT (@tiny-fish/sdk)                     │
 │                                                                         │
-│   client.agent.run({ url: "...", goal: "..." })                         │
+│   client.agent.run({ url: "...", goal: "..." })                          │
 │                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐  │
 │   │  Headless Browser → Navigate → Extract → Return Structured JSON │  │
@@ -151,7 +163,7 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
 | Feature | Description |
 |---------|-------------|
 | **Multi-Site Search** | AmiAmi, Mercari US, Solaris Japan |
-| **Real-Time Scraping** | Live prices via TinyFish agent |
+| **Real-Time Scraping** | Live prices via TinyFish agent (`agent.run`) |
 | **Rarity Scoring** | SSR/SR/R/N based on scale, manufacturer, exclusivity |
 | **Gacha Mode** | Random figure picks with dramatic reveals |
 | **Roast Mode** | Get roasted for your waifu choices |
@@ -165,10 +177,11 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
 
 ```
 waifu-deal-sniper/
-├── bot.js          # Main bot logic (1,543 lines)
-├── database.js     # SQLite database layer
-├── templates.js    # 670+ personality responses
-├── package.json    # Dependencies
+├── bot.js          # Main bot logic
+├── database.js     # SQLite database layer (sql.js)
+├── templates.js    # Personality responses
+├── package.json    # Dependencies (@tiny-fish/sdk, discord.js, …)
+├── product.md      # Product / PRD-style overview
 └── README.md       # This file
 ```
 
@@ -179,7 +192,8 @@ waifu-deal-sniper/
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `DISCORD_TOKEN` | Discord bot token | ✅ |
-| `TINYFISH_API_KEY` | TinyFish API key | ✅ |
+| `TINYFISH_API_KEY` | TinyFish API key (used by `@tiny-fish/sdk`) | ✅ |
+| `DATABASE_PATH` | SQLite file path (default: `./data/waifu.db`) | ❌ |
 
 ---
 
@@ -204,7 +218,7 @@ waifu-deal-sniper/
 
 ## 🙏 Credits
 
-Built with [TinyFish](https://tinyfish.ai) for web scraping.
+Built with [TinyFish](https://tinyfish.ai) and the [`@tiny-fish/sdk`](https://www.npmjs.com/package/@tiny-fish/sdk) agent SDK.
 
 ---
 

@@ -6,7 +6,15 @@
 // A hosted Discord bot for anime figure collectors
 // Users just DM the bot - no setup required!
 
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load `.env`, then override with `.env.local` when present (local dev).
+dotenv.config({ path: path.join(__dirname, '.env') });
+if (fs.existsSync(path.join(__dirname, '.env.local'))) {
+  dotenv.config({ path: path.join(__dirname, '.env.local'), override: true });
+}
 
 const { Client, GatewayIntentBits, EmbedBuilder, ActivityType, Partials } = require('discord.js');
 const { TEMPLATES, SPICY_KEYWORDS, HUSBANDO_KEYWORDS, FIGURE_TYPE_KEYWORDS, GACHA_TEMPLATES, ROAST_TEMPLATES, COPIUM_TEMPLATES } = require('./templates');
@@ -229,7 +237,7 @@ function findItemsArray(obj) {
 }
 
 // =====================================
-// 🔍 TINYFISH API - Multi-Site Search
+// 🔍 TINYFISH SDK - Multi-Site Search
 // =====================================
 
 // Site configurations

@@ -10,7 +10,7 @@ A Discord bot that helps anime figure collectors find discounted pre-owned figur
 
 Waifu Deal Sniper lets users search for anime figures across **AmiAmi**, **Mercari US**, and **Solaris Japan** directly from Discord. The bot uses the TinyFish agent to scrape real-time pricing, condition grades, and availability — then presents results with a fun, personality-driven interface including gacha mode, roast mode, and copium dispensary.
 
-**Where TinyFish is used:** All figure searches go through `client.agent.run({ url, goal })` with natural-language goals per site, extracting structured data (prices, conditions, images, stock status) from pages that do not expose public APIs.
+**Where TinyFish is used:** All figure searches use `client.agent.stream({ url, goal })` and read the final `COMPLETE` event (same wait-for-completion behavior as the old direct `run-sse` call). Natural-language goals are defined per site to extract prices, conditions, images, and stock status from pages that do not expose public APIs.
 
 ---
 
@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/demo.mp4
 The bot uses `@tiny-fish/sdk` (see `package.json`). Set `TINYFISH_API_KEY` in your environment; the SDK reads it automatically.
 
 ```javascript
-import { TinyFish } from "@tiny-fish/sdk";
+import { TinyFish, EventType, RunStatus } from "@tiny-fish/sdk";
 
 const client = new TinyFish();
 
@@ -51,12 +51,16 @@ async function searchSite(siteKey, query, maxPrice = null) {
     - manufacturer: Company name
     Return JSON array.`;
 
-  const run = await client.agent.run({ url: searchUrl, goal });
-  return run.result;
+  const stream = await client.agent.stream({ url: searchUrl, goal });
+  for await (const event of stream) {
+    if (event.type === EventType.COMPLETE && event.status === RunStatus.COMPLETED) {
+      return event.result;
+    }
+  }
 }
 ```
 
-This repository’s `bot.js` uses the same API from CommonJS via dynamic `import()` of `@tiny-fish/sdk`.
+This repository’s `bot.js` uses the same pattern from CommonJS via dynamic `import()` of `@tiny-fish/sdk`.
 
 ---
 
@@ -139,7 +143,7 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      TINYFISH AGENT (@tiny-fish/sdk)                     │
 │                                                                         │
-│   client.agent.run({ url: "...", goal: "..." })                          │
+│   client.agent.stream({ url: "...", goal: "..." }) → COMPLETE event       │
 │                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐  │
 │   │  Headless Browser → Navigate → Extract → Return Structured JSON │  │
@@ -163,7 +167,7 @@ https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=277025
 | Feature | Description |
 |---------|-------------|
 | **Multi-Site Search** | AmiAmi, Mercari US, Solaris Japan |
-| **Real-Time Scraping** | Live prices via TinyFish agent (`agent.run`) |
+| **Real-Time Scraping** | Live prices via TinyFish agent (`agent.stream` → `COMPLETE`) |
 | **Rarity Scoring** | SSR/SR/R/N based on scale, manufacturer, exclusivity |
 | **Gacha Mode** | Random figure picks with dramatic reveals |
 | **Roast Mode** | Get roasted for your waifu choices |

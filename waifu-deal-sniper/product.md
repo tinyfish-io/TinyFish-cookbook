@@ -17,11 +17,11 @@ Waifu Deal Sniper is a Discord bot for anime figure collectors. Users message th
 
 ## How TinyFish is used
 
-Figure searches do not call retailer HTTP APIs directly. The bot uses the **TinyFish JavaScript SDK** (`@tiny-fish/sdk`) with `TinyFish#agent.run({ url, goal })` for each scrape: the agent visits the search URL and returns structured data (titles, prices, links, images, etc.) according to a natural-language goal defined per site.
+Figure searches do not call retailer HTTP APIs directly. The bot uses the **TinyFish JavaScript SDK** (`@tiny-fish/sdk`) with `client.agent.stream({ url, goal })` and waits for the final **COMPLETE** SSE event before parsing items (same end-to-end behavior as the legacy `run-sse` HTTP integration). The synchronous `agent.run()` endpoint can return before the scrape finishes with an empty `result`, which is why searches use the stream API.
 
 **Authentication:** set `TINYFISH_API_KEY` in the environment (see `README.md`). The SDK reads this variable; the bot also checks that it is set before starting.
 
-**Note:** Behavior matches the previous “wait for completion” integration: each search awaits a full agent run result before parsing items.
+**Note:** Each search waits until the run reports `COMPLETED` on the stream, then extracts the structured payload from `event.result`.
 
 ## Technical stack
 

@@ -29,6 +29,31 @@ async function getTinyFishClient() {
   return tinyFishClientPromise;
 }
 
+/**
+ * Wait for a TinyFish scrape using the SSE stream (`/v1/automation/run-sse`).
+ * This matches the pre-migration HTTP integration, which only parsed items from the final COMPLETE event.
+ *
+ * `agent.run()` (`/v1/automation/run`) can return while the run is still in progress with `result: null`,
+ * which produced empty searches even though progress logs (e.g. BACKGROUND) showed work continuing.
+ */
+async function runTinyFishSearch(client, searchUrl, goal) {
+  const { RunStatus, EventType } = await import('@tiny-fish/sdk');
+  const stream = await client.agent.stream({ url: searchUrl, goal });
+  for await (const event of stream) {
+    if (event.type !== EventType.COMPLETE) continue;
+
+    if (event.status === RunStatus.FAILED || event.status === RunStatus.CANCELLED) {
+      const msg = event.error?.message || `Run ${event.status}`;
+      return { error: msg };
+    }
+    if (event.status === RunStatus.COMPLETED) {
+      return { result: event.result };
+    }
+    return { error: `Unexpected run status: ${event.status}` };
+  }
+  return { error: 'Stream ended before completion' };
+}
+
 // Store last search results per user for gacha/roast
 const lastSearchResults = new Map();
 
@@ -396,18 +421,14 @@ async function searchSite(siteKey, query, maxPrice = null) {
 
   try {
     const client = await getTinyFishClient();
+    const { result, error: tinyfishError } = await runTinyFishSearch(client, searchUrl, goal);
 
-    // This code path previously hit the SSE endpoint but still waited for the full body.
-    // `agent.run()` matches that "wait for completion" behavior without SSE parsing.
-    const run = await client.agent.run({ url: searchUrl, goal });
-
-    const tinyfishError = run?.error?.message || run?.error;
     if (tinyfishError) {
       console.error(`${site.name} TinyFish error:`, tinyfishError);
       return { success: false, error: String(tinyfishError) };
     }
 
-    let foundItems = findItemsArray(run?.result ?? run);
+    let foundItems = findItemsArray(result);
 
     if (foundItems && foundItems.length > 0) {
       // Post-process items

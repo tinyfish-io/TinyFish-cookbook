@@ -1,67 +1,10 @@
 import { NextResponse } from 'next/server';
 import { saveSnapshot, getLastSnapshot, getHistory, HistoricalSnapshot } from '@/lib/store';
+import type { ConfidenceInfo, ScanResult, SignalSummary, SourceSignal } from '@/types';
 import { TinyFish } from '@tiny-fish/sdk';
 
 // Extend Vercel serverless function timeout to 120 seconds (max for Pro plan)
 export const maxDuration = 120;
-
-interface RiskAnalysis {
-    score: number;
-    level: string;
-    reasoning: string;
-}
-
-interface ScanResult {
-    part_number: string;
-    manufacturer: string;
-    lifecycle_status: string;
-    lead_time_weeks?: number;
-    lead_time_days?: number;
-    moq?: number;
-    availability?: string;
-    timestamp: string;
-    last_time_buy_date?: string;
-    pcn_summary?: string;
-    risk: RiskAnalysis;
-    evidence_links: string[];
-    price_estimate?: string;
-    sources?: string[];
-    sources_checked?: string[];
-    sources_blocked?: string[];
-    source_signals?: SourceSignal[];
-    signals?: SignalSummary;
-    confidence?: ConfidenceInfo;
-    scanned_at?: string;
-    scan_duration_ms?: number;
-    scan_timed_out?: boolean;
-    agent_logs?: string[];
-    history?: { timestamp: string; score: number }[];
-}
-
-interface SourceSignal {
-    name: string;
-    url: string;
-    ok: boolean;
-    blocked: boolean;
-    availability?: string;
-    lifecycle_status?: string;
-    lead_time_weeks?: number;
-    price_estimate?: string;
-}
-
-interface SignalSummary {
-    availability: string;
-    lifecycle_status: string;
-    lead_time_weeks?: number;
-    price_estimate?: string;
-}
-
-interface ConfidenceInfo {
-    score: number;
-    level: string;
-    sources: number;
-    signals: number;
-}
 
 const availabilityPriority = ['In Stock', 'Limited', 'Backorder', 'Unknown'];
 const lifecyclePriority = ['Obsolete', 'NRND', 'Active', 'Unknown'];
@@ -189,8 +132,8 @@ export async function POST(request: Request) {
 
         const scannedAt = new Date().toISOString();
         const timestamp = scannedAt.split('T')[0];
-        const cacheKey = `${part_number.toLowerCase()}|${(manufacturer || '').toLowerCase()}`;
         if (CACHE_TTL_MS > 0) {
+            const cacheKey = `${part_number.toLowerCase()}|${(manufacturer || '').toLowerCase()}`;
             const cached = scanCache.get(cacheKey);
             if (cached && cached.expires > Date.now()) {
                 return NextResponse.json({
@@ -206,7 +149,6 @@ export async function POST(request: Request) {
         let reasoning = "Gathering live data...";
         const evidence: string[] = [];
         let leadTime = 0;
-        const moq = 0;
         let availability = "Unknown";
         let priceEstimate = "N/A";
 
@@ -228,7 +170,7 @@ export async function POST(request: Request) {
         }
 
         try {
-            agentLogs.push(`${logPrefix} Initializing TinyFish SSE API crawler...`);
+            agentLogs.push(`${logPrefix} Initializing TinyFish agent (SDK stream)...`);
             const directSearchUrls = getDirectSearchUrls(part_number);
 
             const fetchTinyFish = async (source: { name: string; url: string }): Promise<SourceSignal> => {
@@ -463,7 +405,6 @@ export async function POST(request: Request) {
             timestamp,
             lifecycle_status: status,
             lead_time_weeks: leadTime,
-            moq: moq,
             availability: availability,
             risk_score: riskScore
         };
@@ -497,7 +438,6 @@ export async function POST(request: Request) {
             lifecycle_status: status,
             lead_time_weeks: leadTime || undefined,
             lead_time_days: leadTimeDays,
-            moq: moq,
             availability: availability,
             timestamp,
             risk: {
@@ -521,6 +461,7 @@ export async function POST(request: Request) {
         };
 
         if (CACHE_TTL_MS > 0) {
+            const cacheKey = `${part_number.toLowerCase()}|${(manufacturer || '').toLowerCase()}`;
             scanCache.set(cacheKey, {
                 expires: Date.now() + CACHE_TTL_MS,
                 result,

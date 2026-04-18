@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback, useRef } from 'react';
 import { AreaSuggestion, AreaResearchResult, SearchParams } from '@/types/hotel';
 import { discoverAreas, researchArea } from '@/lib/api/area-search';
@@ -31,7 +33,7 @@ export function useAreaSearch() {
       }));
       setResults(initialResults);
 
-      // Stage 2: Research each area in parallel via Mino
+      // Stage 2: Research each area in parallel via TinyFish agent
       let completedCount = 0;
       const totalAreas = areas.length;
 

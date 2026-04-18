@@ -1,3 +1,5 @@
+'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlatformResult } from '@/types/hotel';
 import { PlatformCard } from './PlatformCard';

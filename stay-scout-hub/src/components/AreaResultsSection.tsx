@@ -1,3 +1,5 @@
+'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaResearchResult } from '@/types/hotel';
 import { AreaCard } from './AreaCard';

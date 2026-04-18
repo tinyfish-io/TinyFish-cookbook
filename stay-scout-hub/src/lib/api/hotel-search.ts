@@ -1,21 +1,13 @@
 import { Platform, PlatformResult, SearchParams } from '@/types/hotel';
 
-const API_BASE = import.meta.env.VITE_SUPABASE_URL;
-
 export async function discoverPlatforms(params: SearchParams): Promise<Platform[]> {
-  const response = await fetch(`${API_BASE}/functions/v1/discover-platforms`, {
+  const response = await fetch('/api/discover-platforms', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to discover platforms');
-  }
-
+  if (!response.ok) throw new Error('Failed to discover platforms');
   const data = await response.json();
   return data.platforms;
 }
@@ -30,7 +22,6 @@ export function checkPlatform(
   const controller = new AbortController();
   let completed = false;
 
-  // Timeout after 60 seconds - mark as available so user can still visit website
   const timeoutId = setTimeout(() => {
     if (!completed) {
       completed = true;
@@ -49,25 +40,17 @@ export function checkPlatform(
 
   const fetchStream = async () => {
     try {
-      const response = await fetch(`${API_BASE}/functions/v1/check-platform`, {
+      const response = await fetch('/api/check-platform', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform, params }),
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.body) throw new Error('No reader available');
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No reader available');
-      }
-
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
@@ -80,59 +63,56 @@ export function checkPlatform(
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === '[DONE]') continue;
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
 
-            try {
-              const event = JSON.parse(jsonStr);
-              
-              if (event.type === 'STATUS') {
-                onStatus({
+          try {
+            const event = JSON.parse(jsonStr);
+
+            if (event.type === 'STATUS') {
+              onStatus({
+                platformId: platform.id,
+                platformName: platform.name,
+                searchUrl: platform.searchUrl,
+                status: 'searching',
+                statusMessage: event.message,
+              });
+            } else if (event.type === 'SCREENSHOT' && event.data?.streamingUrl) {
+              onStatus({
+                platformId: platform.id,
+                platformName: platform.name,
+                searchUrl: platform.searchUrl,
+                status: 'searching',
+                streamingUrl: event.data.streamingUrl,
+              });
+            } else if (event.type === 'COMPLETE') {
+              if (!completed) {
+                completed = true;
+                clearTimeout(timeoutId);
+                onComplete({
                   platformId: platform.id,
                   platformName: platform.name,
-                  searchUrl: platform.searchUrl,
-                  status: 'searching',
-                  statusMessage: event.message,
+                  searchUrl: event.data?.searchResultsUrl || platform.searchUrl,
+                  status: 'complete',
+                  available: event.data?.available ?? true,
+                  hotelsFound: event.data?.hotelsFound || 0,
+                  message: event.data?.message,
                 });
-              } else if (event.type === 'SCREENSHOT' && event.data?.streamingUrl) {
-                // Live browser streaming URL received
-                onStatus({
-                  platformId: platform.id,
-                  platformName: platform.name,
-                  searchUrl: platform.searchUrl,
-                  status: 'searching',
-                  streamingUrl: event.data.streamingUrl,
-                });
-              } else if (event.type === 'COMPLETE') {
-                if (!completed) {
-                  completed = true;
-                  clearTimeout(timeoutId);
-                  onComplete({
-                    platformId: platform.id,
-                    platformName: platform.name,
-                    searchUrl: event.data?.searchResultsUrl || platform.searchUrl,
-                    status: 'complete',
-                    available: event.data?.available || true,
-                    hotelsFound: event.data?.hotelsFound || 0,
-                    message: event.data?.message,
-                  });
-                }
-              } else if (event.type === 'ERROR') {
-                if (!completed) {
-                  completed = true;
-                  clearTimeout(timeoutId);
-                  onError(event.message || 'Unknown error');
-                }
               }
-            } catch (e) {
-              // Ignore parse errors
+            } else if (event.type === 'ERROR') {
+              if (!completed) {
+                completed = true;
+                clearTimeout(timeoutId);
+                onError(event.message || 'Unknown error');
+              }
             }
+          } catch {
+            // ignore parse errors
           }
         }
       }
 
-      // If stream ends without COMPLETE, mark as available anyway
       if (!completed) {
         completed = true;
         clearTimeout(timeoutId);
@@ -147,21 +127,18 @@ export function checkPlatform(
         });
       }
     } catch (error) {
-      if ((error as Error).name !== 'AbortError') {
-        if (!completed) {
-          completed = true;
-          clearTimeout(timeoutId);
-          // On error, still show as available so user can visit the website
-          onComplete({
-            platformId: platform.id,
-            platformName: platform.name,
-            searchUrl: platform.searchUrl,
-            status: 'complete',
-            available: true,
-            hotelsFound: 0,
-            message: 'Click to check availability',
-          });
-        }
+      if ((error as Error).name !== 'AbortError' && !completed) {
+        completed = true;
+        clearTimeout(timeoutId);
+        onComplete({
+          platformId: platform.id,
+          platformName: platform.name,
+          searchUrl: platform.searchUrl,
+          status: 'complete',
+          available: true,
+          hotelsFound: 0,
+          message: 'Click to check availability',
+        });
       }
     }
   };

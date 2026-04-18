@@ -1,3 +1,5 @@
+'use client';
+
 import { motion, Easing } from 'framer-motion';
 import { Building2, Zap, Globe } from 'lucide-react';
 import hotelHero from '@/assets/hotel-hero.jpg';
@@ -39,7 +41,7 @@ export function HeroSection() {
       {/* Background Image */}
       <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl opacity-10">
         <img 
-          src={hotelHero} 
+          src={hotelHero.src} 
           alt="" 
           className="w-full h-full object-cover blur-sm"
         />

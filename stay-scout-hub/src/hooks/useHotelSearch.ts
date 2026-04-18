@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback, useRef } from 'react';
 import { Platform, PlatformResult, SearchParams } from '@/types/hotel';
 import { discoverPlatforms, checkPlatform } from '@/lib/api/hotel-search';
@@ -34,7 +36,7 @@ export function useHotelSearch() {
       }));
       setResults(initialResults);
 
-      // Stage 2: Check each platform in parallel via Mino
+      // Stage 2: Check each platform in parallel via TinyFish agent
       let completedCount = 0;
       const totalPlatforms = platforms.length;
 

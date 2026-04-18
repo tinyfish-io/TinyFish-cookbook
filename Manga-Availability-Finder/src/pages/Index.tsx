@@ -14,7 +14,7 @@ const Index = () => {
       {error && (
         <div className="container mx-auto px-4 -mt-10 pb-8">
           <div className="max-w-3xl mx-auto rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive-foreground">
-            <div className="font-semibold mb-1">Search is not configured</div>
+            <div className="font-semibold mb-1">Search failed</div>
             <div className="text-muted-foreground">{error}</div>
           </div>
         </div>

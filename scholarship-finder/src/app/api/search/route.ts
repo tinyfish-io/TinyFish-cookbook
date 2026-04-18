@@ -1,86 +1,25 @@
 import { NextRequest } from "next/server";
+import Groq from "groq-sdk";
 import { TinyFish, EventType, RunStatus } from "@tiny-fish/sdk";
 
 export const runtime = "nodejs";
 
-const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
-
-// STEP 1: Use TinyFish Search API to discover relevant program URLs
-async function discoverUrls(
-  programType: string,
-  targetAge: string,
-  location: string,
-  duration: string
-): Promise<string[]> {
-  const query =
-    `${programType} summer school programs ${location} ${targetAge || ""} ${duration || "2026"}`.trim();
-
-  const response = await fetch(
-    `https://api.search.tinyfish.ai?query=${encodeURIComponent(query)}`,
-    {
-      headers: { "X-API-Key": process.env.TINYFISH_API_KEY! },
-    }
-  );
-
-  if (!response.ok) return [];
-
-  const data = await response.json();
-
-  // Deduplicate by domain
-  const seenDomains = new Set<string>();
-  return (data.results || [])
-    .map((r: { url: string }) => r.url)
-    .filter((url: string) => {
-      try {
-        const domain = new URL(url).hostname.replace("www.", "");
-        if (seenDomains.has(domain)) return false;
-        seenDomains.add(domain);
-        return true;
-      } catch {
-        return false;
-      }
-    })
-    .slice(0, 8);
+interface ScholarshipUrl {
+  name: string;
+  url: string;
+  description: string;
 }
 
-function buildGoal(programType: string, targetAge: string, location: string): string {
-  return `You are on a summer school program page. Extract up to 2-3 program listings from what is visible on screen.
-
-STRICT RULES — follow exactly:
-- Read only what is already visible on the page. Do NOT scroll, paginate, or load more content.
-- Do NOT click any links, buttons, or navigation elements unless the specific program details are hidden behind a single clearly-labelled "Details" or "Apply" button on THIS page only.
-- Do NOT navigate to any other page. Do NOT follow external links.
-- Extract immediately and return. Be fast.
-- If a field is not visible on the current page, set it to "Not specified". Do not search for it.
-- Target criteria: ${programType} program, ${location}, for ${targetAge || "students"}.
-- If the page has multiple programs listed, extract up to 3 of the most relevant ones.
-- Only include programs that have at least a Program Name visible. Do not return empty entries.
-
-Return ONLY this JSON with no extra text:
-{
-  "summerSchools": [
-    {
-      "Program Name": "",
-      "Institution": "",
-      "Location": "",
-      "Dates": "",
-      "Duration": "",
-      "Target Age / Grade": "",
-      "Program Type / Focus": "",
-      "Tuition / Fees": "",
-      "Application Deadline": "",
-      "Official Program URL": "",
-      "Brief Description": "",
-      "Eligibility Criteria": "",
-      "Notes / Special Requirements": ""
-    }
-  ]
-}`;
-}
+const FALLBACK_URLS: ScholarshipUrl[] = [
+  { name: "Fastweb", url: "https://www.fastweb.com/college-scholarships", description: "Scholarship search engine" },
+  { name: "Scholarships.com", url: "https://www.scholarships.com/financial-aid/college-scholarships/", description: "Scholarship database" },
+  { name: "College Board", url: "https://bigfuture.collegeboard.org/scholarships", description: "College Board scholarships" },
+  { name: "Niche", url: "https://www.niche.com/colleges/scholarships/", description: "Niche scholarships" },
+  { name: "Peterson's", url: "https://www.petersons.com/scholarship-search.aspx", description: "Peterson's scholarships" },
+];
 
 export async function POST(req: NextRequest) {
-  const { programType, targetAge, location, duration } = await req.json();
-
+  const { scholarshipType, university, region } = await req.json();
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -90,66 +29,124 @@ export async function POST(req: NextRequest) {
       };
 
       try {
-        // STEP 1: Discover URLs
-        send({ type: "DISCOVER", message: "Searching for programs..." });
+        const today = new Date();
+        const currentDate = today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+        const locationContext = [
+          university ? `at ${university}` : "",
+          region ? `in ${region}` : "",
+        ].filter(Boolean).join(" ");
 
-        const urls = await discoverUrls(programType, targetAge, location, duration);
+        // STEP 1 — Groq discovers scholarship URLs
+        send({ type: "STEP", step: 1, message: "Finding scholarship websites..." });
 
-        if (urls.length === 0) {
-          send({ type: "ERROR", message: "No programs found. Try adjusting your filters." });
-          return;
+        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+        let scholarshipUrls: ScholarshipUrl[] = [];
+        try {
+          const completion = await groq.chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: "You are a scholarship research assistant. Return only valid JSON arrays, no markdown fences." },
+              { role: "user", content: `Find 5-8 official scholarship provider websites for ${scholarshipType} scholarships ${locationContext}.
+Return ONLY a JSON array:
+[{"name":"Site Name","url":"https://...","description":"Brief description"}]
+Include university financial aid pages, major foundations (Fulbright, Gates, Rhodes), government programs, and aggregators. Use real URLs.` },
+            ],
+            temperature: 0.5,
+          });
+
+          const content = completion.choices[0]?.message?.content || "";
+          const jsonMatch = content.match(/\[[\s\S]*\]/);
+          if (jsonMatch) scholarshipUrls = JSON.parse(jsonMatch[0]);
+        } catch {
+          scholarshipUrls = FALLBACK_URLS;
         }
 
-        send({ type: "URLS", urls });
+        if (!scholarshipUrls.length) scholarshipUrls = FALLBACK_URLS;
 
-        // STEP 2: Run agents in parallel, stream each result as it arrives
-        const goal = buildGoal(programType, targetAge, location);
+        send({ type: "URLS_FOUND", urls: scholarshipUrls, message: `Found ${scholarshipUrls.length} sources to search` });
+        send({ type: "STEP", step: 2, message: `Launching ${scholarshipUrls.length} browser agents...` });
 
-        await Promise.all(
-          urls.map(async (url, idx) => {
-            const agentId = `agent-${idx}`;
+        const goal = `You are searching for ${scholarshipType} scholarships ${locationContext}.
 
-            send({ type: "AGENT_STARTED", agentId, url });
+CURRENT DATE: ${currentDate}
 
-            try {
-              const agentStream = await client.agent.stream({ url, goal });
+STRICT RULES:
+- Read only what is visible on the page. Do NOT scroll, paginate, or navigate away.
+- Only include scholarships with deadlines AFTER ${currentDate}.
+- If deadline is not visible, still include the scholarship but set deadline to "Check website".
+- Skip entries with no name. Extract up to 5 scholarships. Be fast.
 
-              for await (const event of agentStream) {
-                if (event.type === EventType.STREAMING_URL) {
-                  send({ type: "STREAMING_URL", agentId, streaming_url: event.streaming_url });
-                } else if (event.type === EventType.PROGRESS) {
-                  send({ type: "PROGRESS", agentId, purpose: event.purpose });
-                } else if (event.type === EventType.COMPLETE) {
-                  if (event.status === RunStatus.COMPLETED) {
-                    send({ type: "COMPLETE", agentId, status: "COMPLETED", result: event.result });
-                  } else {
-                    send({
-                      type: "COMPLETE",
-                      agentId,
-                      status: event.status,
-                      error: { message: event.error?.message || "Automation failed" },
-                    });
-                  }
-                  break; // always break after COMPLETE
+Return ONLY valid JSON, no extra text:
+{
+  "scholarships": [
+    {
+      "id": "unique-slug-1",
+      "name": "Scholarship Name",
+      "provider": "Organization",
+      "amount": "$X,XXX or Not specified",
+      "deadline": "Month Day, Year or Check website",
+      "eligibility": ["Requirement 1"],
+      "description": "Brief description",
+      "applicationRequirements": ["Document 1"],
+      "additionalInfo": "",
+      "applicationLink": "https://...",
+      "region": "${region || "International"}",
+      "university": "${university || "Various"}",
+      "type": "${scholarshipType}"
+    }
+  ]
+}`;
+
+        // STEP 2 — run all TinyFish agents in parallel
+        const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
+        const allScholarships: Record<string, unknown>[] = [];
+
+        const agentPromises = scholarshipUrls.map(async (site, index) => {
+          const agentId = `agent-${index}`;
+          send({ type: "AGENT_STARTED", agentId, siteName: site.name, siteUrl: site.url, description: site.description });
+
+          try {
+            const agentStream = await client.agent.stream({ url: site.url, goal });
+
+            for await (const event of agentStream) {
+              if (event.type === EventType.STREAMING_URL) {
+                send({ type: "AGENT_STREAMING", agentId, siteName: site.name, streamingUrl: event.streaming_url });
+              } else if (event.type === EventType.PROGRESS) {
+                send({ type: "AGENT_PROGRESS", agentId, siteName: site.name, message: event.purpose });
+              } else if (event.type === EventType.COMPLETE) {
+                if (event.status === RunStatus.COMPLETED) {
+                  const result = event.result as Record<string, unknown> | null;
+                  const found = Array.isArray(result?.scholarships)
+                    ? (result.scholarships as Record<string, unknown>[]).filter(
+                        (s) => s.name && s.name !== "Not specified" && s.name !== ""
+                      )
+                    : [];
+                  // Accumulate and send immediately so frontend shows them
+                  allScholarships.push(...found);
+                  send({ type: "AGENT_COMPLETE", agentId, siteName: site.name, scholarships: found });
+                } else {
+                  send({ type: "AGENT_ERROR", agentId, siteName: site.name, error: event.error?.message || "Agent failed" });
                 }
+                return; // always exit after COMPLETE
               }
-            } catch (err) {
-              send({
-                type: "COMPLETE",
-                agentId,
-                status: "FAILED",
-                error: { message: err instanceof Error ? err.message : "Unknown error" },
-              });
             }
-          })
-        );
-
-        send({ type: "DONE" });
-      } catch (err) {
-        send({
-          type: "ERROR",
-          message: err instanceof Error ? err.message : "Search failed",
+          } catch (err) {
+            send({ type: "AGENT_ERROR", agentId, siteName: site.name, error: err instanceof Error ? err.message : "Failed" });
+          }
         });
+
+        await Promise.all(agentPromises);
+
+        // Send final summary with everything collected
+        send({
+          type: "ALL_COMPLETE",
+          scholarships: allScholarships,
+          searchSummary: `Found ${allScholarships.length} scholarship${allScholarships.length !== 1 ? "s" : ""} from ${scholarshipUrls.length} sources.`,
+        });
+
+      } catch (err) {
+        send({ type: "ERROR", error: err instanceof Error ? err.message : "Search failed" });
       } finally {
         controller.close();
       }

@@ -1,17 +1,17 @@
-# Summer School Finder
+# Scholarship Finder
 
-A Next.js app that uses TinyFish to discover and extract summer school programs in real time. Search by program type, location, age group, and duration — parallel browser agents scrape each result and stream findings back as they arrive.
+A Next.js app that finds real scholarships in real time. Enter a scholarship type, university, and region — Groq discovers relevant sources, then parallel TinyFish browser agents scrape each one and stream results back as they arrive.
 
 ## Demo
 
-Search runs parallel agents that you can watch live via the streaming browser preview embedded in each agent card.
+Each agent card shows a live browser preview as it scrapes. Results appear as each agent completes rather than waiting for all to finish.
 
 ## How It Works
 
 ```
 User submits search
        ↓
-/api/search — TinyFish Search API discovers up to 8 relevant URLs
+/api/search — Groq (llama-3.3-70b) discovers 5-8 relevant scholarship URLs
        ↓
 Parallel TinyFish browser agents scrape each URL simultaneously
        ↓
@@ -24,32 +24,39 @@ Results stream back to the UI as each agent completes
 src/
 ├── app/
 │   ├── api/
-│   │   └── search/route.ts   ← single route: discovery + agent scraping
+│   │   └── search/route.ts     ← single route: Groq discovery + parallel agent scraping
 │   └── page.tsx
 ├── components/
-│   ├── AgentCard.tsx          ← live agent status + streaming browser preview
-│   ├── ResultCard.tsx         ← extracted program card
-│   ├── SearchForm.tsx         ← search inputs
-│   └── CompareModal.tsx       ← side-by-side program comparison
+│   ├── SearchForm.tsx           ← search inputs
+│   ├── SearchResults.tsx        ← results grid
+│   ├── ScholarshipCard.tsx      ← individual scholarship card
+│   ├── SelectableScholarshipCard.tsx
+│   ├── CompareDashboard.tsx     ← side-by-side comparison
+│   ├── CompareButton.tsx
+│   ├── LoadingAnimation.tsx     ← live agent status feed
+│   └── Header.tsx
 ├── hooks/
-│   └── useSummerSchoolSearch.ts  ← SSE stream consumer
+│   └── useScholarshipSearch.ts  ← SSE stream consumer
 └── types/
-    └── summer-school.ts
+    └── scholarship.ts
 ```
 
 ## Code Snippet
 
 ```typescript
-// /api/search discovers URLs then runs agents in parallel
-const urls = await discoverUrls(programType, targetAge, location, duration);
+// /api/search — Groq discovers URLs, then TinyFish agents scrape in parallel
+const completion = await groq.chat.completions.create({
+  model: "llama-3.3-70b-versatile",
+  messages: [{ role: "user", content: `Find scholarship URLs for ${scholarshipType}...` }],
+});
 
 await Promise.all(
-  urls.map(async (url, idx) => {
-    const agentStream = await client.agent.stream({ url, goal });
+  scholarshipUrls.map(async (site, index) => {
+    const agentStream = await client.agent.stream({ url: site.url, goal });
     for await (const event of agentStream) {
       if (event.type === EventType.COMPLETE) {
-        send({ type: "COMPLETE", agentId: `agent-${idx}`, result: event.result });
-        break;
+        send({ type: "AGENT_COMPLETE", scholarships: event.result?.scholarships });
+        return; // always exit after COMPLETE
       }
     }
   })
@@ -66,7 +73,7 @@ await Promise.all(
 2. **Set up environment**
    ```bash
    cp .env.example .env.local
-   # Add your TinyFish API key to .env.local
+   # Add your API keys to .env.local
    ```
 
 3. **Run the dev server**
@@ -80,4 +87,5 @@ await Promise.all(
 
 | Variable | Description |
 |----------|-------------|
-| `TINYFISH_API_KEY` | Used for both Search API (URL discovery) and browser agents. Get yours at [agent.tinyfish.ai/api-keys](https://agent.tinyfish.ai/api-keys) |
+| `TINYFISH_API_KEY` | Browser agents that scrape scholarship pages. Get yours at [agent.tinyfish.ai/api-keys](https://agent.tinyfish.ai/api-keys) |
+| `GROQ_API_KEY` | LLM-powered URL discovery via llama-3.3-70b. Get yours at [console.groq.com/keys](https://console.groq.com/keys) |

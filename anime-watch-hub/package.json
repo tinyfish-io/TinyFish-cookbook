@@ -2,6 +2,7 @@
   "name": "anime-watch-hub",
   "version": "0.1.0",
   "private": true,
+  "description": "Find where an anime streams: OpenAI discovers platform search URLs; TinyFish SDK runs parallel browser automations with live SSE updates.",
   "scripts": {
     "build": "next build",
     "dev": "next dev",

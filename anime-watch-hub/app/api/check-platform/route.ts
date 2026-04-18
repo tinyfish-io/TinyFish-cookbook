@@ -72,7 +72,7 @@ If you encounter a geo-restriction or region block, mention that in the message.
             goal,
           })
 
-          for await (const event of stream as any) {
+          for await (const event of stream) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
           }
         } catch (error) {

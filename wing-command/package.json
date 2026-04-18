@@ -29,6 +29,7 @@
     "tailwindcss": "^3.4.4",
     "zod": "^3.23.8"
   },
+  "engines": { "node": "22.x" },
   "devDependencies": {
     "@types/canvas-confetti": "^1.6.4",
     "@types/node": "^20.14.10",

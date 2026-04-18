@@ -2,24 +2,63 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateObject, generateText, streamText } from "ai";
 import { z } from "zod";
 import type { SourceType, IdentifiedSource } from "@/types";
+import { identifySourcesViaTinyFishSearch } from "@/lib/tinyfish-source-discovery";
 
-// Create OpenRouter provider
-function createOpenRouterProvider() {
+function getAiProviderConfig(): {
+  name: string;
+  baseURL: string;
+  apiKey: string;
+  defaultModelId: string;
+  extraHeaders?: Record<string, string>;
+} {
+  const openAiKey = process.env.OPENAI_API_KEY?.trim();
+  if (openAiKey) {
+    return {
+      name: "openai",
+      baseURL: "https://api.openai.com/v1",
+      apiKey: openAiKey,
+      defaultModelId: "gpt-4.1-mini",
+    };
+  }
+
+  const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (openRouterKey) {
+    return {
+      name: "openrouter",
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: openRouterKey,
+      defaultModelId: "google/gemini-2.5-flash-lite",
+      extraHeaders: {
+        "HTTP-Referer": "https://tinyskills.vercel.app",
+        "X-Title": "TinySkills",
+      },
+    };
+  }
+
+  throw new Error(
+    "AI API key not configured (set OPENAI_API_KEY or OPENROUTER_API_KEY)",
+  );
+}
+
+function createAiProvider() {
+  const { name, baseURL, apiKey, extraHeaders } = getAiProviderConfig();
+
   return createOpenAICompatible({
-    name: "openrouter",
-    baseURL: "https://openrouter.ai/api/v1",
+    name,
+    baseURL,
+    apiKey,
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://skillforge.vercel.app",
-      "X-Title": "SkillForge",
+      Authorization: `Bearer ${apiKey}`,
+      ...(extraHeaders ?? {}),
     },
   });
 }
 
-// Get model via OpenRouter
-export function getModel(modelId: string = "google/gemini-2.5-flash-lite") {
-  const openrouter = createOpenRouterProvider();
-  return openrouter.chatModel(modelId);
+/** Chat model for synthesis / LLM fallback (OpenAI or OpenRouter). */
+export function getModel(modelId?: string) {
+  const provider = createAiProvider();
+  const { defaultModelId } = getAiProviderConfig();
+  return provider.chatModel(modelId ?? defaultModelId);
 }
 
 // Schema for identified sources
@@ -37,13 +76,13 @@ const identifiedSourcesSchema = z.object({
 export type IdentifySourcesResponse = z.infer<typeof identifiedSourcesSchema>;
 
 /**
- * Use AI to identify real URLs for scraping based on topic
+ * LLM-only URL discovery (fallback when TinyFish Search is unavailable or returns nothing).
  */
-export async function identifySources(
+export async function identifySourcesViaLlm(
   topic: string,
   enabledTypes: SourceType[],
   maxPerType: number = 2,
-  options?: { modelId?: string }
+  options?: { modelId?: string },
 ): Promise<IdentifiedSource[]> {
   const model = getModel(options?.modelId);
 
@@ -156,11 +195,43 @@ Respond with JSON only.`;
     // Flatten back to array
     return Object.values(byType).flat();
   } catch (error) {
-    console.error("Failed to identify sources:", error);
+    console.error("Failed to identify sources (LLM):", error);
     throw new Error(
-      `Failed to identify sources: ${error instanceof Error ? error.message : "Unknown error"}`
+      `Failed to identify sources: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
+}
+
+/**
+ * Prefer TinyFish Search for URL discovery; fall back to LLM when needed.
+ */
+export async function identifySources(
+  topic: string,
+  enabledTypes: SourceType[],
+  maxPerType: number = 2,
+  options?: { modelId?: string },
+): Promise<IdentifiedSource[]> {
+  const tfKey = process.env.TINYFISH_API_KEY?.trim();
+  if (tfKey) {
+    try {
+      const fromSearch = await identifySourcesViaTinyFishSearch(
+        topic,
+        enabledTypes,
+        maxPerType,
+        tfKey,
+      );
+      if (fromSearch.length > 0) {
+        return fromSearch;
+      }
+      console.warn(
+        "TinyFish Search returned no results; falling back to LLM identification",
+      );
+    } catch (e) {
+      console.warn("TinyFish Search failed; falling back to LLM:", e);
+    }
+  }
+
+  return identifySourcesViaLlm(topic, enabledTypes, maxPerType, options);
 }
 
 /**
@@ -192,7 +263,7 @@ function topicToSkillName(topic: string): string {
 export function synthesizeSkill(
   topic: string,
   scrapedContent: Array<{ source: IdentifiedSource; content: string }>,
-  options?: { modelId?: string }
+  options?: { modelId?: string },
 ) {
   const model = getModel(options?.modelId);
   const skillName = topicToSkillName(topic);

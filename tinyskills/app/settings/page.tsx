@@ -57,7 +57,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "skillforge-export.json";
+    a.download = "tinyskills-settings-export.json";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -118,7 +118,7 @@ export default function SettingsPage() {
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
             <span className="text-white font-mono text-sm font-semibold">SF</span>
           </div>
-          <span className="font-semibold text-lg tracking-tight">SkillForge</span>
+          <span className="font-semibold text-lg tracking-tight">TinySkills</span>
         </div>
         <nav className="flex items-center gap-1">
           <Link

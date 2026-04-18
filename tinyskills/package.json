@@ -1,7 +1,8 @@
 {
-  "name": "015-skillforge",
+  "name": "tinyskills",
   "version": "0.1.0",
   "private": true,
+  "description": "TinySkills — generate SKILL.md guides using TinyFish Search & Fetch plus LLM synthesis",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

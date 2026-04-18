@@ -2,85 +2,73 @@
 
 **Live:** [https://concept-discovery-system.vercel.app](https://concept-discovery-system.vercel.app)
 
-Concept Discovery System is a project idea validation tool that discovers similar existing projects across GitHub, Dev.to, and Stack Overflow. It uses the TinyFish API to dispatch 10 parallel web agents — browser agents that navigate real websites and reasoning agents that analyze Stack Exchange API data — then feeds the collected results into an AI analysis that scores your idea on competition, market validation, and maintainability.
+Concept Discovery System helps you validate a project idea by finding similar work on **GitHub**, **Dev.to**, and **Stack Overflow**. It combines **TinyFish** (Search, Fetch, and Agent streaming) with **OpenRouter** for query generation, page summarization, and final scoring.
 
 ## Demo
 
 https://github.com/user-attachments/assets/ba91b1fa-71eb-40a1-9973-e8a46d3c3021
 
+## How it works (current architecture)
 
-## TinyFish API Usage
+### 1. Query generation
 
-The app calls the TinyFish SSE endpoint once per discovered URL, in parallel. Each browser agent navigates a real website (GitHub repo or Dev.to article), reads the page content, and returns structured JSON. Stack Overflow agents receive pre-fetched API data in their goal prompt and reason about it without browsing:
+- With **`VITE_OPENROUTER_API_KEY`**: an LLM proposes three targeted queries (GitHub, Dev.to, Stack Overflow).
+- Without it: deterministic keyword-based queries (`src/lib/query-generator.ts`).
 
-```typescript
-import { TinyFish } from "@tiny-fish/sdk";
+### 2. URL discovery
 
-const client = new TinyFish({ apiKey: import.meta.env.VITE_TINYFISH_API_KEY });
+- **GitHub**: [GitHub Search API](https://docs.github.com/en/rest/search) (repos).
+- **Dev.to**: [TinyFish Search API](https://docs.tinyfish.ai/search-api) via `site:dev.to …` for direct article URLs (`src/lib/search-engines.ts` → dev proxy `/api/tinyfish/search`).
+- **Stack Overflow**: [Stack Exchange API](https://api.stackexchange.com/) (`/search/advanced`).
 
-const stream = await client.agent.stream({
-  url: "https://github.com/hoppscotch/hoppscotch",
-  goal: `You are a concept discovery agent. The user is exploring: "API testing tool".
+Results are merged and capped at **10** URLs (`executeSearches`).
 
-           STEP 1 — NAVIGATE TO THE REPOSITORY:
-           Open the URL. Confirm you're on the repository homepage.
+### 3. Extraction (hybrid: 2 agents + batch Fetch + LLM)
 
-           STEP 2 — EXTRACT METADATA:
-           Project name, README summary, tech stack, star count, last commit date,
-           and key features.
+The browser cannot call TinyFish APIs directly without CORS issues. In **development**, `vite.config.ts` registers same-origin routes that run **`@tiny-fish/sdk` on the Node side**:
 
-           STEP 3 — ANALYZE ALIGNMENT:
-           Write a single-line explanation of how this project relates to the user's idea.
+| Route | SDK usage |
+| --- | --- |
+| `POST /api/tinyfish/stream` | `client.agent.stream({ url, goal })` — SSE relayed to the browser |
+| `POST /api/tinyfish/fetch` | `client.fetch.getContents({ urls, … })` — up to 10 URLs per request |
+| `POST /api/tinyfish/search` | `client.search.query({ query, … })` |
 
-           STEP 4 — RETURN RESULTS as JSON:
-           { "projectName": "...", "summary": "...", "techStack": [...],
-             "alignmentExplanation": "...", "stars": 1234, ... }`,
-});
+The UI client (`src/lib/tinyfish-client.ts`) only calls these **`/api/tinyfish/*`** paths.
 
-for await (const event of stream) {
-  if (event.type === "STREAMING_URL") {
-    console.log("Watch live:", event.streaming_url);
-  }
-  if (event.type === "PROGRESS") {
-    console.log("Step:", event.purpose);
-  }
-  if (event.type === "COMPLETE") {
-    console.log("Result:", event.result);
-  }
-}
-```
+**Extraction strategy** (`src/hooks/useConceptDiscovery.ts`):
 
-The response streams SSE events including a `streamingUrl` (live browser preview via iframe) and a final `COMPLETE` event with the extracted JSON data.
+- Up to **two** non–Stack Overflow URLs use **live Agent streaming** (progress + optional live preview URL).
+- Remaining GitHub/Dev.to URLs: one **batched Fetch**, then **OpenRouter** turns each page text into structured `ConceptData` (`extractConceptFromText` in `src/lib/openrouter-client.ts`).
+- **Stack Overflow**: with OpenRouter, analysis uses API/snippet text only (no browser). Without OpenRouter, it falls back to the streaming Agent with the reasoning prompt from `buildAgentGoal`.
 
-## How to Run
+If **`VITE_OPENROUTER_API_KEY`** is missing, Fetch + SO text extraction are skipped and **streaming Agents** are used for those items instead (slower, closer to the legacy “all agent” behavior).
 
-### Prerequisites
+### 4. Analysis
 
-- Node.js 18+
-- A TinyFish API key ([get one here](https://agent.tinyfish.ai))
+After agents complete, **OpenRouter** scores the idea (competition, validation, maintainability) when configured (`generateAnalysis`).
 
-### Setup
+## Prerequisites
+
+- **Node.js** 18+
+- **TinyFish API key** — [agent.tinyfish.ai/api-keys](https://agent.tinyfish.ai/api-keys)
+
+## Setup
 
 1. Install dependencies:
 
 ```bash
-cd Concept-Discovery-System
+cd concept-discovery-system
 npm install
 ```
 
-2. Create a `.env` file with your API keys:
+2. Copy `.env.example` to `.env` and set keys:
 
-```
-VITE_TINYFISH_API_KEY=your_tinyfish_api_key_here
-VITE_OPENROUTER_API_KEY=your_openrouter_key_here
-VITE_GITHUB_TOKEN=your_github_token_here
-VITE_STACKEXCHANGE_KEY=your_stackexchange_key_here
-```
-
-Only `VITE_TINYFISH_API_KEY` is required. The others improve search quality and rate limits:
-- **OpenRouter API Key** — Enables AI-powered search query generation (falls back to deterministic extraction without it)
-- **GitHub Token** — Increases GitHub API rate limit from 60 to 5,000 requests/hour
-- **Stack Exchange Key** — Increases Stack Exchange API rate limit from 300 to 10,000 requests/day
+| Variable | Role |
+| --- | --- |
+| `VITE_TINYFISH_API_KEY` | **Required.** TinyFish Search / Fetch / Agent (via dev proxy). |
+| `VITE_OPENROUTER_API_KEY` | **Recommended.** Smarter queries, Fetch+LLM extraction, Stack Overflow text analysis, final scoring. |
+| `VITE_GITHUB_TOKEN` | Optional. Higher GitHub API rate limits. |
+| `VITE_STACKEXCHANGE_KEY` | Optional. Higher Stack Exchange API limits. |
 
 3. Start the dev server:
 
@@ -90,59 +78,32 @@ npm run dev
 
 4. Open [http://localhost:5173](http://localhost:5173)
 
-## Architecture Diagram
+> **Production note:** The `/api/tinyfish/*` routes are implemented as **Vite dev middleware**. For a static or edge deployment you will need equivalent server routes (or a small backend) that call the same SDK methods.
+
+## Architecture (high level)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                      User (Browser)                          │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │    React + Vite Frontend (Tailwind + Framer Motion)    │  │
-│  │                                                        │  │
-│  │  1. Describe a project idea                            │  │
-│  │  2. AI generates targeted search queries (OpenRouter)  │  │
-│  │  3. Watch live browser previews as agents research     │  │
-│  │  4. View discovered project cards + detail panel       │  │
-│  │  5. Read AI analysis with competition/validation scores│  │
-│  └──────────┬────────────────────────────┬───────────────┘  │
-└─────────────┼────────────────────────────┼───────────────────┘
-              │                            │
-   OpenRouter API                POST /v1/automation/run-sse
-   (query generation             (x10 agents, parallel)
-    + final analysis)                      │
-              │                            ▼
-              ▼              ┌─────────────────────────────────┐
-   ┌──────────────────┐     │    TinyFish API (SSE Stream)    │
-   │  google/gemini   │     │                                 │
-   │  2.0-flash-001   │     │  Browser Agents (7):            │
-   │                  │     │    4x GitHub repos              │
-   │  • Smart queries │     │    3x Dev.to articles           │
-   │  • Idea analysis │     │                                 │
-   │  • Scoring       │     │  Reasoning Agents (3):          │
-   └──────────────────┘     │    3x Stack Overflow posts      │
-                            │    (Stack Exchange API data      │
-                            │     passed in goal prompt)       │
-                            │                                 │
-                            │  SSE Events:                    │
-                            │    • streamingUrl → live iframe  │
-                            │    • STEP → progress updates     │
-                            │    • COMPLETE → structured JSON  │
-                            └──────┬──────────┬──────────┬────┘
-                                   │          │          │
-                                   ▼          ▼          ▼
-                             ┌─────────┐ ┌────────┐ ┌────────────┐
-                             │ GitHub  │ │ Dev.to │ │ Stack      │
-                             │ Repos   │ │ Search │ │ Exchange   │
-                             │ (4 URLs)│ │ (3 URLs│ │ API (3     │
-                             │         │ │       )│ │ questions) │
-                             └─────────┘ └────────┘ └────────────┘
+User (browser)
+  → React app
+  → OpenRouter (queries + analysis + optional extraction)
+  → GitHub API / Stack Exchange API
+  → POST /api/tinyfish/search  → TinyFish Search (Dev.to URLs)
+  → POST /api/tinyfish/stream → TinyFish Agent stream (2 previews)
+  → POST /api/tinyfish/fetch  → TinyFish Fetch batch (remaining pages)
 ```
 
-## Tech Stack
+## Tech stack
 
-- **Frontend**: React 19 + TypeScript + Vite
-- **Styling**: Tailwind CSS v4 (custom dark cyberpunk theme)
-- **Animation**: Framer Motion
-- **State Management**: useReducer + Context API
-- **Browser Agents**: TinyFish API (SSE streaming)
-- **AI**: OpenRouter (Google Gemini 2.0 Flash) for query generation and idea analysis
-- **APIs**: GitHub REST API, Stack Exchange API, Dev.to website search
+- **UI**: React 19, TypeScript, Vite 7, Tailwind CSS v4, Framer Motion
+- **State**: `useReducer` + Context (`src/context/DiscoveryContext.tsx`)
+- **TinyFish**: `@tiny-fish/sdk` (Search, Fetch, Agent) behind dev proxy
+- **LLM**: OpenRouter (Gemini 2.0 Flash) for queries, extraction JSON, and analysis
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Vite dev server with TinyFish proxy routes |
+| `npm run build` | Typecheck + production build |
+| `npm run preview` | Preview production build locally |
+| `npm run lint` | ESLint |

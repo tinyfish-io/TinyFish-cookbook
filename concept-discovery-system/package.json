@@ -1,5 +1,6 @@
 {
   "name": "concept-discovery-system",
+  "description": "Discover similar projects across GitHub, Dev.to, and Stack Overflow using TinyFish + OpenRouter",
   "private": true,
   "version": "0.0.0",
   "type": "module",

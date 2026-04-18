@@ -2,8 +2,9 @@ import { useCallback, useRef } from 'react';
 import { useDiscoveryContext } from '@/context/DiscoveryContext';
 import { generateSearchQueries } from '@/lib/query-generator';
 import { extractConceptFromText, generateSmartQueries } from '@/lib/openrouter-client';
-import { executeSearches } from '@/lib/search-engines';
+import { AGENT_TIMEOUT } from '@/lib/constants';
 import { buildAgentGoal } from '@/lib/goal-builder';
+import { executeSearches } from '@/lib/search-engines';
 import { startTinyFishAgent } from '@/lib/tinyfish-client';
 import { generateAgentId } from '@/lib/utils';
 import type { ConceptData, LogEntry } from '@/types';
@@ -172,7 +173,7 @@ export function useConceptDiscovery() {
               payload: { id, error: 'Timeout: Agent took longer than 6 minutes' },
             });
             addLog(`⏱ Timeout: ${result.title} exceeded 6 minutes`, 'warning');
-          }, 360000);
+          }, AGENT_TIMEOUT);
 
           timeoutMap.set(id, timeout);
           controllersRef.current.push(controller);
@@ -181,22 +182,18 @@ export function useConceptDiscovery() {
         // 1) Start two live streaming agents
         previewTargets.forEach(startStreamingAgent);
 
-        // Helper: limited concurrency map
-        async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) {
-          const ret: R[] = [];
-          const executing = new Set<Promise<void>>();
-          for (const item of items) {
-            const p = (async () => {
-              const r = await fn(item);
-              ret.push(r);
-            })();
-            executing.add(p.then(() => executing.delete(p)));
-            if (executing.size >= limit) {
-              await Promise.race(executing);
+        /** Run async work with bounded concurrency (no return values). */
+        async function runPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
+          if (items.length === 0) return;
+          const queue = [...items];
+          const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+            while (queue.length > 0) {
+              const item = queue.shift();
+              if (!item) break;
+              await fn(item);
             }
-          }
-          await Promise.all(executing);
-          return ret;
+          });
+          await Promise.all(workers);
         }
 
         // 2) StackOverflow: extract via OpenRouter from existing snippet/apiData when available
@@ -204,7 +201,7 @@ export function useConceptDiscovery() {
           if (!hasOpenRouterKeyForExtraction) {
             soTargets.forEach(startStreamingAgent);
           } else {
-            await mapPool(soTargets, 3, async (result) => {
+            await runPool(soTargets, 3, async (result) => {
               const id = generateAgentId(result.platform);
               dispatch({
                 type: 'AGENT_CONNECTING',
@@ -234,7 +231,6 @@ export function useConceptDiscovery() {
                 dispatch({ type: 'AGENT_ERROR', payload: { id, error: msg } });
                 addLog(`✗ Extract failed for ${result.title}: ${msg}`, 'error');
               }
-              return null as unknown as void;
             });
           }
         }
@@ -266,7 +262,7 @@ export function useConceptDiscovery() {
                 }
               }
 
-              await mapPool(fetchTargets, 3, async (result) => {
+              await runPool(fetchTargets, 3, async (result) => {
                 const id = generateAgentId(result.platform);
                 dispatch({
                   type: 'AGENT_CONNECTING',
@@ -278,7 +274,7 @@ export function useConceptDiscovery() {
                 if (!page?.text) {
                   dispatch({ type: 'AGENT_ERROR', payload: { id, error: 'Fetch failed' } });
                   addLog(`✗ Fetch failed for ${result.title}`, 'error');
-                  return null as unknown as void;
+                  return;
                 }
 
                 try {
@@ -297,7 +293,6 @@ export function useConceptDiscovery() {
                   dispatch({ type: 'AGENT_ERROR', payload: { id, error: msg } });
                   addLog(`✗ Extract failed for ${result.title}: ${msg}`, 'error');
                 }
-                return null as unknown as void;
               });
             }
           }

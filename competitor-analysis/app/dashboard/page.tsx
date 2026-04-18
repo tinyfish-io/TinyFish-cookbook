@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import {
   Tooltip,
   ResponsiveContainer,
@@ -67,6 +67,12 @@ export default function DashboardPage() {
   const [selectedCompetitor, setSelectedCompetitor] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeView, setActiveView] = useState("spreadsheet");
+
+  /** Switching views must close the inline "Add competitors" form, or nav appears broken (same content for every tab). */
+  const handleViewChange = useCallback((view: string) => {
+    setShowAddInput(false);
+    setActiveView(view);
+  }, []);
 
   // State for panels
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
@@ -380,8 +386,8 @@ export default function DashboardPage() {
 
   // Render view content based on activeView
   const renderContent = () => {
-    // Always show add input if no competitors or if toggled
-    if (showAddInput || state.competitors.length === 0) {
+    // Onboarding: no competitors yet — only the add flow
+    if (state.competitors.length === 0) {
       return (
         <div className="max-w-3xl mx-auto">
           <CompetitorInput
@@ -393,9 +399,27 @@ export default function DashboardPage() {
       );
     }
 
+    const addCompetitorsPanel =
+      showAddInput ? (
+        <div className="max-w-3xl mx-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <CompetitorInput
+            onStartScraping={handleAddCompetitors}
+            isLoading={isAddingCompetitors}
+            existingCompetitors={state.competitors.map((c) => c.name)}
+          />
+        </div>
+      ) : null;
+
+    const withAddPanel = (content: ReactNode) => (
+      <div className="space-y-6">
+        {addCompetitorsPanel}
+        {content}
+      </div>
+    );
+
     switch (activeView) {
       case "spreadsheet":
-        return (
+        return withAddPanel(
           <SpreadsheetView
             competitorPricing={spreadsheetData}
             onEditCell={editTierField}
@@ -413,7 +437,7 @@ export default function DashboardPage() {
         );
 
       case "competitors":
-        return (
+        return withAddPanel(
           <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -574,7 +598,7 @@ export default function DashboardPage() {
         );
 
       case "agents":
-        return (
+        return withAddPanel(
           <div className="space-y-6">
             {/* Header */}
             <div>
@@ -785,7 +809,7 @@ export default function DashboardPage() {
           });
         };
 
-        return (
+        return withAddPanel(
           <div className="space-y-8">
             {/* Scatterplot */}
             <div className="bg-white border border-slate-200 rounded-lg">
@@ -1021,7 +1045,7 @@ export default function DashboardPage() {
       }
 
       case "insights":
-        return (
+        return withAddPanel(
           <div className="space-y-6">
             {/* Generate Insights CTA */}
             {!analysis && competitorData.length > 0 && (
@@ -1162,7 +1186,7 @@ export default function DashboardPage() {
         );
 
       default:
-        return null;
+        return withAddPanel(null);
     }
   };
 
@@ -1170,7 +1194,7 @@ export default function DashboardPage() {
     <>
       <DashboardLayout
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         onAddClick={() => setShowAddInput(!showAddInput)}
         onRefreshClick={handleRefreshAll}
         onSettingsClick={() => setSettingsPanelOpen(true)}

@@ -3,7 +3,7 @@
 ## Project Context
 **Use Case:** Competitive Pricing Intelligence Dashboard  
 **Scope:** Scraping 10-15 competitor pricing pages in parallel, extracting structured pricing data  
-**Tech Stack:** Next.js 16, React 19, TypeScript, SSE streaming  
+**Tech Stack:** Next.js 16, React 19, TypeScript, `@tiny-fish/sdk` (Tinyfish Agent streaming), SSE to the browser  
 
 ---
 

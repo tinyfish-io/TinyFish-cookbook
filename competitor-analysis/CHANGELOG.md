@@ -166,10 +166,10 @@ This tool transforms competitive pricing research from manual spreadsheet work i
 
 ## Technical Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **UI**: React with Tailwind CSS
 - **Components**: shadcn/ui
 - **Charts**: Recharts (ScatterChart)
 - **State**: React Context + useReducer
-- **Scraping**: Tinyfish Agent API
+- **Scraping**: Tinyfish Agent via `@tiny-fish/sdk` (`client.agent.stream` in `/api/scrape-pricing`)
 - **Streaming**: Server-Sent Events (SSE)

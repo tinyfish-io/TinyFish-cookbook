@@ -220,6 +220,9 @@ When clicking a competitor row, shows:
 - Streaming responses (no blocking)
 - Lazy rendering of large lists
 
+### Tinyfish Agent integration
+- **`@tiny-fish/sdk`**: `TinyFish` client + `client.agent.stream()` in `app/api/scrape-pricing/route.ts` (no separate HTTP client module; scraping logic lives in the API route)
+
 ---
 
 ## API Routes
@@ -260,7 +263,7 @@ When clicking a competitor row, shows:
 /lib
   /pricing-context.tsx         # React Context for state
   /ai-client.ts               # OpenRouter wrapper
-  /utils.ts                   # Utility functions
+  /utils.ts                   # `cn()` and shared UI helpers
 
 /types
   /index.ts                   # TypeScript interfaces
@@ -313,7 +316,7 @@ OPENROUTER_API_KEY=     # OpenRouter API key for AI
 npm install
 
 # Set environment variables
-cp .env.example .env.local
+cp .env.local.example .env.local
 # Add TINYFISH_API_KEY and OPENROUTER_API_KEY
 
 # Run development server

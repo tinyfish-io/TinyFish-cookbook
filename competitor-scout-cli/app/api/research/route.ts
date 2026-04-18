@@ -1,5 +1,10 @@
 import { NextRequest } from "next/server";
-import type { Competitor, ResearchEvent } from "@/lib/types";
+import type {
+  Competitor,
+  CompetitorEvidenceAssessment,
+  ResearchEvent,
+  ResearchPipelineRun,
+} from "@/lib/types";
 import {
   planResearchGoals,
   summarizeCompetitorResult,
@@ -7,6 +12,24 @@ import {
   assessAndSummarizeFromFetchedPages,
 } from "@/lib/openai-client";
 import { fetchContents, searchWeb, submitRun, waitForCompletion } from "@/lib/tinyfish";
+
+function isSearchFetchResult(
+  raw: unknown
+): raw is {
+  method: "search_fetch";
+  query: string;
+  pages: unknown;
+  assessment: CompetitorEvidenceAssessment;
+  sources: unknown[];
+} {
+  return (
+    typeof raw === "object" &&
+    raw !== null &&
+    (raw as { method?: string }).method === "search_fetch" &&
+    typeof (raw as { assessment?: { summary_markdown?: string } }).assessment
+      ?.summary_markdown === "string"
+  );
+}
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -288,9 +311,7 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        const runs = (await Promise.all(runRequests)).filter(Boolean) as NonNullable<
-          Awaited<(typeof runRequests)[number]>
-        >[];
+        const runs = (await Promise.all(runRequests)).filter(Boolean) as ResearchPipelineRun[];
 
         // Step 3: Poll for agent results where needed (concurrently)
         const completedResults: {
@@ -310,18 +331,18 @@ export async function POST(request: NextRequest) {
             });
 
             try {
-              if ((run as any).mode === "search_fetch") {
-                const assessment = (run as any).assessment;
+              if (run.mode === "search_fetch") {
+                const assessment = run.assessment;
                 return {
                   run,
                   result: {
                     status: "COMPLETED",
                     result: {
-                      method: "search_fetch",
-                      query: (run as any).searchQuery,
-                      pages: (run as any).pages,
+                      method: "search_fetch" as const,
+                      query: run.searchQuery,
+                      pages: run.pages,
                       assessment,
-                      sources: assessment?.sources || [],
+                      sources: assessment.sources ?? [],
                     },
                   },
                 };
@@ -381,16 +402,13 @@ export async function POST(request: NextRequest) {
               (item.result as { result?: unknown }).result
             ) {
               const rawResult = (item.result as { result?: unknown }).result;
-              const maybeAssessment = rawResult as any;
-              const summary =
-                maybeAssessment?.method === "search_fetch" &&
-                maybeAssessment?.assessment?.summary_markdown
-                  ? String(maybeAssessment.assessment.summary_markdown)
-                  : await summarizeCompetitorResult(
-                      item.run.competitor.name,
-                      question,
-                      rawResult
-                    );
+              const summary = isSearchFetchResult(rawResult)
+                ? rawResult.assessment.summary_markdown
+                : await summarizeCompetitorResult(
+                    item.run.competitor.name,
+                    question,
+                    rawResult
+                  );
               return {
                 competitor: item.run.competitor,
                 competitorIndex: item.run.competitorIndex,

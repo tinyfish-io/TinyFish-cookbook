@@ -1,4 +1,8 @@
-import type { Competitor, ResearchGoal } from "./types";
+import type {
+  Competitor,
+  CompetitorEvidenceAssessment,
+  ResearchGoal,
+} from "./types";
 import { ensureLocalEnvLoaded } from "./env";
 
 function getApiKey(): string {
@@ -117,26 +121,13 @@ Provide a clear, concise summary of what was found regarding the research questi
   ]);
 }
 
-type SearchFetchAssessment = {
-  sufficient: boolean;
-  confidence: "low" | "medium" | "high";
-  reason: string;
-  summary_markdown: string;
-  structured: {
-    key_points: string[];
-    comparison_attributes?: Record<string, string | number | boolean | null>;
-    extracted_entities?: unknown;
-  };
-  sources: { url: string; title?: string }[];
-};
-
 export async function assessAndSummarizeFromFetchedPages(params: {
   competitorName: string;
   competitorUrl: string;
   question: string;
   searchQuery: string;
   fetchedPages: { url: string; title?: string | null; text?: string }[];
-}): Promise<SearchFetchAssessment> {
+}): Promise<CompetitorEvidenceAssessment> {
   const systemPrompt = `You are a competitive research analyst.
 
 You will be given a user research question about ONE competitor, plus web pages that were fetched from that competitor's domain (or closely related docs pages).
@@ -190,7 +181,7 @@ Make summary_markdown short (<= 200 words) and directly answer the question.`;
   );
 
   try {
-    return JSON.parse(response) as SearchFetchAssessment;
+    return JSON.parse(response) as CompetitorEvidenceAssessment;
   } catch {
     throw new Error(`Failed to parse OpenAI assessment JSON: ${response}`);
   }

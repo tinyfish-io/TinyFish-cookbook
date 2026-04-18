@@ -1,7 +1,8 @@
 {
-  "name": "my-v0-project",
+  "name": "competitor-scout-cli",
   "version": "1.0.0",
   "private": true,
+  "description": "Competitive research CLI and Next.js UI: OpenAI planning, Tinyfish Search+Fetch with Agent fallback, comparison reports.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

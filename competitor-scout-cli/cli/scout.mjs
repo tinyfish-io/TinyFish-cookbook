@@ -22,7 +22,6 @@ import { TinyFish } from "@tiny-fish/sdk";
 const CONFIG_FILE = path.resolve(process.cwd(), ".scout.json");
 const RUNS_FILE = path.resolve(process.cwd(), ".scout-runs.json");
 const RATE_LIMIT_FILE = path.resolve(process.cwd(), ".scout-ratelimit.json");
-const TINYFISH_BASE = "https://agent.tinyfish.ai/v1";
 const ENV_FILE = path.resolve(process.cwd(), ".env.local");
 
 /** Maximum number of competitors per run (API bill protection). */

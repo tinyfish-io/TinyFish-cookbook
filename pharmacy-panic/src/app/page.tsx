@@ -20,7 +20,6 @@ const PRESETS = [
 
 export default function Home() {
   const [query, setQuery] = useState('');
-  const [useCache, setUseCache] = useState(false);
   const [triggered, setTriggered] = useState(false);
 
   const { state, search, abort } = usePharmacySearch();
@@ -29,14 +28,14 @@ export default function Home() {
     const trimmed = q.trim();
     if (!trimmed || state.isSearching) return;
     setTriggered(true);
-    search(trimmed, useCache);
+    search(trimmed);
   };
 
   const handlePreset = (preset: string) => {
     if (state.isSearching) return;
     setQuery(preset);
     setTriggered(true);
-    search(preset, useCache);
+    search(preset);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -96,11 +95,7 @@ export default function Home() {
               className="flex-1 h-11 px-4 rounded-lg border border-zinc-200 bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:opacity-50 transition-shadow text-sm"
             />
             {state.isSearching ? (
-              <Button
-                variant="destructive"
-                onClick={abort}
-                className="h-11 px-4"
-              >
+              <Button variant="destructive" onClick={abort} className="h-11 px-4">
                 <X className="h-4 w-4 mr-2" />
                 Cancel
               </Button>
@@ -115,20 +110,6 @@ export default function Home() {
               </Button>
             )}
           </div>
-
-          {!state.isSearching && (
-            <button
-              type="button"
-              onClick={() => setUseCache((c) => !c)}
-              className={`inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                useCache
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:border-zinc-300 hover:text-zinc-700'
-              }`}
-            >
-              {useCache ? '⚡ Using cached results' : '🔴 Live scraping'}
-            </button>
-          )}
         </div>
 
         {/* Progress section */}
@@ -137,16 +118,11 @@ export default function Home() {
             <div className="flex justify-between text-sm text-zinc-600">
               <span className="flex items-center gap-1.5">
                 {state.isSearching && <Loader2 className="h-3 w-3 animate-spin" />}
-                {state.isSearching
-                  ? 'Searching...'
-                  : state.cachedCount > 0 && state.cachedCount === state.progress.total
-                  ? '⚡ Instant from cache'
-                  : `Complete — ${state.elapsed}`}
+                {state.isSearching ? 'Searching...' : `Complete — ${state.elapsed}`}
               </span>
               <span>
                 {state.progress.completed}
                 {state.progress.total ? `/${state.progress.total}` : ''} pharmacies
-                {state.cachedCount > 0 && ` (${state.cachedCount} cached)`}
               </span>
             </div>
             <progress
@@ -157,7 +133,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Live preview iframes — removed when search finishes */}
+        {/* Live preview iframes */}
         {state.isSearching && state.streamingUrls.length > 0 && (
           <LivePreviewGrid previews={state.streamingUrls} />
         )}
@@ -179,14 +155,10 @@ export default function Home() {
         )}
 
         {/* Savings banner */}
-        {state.results.length > 0 && (
-          <SavingsBanner results={state.results} />
-        )}
+        {state.results.length > 0 && <SavingsBanner results={state.results} />}
 
         {/* Results */}
-        {state.results.length > 0 && (
-          <ResultsGrid results={state.results} />
-        )}
+        {state.results.length > 0 && <ResultsGrid results={state.results} />}
 
         {/* Empty state */}
         {!triggered && (

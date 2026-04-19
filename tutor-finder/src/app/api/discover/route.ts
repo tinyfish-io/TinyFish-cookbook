@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Groq from "groq-sdk";
 
 const FALLBACK_WEBSITES = [
   { name: "Wyzant", url: "https://www.wyzant.com/search" },
@@ -15,51 +14,33 @@ export async function POST(req: NextRequest) {
   try {
     const { exam, location } = await req.json();
 
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const query = `${exam} tutors ${location} tutoring services exam prep`;
 
-    const prompt = `You are helping find tutoring websites for standardized exam preparation.
-
-The user wants to find tutors for: ${exam}
-Location: ${location}
-
-Return a JSON array of 7-10 popular tutoring websites that are likely to have ${exam} tutors.
-Focus on reputable platforms that:
-1. Have tutor profiles with qualifications and reviews
-2. Are accessible in or near ${location}
-3. Are well-known for ${exam} preparation
-
-Include a mix of:
-- Global online tutoring platforms (Wyzant, Varsity Tutors, Preply, etc.)
-- Test prep specific sites (Kaplan, Princeton Review, Magoosh, etc.)
-- Local tutoring services if applicable
-
-Return ONLY a valid JSON array with this exact format:
-[
-  {"name": "Website Name", "url": "https://full-url-to-tutor-search-page"},
-  ...
-]
-
-Make sure URLs point to the specific tutor search or directory pages when possible.`;
-
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-    });
-
-    const content = completion.choices[0]?.message?.content || "";
-
-    let websites: { name: string; url: string }[] = [];
-    try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        websites = JSON.parse(jsonMatch[0]);
+    const response = await fetch(
+      `https://api.search.tinyfish.ai?query=${encodeURIComponent(query)}`,
+      {
+        headers: {
+          "X-API-Key": process.env.TINYFISH_API_KEY!,
+        },
       }
-    } catch {
-      websites = FALLBACK_WEBSITES;
+    );
+
+    if (!response.ok) {
+      return NextResponse.json({ websites: FALLBACK_WEBSITES });
     }
 
-    if (!websites.length) websites = FALLBACK_WEBSITES;
+    const data = await response.json();
+
+    const websites = (data.results || []).map(
+      (r: { title: string; url: string }) => ({
+        name: r.title,
+        url: r.url,
+      })
+    );
+
+    if (!websites.length) {
+      return NextResponse.json({ websites: FALLBACK_WEBSITES });
+    }
 
     return NextResponse.json({ websites });
   } catch (error) {

@@ -1,156 +1,163 @@
-# 🔍 Loan Decision Copilot
+# Loan Decision Copilot
+**Live Demo:** _add URL after deploy_
 
-**Live Demo:** [loandecision.lovable.app](https://loandecision.lovable.app/)
+**Compare loan offerings from multiple banks in real time — TinyFish Search finds real bank pages, then parallel browser agents analyze rates, fees, and eligibility simultaneously.**
 
----
+Select a loan type, enter your location, and the app uses the TinyFish Search API to discover official bank loan pages for your area. One browser agent fires per bank in parallel — each navigating the real page, extracting interest rates, fees, eligibility requirements, and scoring the offering 1–10. Results stream back as each agent finishes.
 
-## What is this?
-
-LoanLens is an AI-powered loan comparison tool that helps users analyze real bank loan offerings across different regions and loan types (education, personal, home, business).
-
-It uses the TinyFish Web Agent API to automate real browser sessions on bank websites, extract loan details in real time, and stream live previews of each agent while the analysis is running.
-
----
-
-## Demo
-
-<!-- Replace with your demo gif/video -->
-
-https://github.com/user-attachments/assets/1cfe4290-e769-424e-8ef6-4c23992712aa
-
----
-
-## How TinyFish Web Agent is used
-
-For each discovered bank:
-
-- A TinyFish browser agent opens the bank’s loan page
-
-- Navigates through the site if needed
-
-- Extracts interest rates, tenure, eligibility, fees, benefits, and drawbacks
-
-- Streams live browser previews back to the UI using SSE
-
-- Returns structured JSON results for comparison
-
-- Multiple agents run in parallel, one per bank.
-
-## Code Snippet
-
-```typescript
-
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-API-Key": TINYFISH_API_KEY,
-  },
-  body: JSON.stringify({
-    url: bankUrl,
-    goal: `
-You are analyzing a bank's ${loanType} page.
-
-STEP 1:
-Navigate to the correct loan product page if needed.
-
-STEP 2:
-Extract interest rates, tenure, eligibility, fees, benefits, and drawbacks.
-
-STEP 3:
-Return structured JSON with your findings.
-`,
-    timeout: 300000,
-  }),
-});
+## Architecture
 
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  LoanTypeSelector → LocationInput → AgentCard grid          │
+│  BankDetailPanel (side panel) → LiveBrowserPreview          │
+│  (results stream in as agents finish)                       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                  ┌────────┴────────┐
+                  ▼                 ▼
+     POST /api/discover-banks   POST /api/analyze-loan
+                  │                 │
+                  ▼                 ▼
+┌─────────────────────┐  ┌──────────────────────────────────┐
+│ TinyFish Search API │  │        TinyFish SDK              │
+│                     │  │                                  │
+│ client.search.query │  │ client.agent.stream({ url, goal })│
+│ Finds real official │  │                                  │
+│ bank loan pages for │  │ EventType.STREAMING_URL          │
+│ loan type + location│  │   → live iframe per agent        │
+│                     │  │ EventType.PROGRESS               │
+│ Filters out         │  │   → status updates               │
+│ aggregator sites    │  │ EventType.COMPLETE               │
+│ (NerdWallet, etc.)  │  │   + RunStatus.COMPLETED          │
+│                     │  │   → loan analysis JSON → SSE     │
+└─────────────────────┘  └──────────────────────────────────┘
 
----
+No database. No cache. No Supabase. Pure in-memory — results fetched live.
+```
 
-## How to Run
+### TinyFish SDK event flow
+
+```
+// Discovery — real URLs, not hallucinated ones
+const results = await client.search.query({
+  query: `${loanType} loan ${location} bank official site`
+});
+// aggregator domains filtered out before returning to client
+
+// Analysis — one agent per bank, all in parallel
+client.agent.stream({ url, goal })
+  │
+  ├── EventType.STREAMING_URL → live iframe URL forwarded to client
+  ├── EventType.PROGRESS      → status message forwarded to client
+  └── EventType.COMPLETE
+        └── RunStatus.COMPLETED
+              // COMPLETED only means the browser ran without crashing
+              // — always validate result content, not just the status
+              → parse event.result → loan analysis → SSE → client
+```
+
+## What Each Agent Extracts
+
+Each agent navigates the bank's loan page and returns:
+
+- **Interest rate range** (APR, fixed/variable)
+- **Tenure options** (repayment period)
+- **Eligibility requirements** (income, credit score, etc.)
+- **Fees** (processing, origination, prepayment)
+- **Benefits** and **drawbacks**
+- **Clarity score** (Clear / Moderate / Unclear)
+- **Overall score** (1–10 based on value, transparency, competitiveness)
+
+## Loan Types
+
+| Type | What it searches for |
+|---|---|
+| Personal | Personal loan pages from local banks and credit unions |
+| Home | Mortgage and home loan product pages |
+| Education | Student loan and education financing pages |
+| Business | SME and business loan product pages |
+
+## Setup
 
 ### Prerequisites
-- Node.js 18+
 
-- Supabase / Lovable project
+- Node.js 18+
+- TinyFish API key
 
 ### Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `TINYFISH_API_KEY` | TinyFish Web Agent [API key](https://mino.ai) | ✅ |
-| `LOVABLE_API_KEY` | Lovable AI Gateway key | ✅ |
+```bash
+cp .env.example .env.local
+```
 
-### Setup
+Then fill in:
+
+```env
+# TinyFish Web Agent API key (server-side only)
+# Get yours at: https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=
+```
+
+### Install & Run
 
 ```bash
-git clone <your-fork-url>
-cd loan-decision-copilot
 npm install
 npm run dev
-
 ```
 
-Add secrets in your Supabase / Lovable dashboard before running.
+Open http://localhost:3000
 
----
-
-## Architecture Diagram
+## Project Structure
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                        React Frontend                      │
-│                                                            │
-│  LoanType + Location → useLoanSearch Hook → Agent Cards    │
-│                               │                            │
-└───────────────────────────────┼────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────┐
-│                  Supabase Edge Functions                   │
-│                                                            │
-│  discover-banks  →  analyze-loan (x N parallel agents)     │
-│                               │                            │
-└───────────────────────────────┼────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────┐
-│                External APIs                               │
-│                                                            │
-│  Gemini (Bank discovery)                                   │
-│  TinyFish Web Agent API (Browser automation + SSE)         │
-└────────────────────────────────────────────────────────────┘
-
+loan-decision-copilot/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx                      # Main UI
+│   │   ├── globals.css
+│   │   └── api/
+│   │       ├── discover-banks/route.ts   # POST — TinyFish Search → bank URLs
+│   │       └── analyze-loan/route.ts     # POST — TinyFish Agent stream → SSE
+│   ├── components/
+│   │   ├── LoanTypeSelector.tsx          # Loan type picker (personal/home/edu/biz)
+│   │   ├── LocationInput.tsx             # Location input + search trigger
+│   │   ├── AgentCard.tsx                 # Per-bank agent status + result card
+│   │   ├── BankDetailPanel.tsx           # Full detail side panel
+│   │   ├── SearchProgress.tsx            # Discovery + analysis progress bar
+│   │   ├── LiveBrowserPreview.tsx        # Expandable live agent iframe
+│   │   └── ui/                           # button, input, scroll-area, separator
+│   ├── hooks/
+│   │   └── useLoanSearch.ts              # Discovery + parallel agent SSE client
+│   ├── lib/
+│   │   └── utils.ts
+│   └── types/
+│       └── loan.ts                       # TypeScript definitions
+├── .env.example
+├── .gitignore
+└── package.json
 ```
 
-### How it works
+## Constraint Checklist
 
-- User selects loan type and location
-
-- AI discovery step finds 5–8 relevant bank URLs
-
-- TinyFish Web Agent API launches one browser agent per bank
-
-- SSE streaming provides live previews and progress updates
-
-- Structured results are returned and rendered in the UI
----
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory, Supabase fully removed) |
+| Cache layer used? | NO (all results fetched live) |
+| LLM hallucinating URLs? | NO (TinyFish Search finds real current pages) |
+| Aggregator sites filtered? | YES (NerdWallet, Bankrate, etc. excluded) |
+| Scraping parallel? | YES (`Promise.allSettled` across all discovered banks) |
+| Live browser preview? | YES (`EventType.STREAMING_URL` → iframe per agent) |
+| Result validation? | YES (COMPLETED ≠ goal achieved — content always validated) |
 
 ## Tech Stack
 
-- **Frontend**: React, TypeScript, Tailwind CSS
-
-- **Backend**: Supabase Edge Functions (Deno)
-
-- **Browser Automation**: TinyFish Web Agent API
-
-- **AI Discovery**: Gemini (via Lovable AI Gateway)
-
-- **Streaming**: Server-Sent Events (SSE)
-
----
-
-## License
-
-MIT
+- **Framework:** Next.js 15 (App Router), TypeScript, Tailwind CSS
+- **Animations:** Framer Motion
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **URL Discovery:** TinyFish Search API (`client.search.query`)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

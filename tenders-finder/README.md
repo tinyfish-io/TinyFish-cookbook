@@ -1,115 +1,168 @@
-# Government Tender Finder - Singapore
+# Tenders Finder
+**Live Demo:** _add URL after deploy_
 
-**Live Demo:** https://tender-scout-singapore.lovable.app
+**Singapore government tender tracker — parallel TinyFish browser agents scrape multiple tender portals simultaneously and stream results in real time.**
 
-## What This Project Is
+Select a sector and the app fires one TinyFish browser agent per tender portal in parallel. Each agent extracts upcoming tenders with deadlines after today's date, streams results back as it completes. Compare tenders side-by-side before deciding which to pursue.
 
-An AI-powered government tender discovery tool for Singapore. It scrapes multiple tender portals in parallel using the TinyFish API, extracts structured tender data, and presents results in a clean, comparable format.
+## Architecture
 
-**How TinyFish API is used:** TinyFish browser agents are deployed in parallel to scrape Singapore government tender portals (GeBIZ, Tenders On Time, Bid Detail, etc.), extracting structured fields like tender title, ID, deadline, and eligibility from dynamic pages.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  SectorSelector → LinkConfigPage → TenderResultsList        │
+│  AgentPreviewGrid (live iframes) → CompareModal             │
+│  (results stream in as agents finish)                       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                  ┌────────┴────────┐
+                  ▼                 ▼
+          GET /api/discover-links   POST /api/scrape
+                  │                 │
+                  ▼                 ▼
+┌─────────────────────┐  ┌──────────────────────────────────┐
+│ Returns curated     │  │        TinyFish SDK              │
+│ list of Singapore   │  │                                  │
+│ tender portals      │  │ client.agent.stream({ url, goal })│
+│                     │  │                                  │
+│ GeBIZ, Tenders On   │  │ EventType.STARTED                │
+│ Time, Bid Detail,   │  │   → agent confirmed              │
+│ Tenders Info,       │  │ EventType.STREAMING_URL          │
+│ Global Tenders,     │  │   → live iframe per agent        │
+│ Tender Board        │  │ EventType.PROGRESS               │
+│                     │  │   → status updates               │
+│ User can add custom │  │ EventType.COMPLETE               │
+│ URLs via config page│  │   + RunStatus.COMPLETED          │
+│                     │  │   → tender details → SSE         │
+└─────────────────────┘  └──────────────────────────────────┘
 
----
-
-## Demo
-
-**Demo Video:** https://drive.google.com/file/d/1GXZhJOjiVUP5XcGvTAvRGcYhTWoKXlsE/view?usp=sharing
-
----
-
-## Code Snippet
-
-```bash
-curl -N -X POST "https://agent.tinyfish.ai/v1/automation/run-sse" \
-  -H "X-API-Key: $TINYFISH_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://www.gebiz.gov.sg",
-    "goal": "Extract the latest open government tenders. Return JSON with tenderTitle, agency, tenderID, submissionDeadline, tenderStatus, and tenderLink."
-  }'
+No database. No cache. Pure in-memory — results fetched live every search.
 ```
 
----
+### TinyFish SDK event flow
 
-## Tech Stack
+```
+client.agent.stream({ url, goal })
+  │
+  ├── EventType.STARTED       → agent confirmed running
+  ├── EventType.STREAMING_URL → live iframe URL forwarded to client
+  ├── EventType.PROGRESS      → status message forwarded to client
+  └── EventType.COMPLETE
+        └── RunStatus.COMPLETED → parse event.result.tenderdetails[]
+                                  → tender cards → SSE → client
+```
 
-- **Vite + React (TypeScript)**
-- **TinyFish API** (browser automation)
-- **Supabase** (edge functions for API proxying)
+## Covered Portals
 
-## How to Run
+| Portal | URL |
+|---|---|
+| GeBIZ | gebiz.gov.sg |
+| GeBIZ Opportunities | gebiz.gov.sg/ptn/opportunity |
+| Tenders On Time | tendersontime.com |
+| Bid Detail | biddetail.com |
+| Tenders Info | tendersinfo.com |
+| Global Tenders | globaltenders.com |
+| Tender Board | tenderboard.biz |
+
+Users can also add custom tender portal URLs via the Link Config page.
+
+## Scraping Flow
+
+1. User selects a sector (IT, Construction, Healthcare, etc.)
+2. `/api/discover-links` returns the list of curated tender portal URLs
+3. User can customise the list on the Link Config page before searching
+4. One TinyFish browser agent fires per portal — all in parallel
+5. Each agent extracts only tenders with submission deadlines **after today's date**
+6. `EventType.STREAMING_URL` events forward live iframe URLs to the client as agents start
+7. `EventType.COMPLETE` + `RunStatus.COMPLETED` → parse `event.result.tenderdetails` → stream to client
+8. UI updates as each portal finishes — no waiting for the slowest one
+9. Select tenders and compare side-by-side in the Compare Modal
+
+## Setup
 
 ### Prerequisites
 
 - Node.js 18+
-- Supabase project (for edge functions)
-- TinyFish API key (get from [tinyfish.ai](https://tinyfish.ai))
+- TinyFish API key
 
-### Setup
+### Environment Variables
 
-1. Clone the repository:
 ```bash
-git clone <repo-url>
-cd tenders-finder
+cp .env.example .env.local
 ```
 
-2. Install dependencies:
+Then fill in:
+
+```env
+# TinyFish (required) — https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=
+
+# Groq (optional) — https://console.groq.com
+GROQ_API_KEY=
+```
+
+### Install & Run
+
 ```bash
 npm install
-```
-
-3. Create `.env` from the example:
-```bash
-cp .env.example .env
-```
-
-4. Set your Supabase credentials in `.env`:
-```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
-```
-
-5. Set TinyFish API key in Supabase secrets:
-```bash
-supabase secrets set TINYFISH_API_KEY=your_tinyfish_api_key
-```
-
-6. Deploy Supabase edge functions:
-```bash
-supabase functions deploy tinyfish-tender-search
-supabase functions deploy discover-tender-links
-```
-
-7. Run the development server:
-```bash
 npm run dev
 ```
 
----
+Open http://localhost:3000
 
-## Architecture Diagram
+## Project Structure
 
-```mermaid
-flowchart TB
-    UI["USER INTERFACE<br/>(React + Tailwind)"]
-    ORCH["Tender Search Orchestration Layer"]
-    DB["SUPABASE<br/>(Edge Functions)"]
-    TF["TINYFISH API<br/>(Browser Automation)"]
-    TFD["• Parallel web agents<br/>• Browse govt tender portals<br/>• Extract structured fields<br/>• SSE streaming updates"]
-
-    UI --> ORCH
-    ORCH --> DB
-    DB --> TF
-    TF --> TFD
+```
+tenders-finder/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx                        # Main UI
+│   │   ├── globals.css
+│   │   └── api/
+│   │       ├── discover-links/route.ts     # GET — returns curated portal list
+│   │       └── scrape/route.ts             # POST — TinyFish agent stream per portal
+│   ├── components/
+│   │   ├── tender/
+│   │   │   ├── SectorSelector.tsx          # Sector picker
+│   │   │   ├── SectorIcon.tsx              # Sector icons
+│   │   │   ├── LinkConfigPage.tsx          # Custom URL configuration
+│   │   │   ├── AgentPreviewGrid.tsx        # Live agent iframe grid
+│   │   │   ├── AgentPreviewCard.tsx        # Per-agent status + iframe
+│   │   │   ├── TenderResultsList.tsx       # Tender result cards list
+│   │   │   ├── TenderResultCard.tsx        # Individual tender card
+│   │   │   ├── CompareButton.tsx           # Trigger comparison
+│   │   │   ├── CompareModal.tsx            # Side-by-side comparison
+│   │   │   ├── LiveBrowserModal.tsx        # Full-screen agent browser view
+│   │   │   └── Header.tsx
+│   │   └── ui/                             # shadcn/ui components
+│   ├── hooks/
+│   │   └── useTenderSearch.ts              # Search state + SSE client
+│   ├── lib/
+│   │   └── utils.ts
+│   └── types/
+│       └── tender.ts                       # TypeScript definitions
+├── .env.example
+├── .gitignore
+└── package.json
 ```
 
----
+## Constraint Checklist
 
-## Environment Variables
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Cache layer used? | NO (all results fetched live) |
+| Scraping parallel? | YES (one agent per portal, all concurrent) |
+| Live browser preview? | YES (`EventType.STREAMING_URL` → iframe per agent) |
+| Deadline filtering? | YES (only tenders with future deadlines extracted) |
+| Custom portal URLs? | YES (user-configurable via Link Config page) |
+| Tender comparison? | YES (select multiple, compare side-by-side) |
 
-| Variable | Where | Description |
-|----------|-------|-------------|
-| `VITE_SUPABASE_URL` | `.env` | Supabase project URL |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | `.env` | Supabase anon key |
-| `TINYFISH_API_KEY` | Supabase secrets | TinyFish API key |
+## Tech Stack
 
-Contributor: Krishna Agarwal (@KrishnaAgarwal7531)
+- **Framework:** Next.js 15 (App Router), TypeScript, Tailwind CSS
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

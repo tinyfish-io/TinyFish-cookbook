@@ -1,10 +1,10 @@
-export type Sector = 
-  | 'IT / Software'
-  | 'Construction'
-  | 'Healthcare'
-  | 'Consulting'
-  | 'Logistics'
-  | 'Education';
+export type Sector =
+  | "IT / Software"
+  | "Construction"
+  | "Healthcare"
+  | "Consulting"
+  | "Logistics"
+  | "Education";
 
 export interface Tender {
   id: string;
@@ -27,7 +27,7 @@ export interface AgentState {
   id: string;
   url: string;
   name: string;
-  status: 'pending' | 'connecting' | 'searching' | 'complete' | 'error';
+  status: "pending" | "connecting" | "searching" | "complete" | "error";
   message: string;
   streamingUrl?: string;
   tenders: Tender[];

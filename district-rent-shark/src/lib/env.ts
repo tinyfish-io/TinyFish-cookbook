@@ -2,14 +2,10 @@ import { z } from "zod";
 
 const envSchema = z.object({
   TINYFISH_API_KEY: z.string().min(1, "TINYFISH_API_KEY is required"),
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url("NEXT_PUBLIC_SUPABASE_URL must be a valid URL"),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, "SUPABASE_SERVICE_ROLE_KEY is required"),
 });
 
-// NOTE: NEXT_PUBLIC_MAPBOX_TOKEN is intentionally NOT in this schema.
-// It's a client-side env var checked directly in listing-map.tsx.
-// Including it here would cause getEnv() to throw when Mapbox is missing,
-// which breaks tryGetSupabase() even when Supabase IS configured.
+// NOTE: NEXT_PUBLIC_MAPBOX_TOKEN is checked directly in listing-map.tsx —
+// intentionally not here so a missing Mapbox token doesn't break the API routes.
 
 export type Env = z.infer<typeof envSchema>;
 

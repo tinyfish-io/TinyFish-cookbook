@@ -6,7 +6,9 @@ node_modules/
 out/
 
 # Environment files
+.env
 .env.local
+.env.*.local
 
 # Build outputs
 *.tsbuildinfo

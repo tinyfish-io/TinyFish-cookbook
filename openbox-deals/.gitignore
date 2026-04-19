@@ -1,3 +1,21 @@
-.env.local
-.next/
+# Dependencies
 node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# OS
+.DS_Store
+Thumbs.db

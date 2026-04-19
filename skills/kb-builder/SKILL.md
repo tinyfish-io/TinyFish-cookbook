@@ -293,6 +293,10 @@ Keep the topic human-readable in the markdown output.
 If the user gave starter URLs:
 - start with those
 
+If a starter URL is a direct arXiv paper page such as `/abs/...`, `/pdf/...`, or an arXiv HTML render:
+- treat it as a **reading target**
+- do not send it through the discovery-search workflow first
+
 Then expand with a small set of public discovery URLs relevant to the topic. Choose from these patterns when relevant:
 
 - GitHub repo search:
@@ -319,6 +323,21 @@ Then expand with a small set of public discovery URLs relevant to the topic. Cho
 Only include discovery URLs that are likely to produce useful public results.
 
 Aim for 4-8 discovery URLs in the first pass, not 20.
+
+Always reserve **one extra discovery slot** for a trusted-source scout that is not limited to the template list above.
+
+Trusted-source scout rule:
+- run one extra discovery agent against a general search page for the topic
+- use a public search engine results page that TinyFish can access reliably in the current environment
+- do not hardcode or prefer a specific search engine unless the user explicitly asks for one
+- the scout's job is to find **trusted primary sources outside the template list**, not to repeat GitHub/arXiv/Hugging Face results you already have
+- trusted sources include official product docs, official company or lab pages, standards bodies, top conference project pages, official benchmark sites, and strong primary-source blog posts from recognized builders or research groups
+- do not promote SEO sludge, low-signal affiliate lists, or derivative summaries unless they are the only path to a stronger primary source
+
+Important:
+- arXiv search pages are valid discovery URLs when papers matter for the topic
+- they are often slower than GitHub or DuckDuckGo discovery pages
+- do **not** drop arXiv just because it is the slowest source in the batch
 
 When selecting discovery and reading targets, prefer sources that improve understanding, not just coverage:
 
@@ -360,27 +379,81 @@ tinyfish agent run --sync --url "{DISCOVERY_URL}" \
   > /tmp/kb_discovery_{SAFE_NAME}.json &
 ```
 
+Trusted-source scout template:
+
+```bash
+tinyfish agent run --sync --url "{GENERAL_SEARCH_URL}" \
+  "You are helping build a markdown knowledge base on '{TOPIC}'.
+   Search this results page for up to 5 trusted high-value sources that are
+   NOT already represented by the template discovery URLs.
+   Prefer official docs, official company or lab pages, standards bodies,
+   official benchmark sites, top conference project pages, and strong primary
+   source explainers from recognized builders or research groups.
+   Return JSON:
+   {
+     \"candidates\": [
+       {
+         \"title\": \"\",
+         \"url\": \"\",
+         \"sourceType\": \"docs|repo|paper|dataset|article|benchmark|person|other\",
+         \"whyItMatters\": \"\",
+         \"whyTrusted\": \"\"
+       }
+     ]
+   }
+   Rules:
+   - public URLs only
+   - max 5 candidates
+   - do not guess URLs
+   - avoid low-signal SEO listicles unless they point to a stronger primary source
+   - if the template list already covers the best sources, return an empty array" \
+  > /tmp/kb_discovery_trusted_{SAFE_NAME}.json &
+```
+
+Important runtime behavior:
+- when you redirect TinyFish output to a file with `> /tmp/...json`, that file may stay `0` bytes until the run exits
+- a zero-byte discovery file does **not** mean the run is stuck
+- arXiv search pages often finish later than GitHub or DuckDuckGo pages in the same batch
+- if the rest of the batch finishes first, keep waiting for arXiv before declaring failure
+
+Timeout rule:
+- allow up to **10 minutes** for a single discovery run before marking it `partial` or `blocked`
+- for arXiv discovery specifically, assume 1-3 minutes is normal and keep waiting
+- only intervene early if the process is clearly gone or has already produced a terminal TinyFish error
+
 After launching all discovery runs:
 
 ```bash
 wait
 ```
 
+Interpretation rule:
+- `wait` finishing slowly because one arXiv process is still running is expected behavior
+- do not kill the arXiv run just because the other files finished first
+- only treat the batch as stalled if an individual discovery run exceeds the 10-minute timeout above
+
 If `TRACE=true`, copy or save the raw discovery outputs into `_trace/` with readable names such as:
 
 - `_trace/discovery-github.json`
 - `_trace/discovery-arxiv.json`
 - `_trace/discovery-ddg.json`
+- `_trace/discovery-trusted-scout.json`
 
 Then read all discovery outputs, merge them, deduplicate by URL, and choose the best 6-12 URLs for the reading pass.
 
+Trusted-source promotion rule:
+- if the trusted-source scout finds credible primary sources not already covered by the template list, promote the best 1-5 of them into the reading pass
+- run one TinyFish reading pass per promoted source, in parallel with the rest of the batch
+- if the scout only finds weaker or duplicative sources, keep them out of the reading pass and record them as low-value or skipped in `sources.md` only if you actually opened them
+
 Selection priority:
 1. official documentation
-2. canonical GitHub repositories
-3. arXiv papers
-4. Hugging Face model or dataset pages
-5. strong blog posts or tutorials
-6. benchmark or leaderboard pages
+2. trusted non-template primary sources from the scout
+3. canonical GitHub repositories
+4. arXiv papers
+5. Hugging Face model or dataset pages
+6. strong blog posts or tutorials
+7. benchmark or leaderboard pages
 
 By default, do **not** spend your budget on social posts, Reddit threads, or generic chatter unless the user explicitly asks for them.
 
@@ -658,9 +731,14 @@ Always follow these rules:
 Good:
 - one TinyFish run per URL
 - many URLs in parallel
+- letting slow arXiv discovery runs finish when they are still within the 10-minute timeout
+- one extra trusted-source scout in parallel with the template discovery runs
 
 Bad:
 - one TinyFish run told to visit GitHub, arXiv, and Hugging Face all in a single goal
+- treating a zero-byte redirected output file as proof that TinyFish is stuck
+- killing arXiv discovery after 60-120 seconds just because faster sources finished first
+- blindly trusting the template list and missing a stronger official source found by the scout
 
 ## Edge cases
 

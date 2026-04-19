@@ -1,20 +1,42 @@
 ---
 name: use-tinyfish
-description: Use TinyFish web agent to extract/scrape websites, extract data, and automate browser actions using natural language. Use when you need to extract/scrape data from websites, handle bot-protected sites, or automate web tasks.
+description: The complete web toolkit for your agent. Search the web and get answers in milliseconds. Fetch any URL and get clean markdown back. Send a browser agent to navigate sites, fill forms, and extract structured data. Spin up a headless browser for full programmatic control. Use when you need to search the web, extract/scrape data from websites, handle bot-protected sites, or automate browser tasks using natural language.
 ---
 
 # TinyFish CLI
 
-You have access to the TinyFish CLI (`tinyfish`) — a suite of web tools you can call from the terminal.
+The complete web toolkit — four tools, one CLI. Start with the lightest tool that can do the job and escalate only when needed.
 
-If not installed: `npm install -g @tiny-fish/cli`
-If not authenticated: `tinyfish auth login` or set `TINYFISH_API_KEY` env var. Keys at https://agent.tinyfish.ai/api-keys
+## Pre-flight Check (REQUIRED)
+
+Before making any TinyFish call, always run BOTH checks:
+
+**1. CLI installed?**
+```bash
+which tinyfish && tinyfish --version || echo "TINYFISH_CLI_NOT_INSTALLED"
+```
+
+If not installed, stop and tell the user:
+> Install the TinyFish CLI: `npm install -g @tiny-fish/cli`
+
+**2. Authenticated?**
+```bash
+tinyfish auth status
+```
+
+If not authenticated, stop and tell the user:
+> You need a TinyFish API key. Get one at: https://agent.tinyfish.ai/api-keys
+>
+> Then authenticate:
+> ```
+> tinyfish auth login
+> ```
+
+Do NOT proceed until both checks pass.
 
 ---
 
 ## Picking the Right Tool
-
-TinyFish has four tools. Start with the lightest one that can do the job and escalate only when needed.
 
 ```
 search  →  fetch  →  agent  →  browser
@@ -194,3 +216,5 @@ tinyfish browser session create --url "https://example.com"
 - **Match the user's language**: Respond in whatever language the user writes in.
 - All commands support `--pretty` for human-readable output. Default is JSON.
 - Use `--debug` on the root command or set `TINYFISH_DEBUG=1` to log HTTP requests to stderr.
+
+$ARGUMENTS

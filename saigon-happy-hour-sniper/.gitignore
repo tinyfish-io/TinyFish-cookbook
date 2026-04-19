@@ -1,7 +1,7 @@
 # Environment files — never commit these
+.env
 .env.local
-.env.development
-.env.production
+.env.*.local
 
 # Next.js
 .next/

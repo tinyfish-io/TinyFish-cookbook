@@ -1,151 +1,182 @@
 # Code Reference Finder
+**Live Demo:** _add URL after deploy_
 
-**Live:** [https://code-reference-finder.vercel.app](https://code-reference-finder.vercel.app)
+**Find real-world usage examples for unfamiliar code — Groq analyzes your code, TinyFish Search finds relevant GitHub repos and Stack Overflow questions, then parallel browser agents extract code snippets and relevance scores in real time.**
 
-Code Reference Finder helps you understand unfamiliar code by finding real-world usage examples from GitHub repositories and Stack Overflow. Paste a code snippet (or right-click selected code on GitHub), and it uses AI to analyze the libraries and APIs used, then dispatches web agents to search GitHub and Stack Overflow, extract relevant examples, and display them side-by-side with relevance scores.
+Paste any code snippet. The app identifies the libraries, APIs, and patterns used, generates targeted search queries, finds the most relevant GitHub repos and Stack Overflow threads via the TinyFish Search API, then fires one browser agent per result in parallel to extract actual code examples and explain how each relates to your snippet.
 
-## Demo
+## Architecture
 
-https://github.com/user-attachments/assets/73feb7c2-60dd-492b-b440-165d0170a4aa
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  CodeInput → PipelineProgress → AgentCard grid             │
+│  ReferenceGrid → ReferenceCard (results stream in)         │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ POST /api/analyze { code }
+                           │ (SSE — events stream as pipeline runs)
+┌──────────────────────────▼──────────────────────────────────┐
+│                   /api/analyze/route.ts                     │
+│                                                             │
+│  Stage 1 — Groq analyzes code                               │
+│    analyzeCode()  → language, libraries, APIs, patterns     │
+│    generateSearchQueries() → 5 GitHub + 5 SO queries        │
+│                   → analysis_complete SSE event             │
+│                                                             │
+│  Stage 2 — TinyFish Search API                              │
+│    client.search.query({ query: "... site:github.com" })    │
+│    client.search.query({ query: "... site:stackoverflow.com"})
+│    5+5 parallel searches → deduplicated results             │
+│                   → search_complete SSE event               │
+│                                                             │
+│  Stage 3 — TinyFish Agents (Promise.allSettled, parallel)   │
+│    client.agent.stream({ url, goal })                       │
+│    GitHub agent  → reads README, extracts code snippets     │
+│    SO agent      → reasons over question data, scores relevance│
+│                                                             │
+│    EventType.STREAMING_URL → live iframe per agent          │
+│    EventType.PROGRESS      → step updates                   │
+│    EventType.COMPLETE + RunStatus.COMPLETED                 │
+│      // COMPLETED only means the browser ran without crashing│
+│      // — always validate result content, not just the status│
+│      → ReferenceData → agent_complete SSE event             │
+└─────────────────────────────────────────────────────────────┘
 
-
-## TinyFish API Usage
-
-The app dispatches 10 parallel TinyFish web agents — 5 for GitHub repos and 5 for Stack Overflow posts. Each agent receives a goal prompt tailored to its platform.
-
-**GitHub agents** navigate the repository and read the README to extract relevant code examples:
-
-```typescript
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: "https://github.com/owner/repo",
-    goal: `You are analyzing a GitHub repository to determine how it relates to specific libraries and APIs.
-
-           TARGET LIBRARIES: @tanstack/react-query, axios
-           TARGET APIs/SYMBOLS: useQuery, axios.get
-
-           INSTRUCTIONS:
-           1. Go to the repository page and read ONLY the README.
-           2. Extract: what the project does, any code examples shown, and how it relates to the target libraries/APIs.
-           3. Score relevance 0-100.
-
-           Return a JSON object with: title, sourceUrl, platform, relevanceScore, alignmentExplanation, codeSnippets...`,
-  }),
-});
+No database. No cache. No GitHub API token. No StackExchange key.
+Pure in-memory — results fetched live every search.
 ```
 
-**Stack Overflow agents** reason over the post metadata (title, tags, score, excerpt) without navigating:
+### Groq usage
 
-```typescript
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: "https://example.com",
-    goal: `You are a reasoning agent analyzing a Stack Overflow post.
-
-           STACK OVERFLOW POST DATA:
-           - Title: How to pass parameters to useQuery with Axios
-           - Score: 38 | Answered: true | Tags: reactjs, axios, react-query
-
-           TARGET LIBRARIES: @tanstack/react-query, axios
-
-           Score relevance 0-100 based on: Do the tags match? Does the title discuss the target APIs?
-           Would this post help someone understand how to use these libraries?
-
-           Return a JSON object with: title, sourceUrl, platform, relevanceScore, alignmentExplanation, questionTitle, votes, tags...`,
-  }),
-});
+```
+groq-client.ts:
+  analyzeCode()          → identify language, libraries, APIs, patterns
+  generateSearchQueries() → generate 5 GitHub + 5 SO search queries
 ```
 
-Both agent types stream SSE events including a `STREAMING_URL` (live view of the agent working) and a final `COMPLETE` event with the extracted reference data JSON.
+### TinyFish Search usage
 
-## How to Run
+```
+// Two parallel batches — one per platform
+const [ghSearches, soSearches] = await Promise.all([
+  Promise.all(ghQueries.map(q => client.search.query({
+    query: `${q.query} site:github.com`
+  }))),
+  Promise.all(soQueries.map(q => client.search.query({
+    query: `${q.query} site:stackoverflow.com`
+  }))),
+]);
+// Results deduplicated and capped at 5 per platform
+```
+
+## Pipeline Stages
+
+1. **Code Analysis** — Groq identifies language, external libraries, APIs/hooks, and usage patterns
+2. **Query Generation** — Groq generates 5 GitHub + 5 Stack Overflow search queries tailored to the code
+3. **Search** — TinyFish Search finds real GitHub repos and SO questions for each query (replaces GitHub API + StackExchange API)
+4. **Agent Extraction** — one TinyFish browser agent per result fires in parallel:
+   - **GitHub agents** — navigate to repo, read README, extract code snippets and relevance score
+   - **Stack Overflow agents** — reason over question data, score relevance, extract any code in the excerpt
+5. Results stream back to the UI as each agent finishes
+
+## Setup
 
 ### Prerequisites
 
-- Node.js 18+
-- API keys for: [OpenRouter](https://openrouter.ai/keys), [TinyFish](https://mino.ai/api-keys), [GitHub](https://github.com/settings/tokens), and [Stack Exchange](https://stackapps.com/apps/oauth/register)
+- Node.js 22.x
+- TinyFish API key
+- Groq API key
 
-### Setup
+### Environment Variables
 
-1. Install dependencies:
+```bash
+cp .env.example .env.local
+```
+
+Then fill in:
+
+```env
+# TinyFish Web Agent API key (server-side only)
+# Get yours at: https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=
+
+# Groq API key — used for code analysis and search query generation
+# Get yours at: https://console.groq.com
+GROQ_API_KEY=
+```
+
+### Install & Run
 
 ```bash
 npm install
-```
-
-2. Create a `.env.local` file with your API keys (see `.env.example`):
-
-```
-OPENROUTER_API_KEY=your_openrouter_api_key
-TINYFISH_API_KEY=your_tinyfish_api_key
-GITHUB_TOKEN=your_github_personal_access_token
-STACKEXCHANGE_KEY=your_stackexchange_api_key
-```
-
-3. Start the dev server:
-
-```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000)
+Open http://localhost:3000
 
-### Chrome Extension (optional)
-
-To use the side panel and right-click context menu on GitHub:
-
-1. Go to `chrome://extensions` and enable Developer mode
-2. Click "Load unpacked" and select the `extension/` folder
-3. Copy any unknown code and paste it in the input area to start using it.
-
-## Architecture Diagram
+## Project Structure
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        User (Browser)                            │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │  Next.js Frontend (React + Tailwind + Framer Motion)       │  │
-│  │                                                            │  │
-│  │  1. Paste code snippet or right-click on GitHub            │  │
-│  │  2. View analysis (language, libraries, APIs, patterns)    │  │
-│  │  3. Watch agents search & extract in real-time             │  │
-│  │  4. Browse results sorted by relevance score               │  │
-│  └───────────────────────┬────────────────────────────────────┘  │
-└──────────────────────────┼───────────────────────────────────────┘
-                           │  POST /api/analyze (SSE stream)
-                           ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    Next.js API Route (SSE)                        │
-│                                                                   │
-│  Stage 1 — Code Analysis (OpenRouter / Gemini Flash)             │
-│    • Identifies language, libraries, APIs, patterns               │
-│    • Generates 10 search queries (5 GitHub + 5 Stack Overflow)   │
-│                                                                   │
-│  Stage 2 — Search Execution                                      │
-│    • GitHub Search API (5 queries, rate-limited)                 │
-│    • Stack Exchange API (5 queries, parallel)                    │
-│    • Deduplicates and picks top 5 from each platform             │
-│                                                                   │
-│  Stage 3 — Agent Extraction (10 parallel TinyFish agents)        │
-│    • GitHub agents: navigate repo, read README, extract examples │
-│    • SO agents: reason over post metadata, score relevance       │
-│                                                                   │
-│  Stage 4 — Pipeline Complete                                     │
-└────────┬──────────────┬──────────────┬──────────────┬────────────┘
-         │              │              │              │
-         ▼              ▼              ▼              ▼
-   ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐
-   │ OpenRouter│  │  GitHub  │  │ Stack     │  │ TinyFish  │
-   │  (LLM)   │  │  API     │  │ Exchange  │  │  (Agents) │
-   └──────────┘  └──────────┘  └───────────┘  └───────────┘
+code-reference-finder/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx                    # Main UI
+│   │   ├── globals.css
+│   │   └── api/
+│   │       └── analyze/route.ts        # POST — SSE pipeline endpoint
+│   ├── components/
+│   │   ├── CodeInput.tsx               # Code paste area
+│   │   ├── Dashboard.tsx               # App shell
+│   │   ├── Header.tsx
+│   │   ├── PipelineProgress.tsx        # Stage progress indicator
+│   │   ├── AgentCard.tsx               # Per-agent status + live iframe
+│   │   ├── LiveBrowserPreview.tsx      # Expanded agent browser view
+│   │   ├── ReferenceGrid.tsx           # Results grid
+│   │   ├── ReferenceCard.tsx           # Individual reference result
+│   │   └── AnalysisSummary.tsx         # Code analysis summary
+│   ├── context/
+│   │   └── AppContext.tsx              # React context + reducer
+│   ├── hooks/
+│   │   └── useCodeAnalysis.ts          # SSE client + dispatch
+│   └── lib/
+│       ├── groq-client.ts              # Groq — code analysis + query gen
+│       ├── search.ts                   # TinyFish Search — GitHub + SO
+│       ├── orchestrator.ts             # Pipeline coordinator
+│       ├── goal-builder.ts             # Agent goal prompts
+│       ├── constants.ts
+│       └── types.ts
+├── extension/                          # Chrome extension (side panel)
+│   ├── manifest.json
+│   ├── background.js
+│   ├── sidepanel.html
+│   └── sidepanel.js
+├── .env.example
+├── .gitignore
+└── package.json
 ```
+
+## Constraint Checklist
+
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Mino / raw SSE fetch? | NO (TinyFish SDK throughout) |
+| GitHub API token needed? | NO (TinyFish Search replaces GitHub API) |
+| StackExchange API key needed? | NO (TinyFish Search replaces SO API) |
+| OpenRouter? | NO (Groq SDK directly) |
+| Search parallel? | YES (all queries run concurrently via Promise.all) |
+| Agent execution parallel? | YES (Promise.allSettled across all results) |
+| Live browser preview? | YES (EventType.STREAMING_URL → iframe per agent) |
+| Result validation? | YES (COMPLETED ≠ goal achieved — content validated) |
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4
+- **Animations:** Framer Motion
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **Search:** TinyFish Search API (`client.search.query`)
+- **LLM:** Groq (`llama-3.3-70b-versatile`)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

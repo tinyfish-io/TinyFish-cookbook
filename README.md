@@ -84,6 +84,7 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
 | [tutor-finder](./tutor-finder) | AI-powered tutor discovery platform for competitive exams across multiple platforms |
 | [viet-bike-scout](./viet-bike-scout) | Motorbike rental price comparison tool across Vietnamese cities using parallel browser agents |
+| [viet-real-estate-scout](./viet-real-estate-scout) | Real estate listing comparison across 5 Vietnamese property sites with interactive map view |
 | [waifu-deal-sniper](./waifu-deal-sniper) | Discord bot for anime figure collectors finding discounted pre-owned figures from AmiAmi, Mercari, and Solaris Japan |
 | [wing-command](./wing-command) | Chicken wing tracker using AI-powered scraping to find the best wings near you by flavor preference |
 | Many more! | this list is updated quite often! |

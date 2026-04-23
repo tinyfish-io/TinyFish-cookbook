@@ -182,7 +182,7 @@ Return ONLY this JSON with no extra text:
     setAgents([]);
 
     try {
-      // Step 1 — discover URLs via Groq
+      // Step 1 — discover URLs via TinyFish Search API
       const discoverRes = await fetch("/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

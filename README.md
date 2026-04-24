@@ -1,7 +1,9 @@
 # The TinyFish Cookbook
 
 <div align="center">
-  <img width="600" alt="TinyFish Hackathon QR" src="https://i.imgur.com/8KwRGrK.png" />
+  <br />
+  <img width="400" alt="TinyFish Hackathon QR" src="https://i.imgur.com/8KwRGrK.png" />
+  <br /><br />
 </div>
 
 <div align="center">

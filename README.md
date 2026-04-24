@@ -1,12 +1,8 @@
 # The TinyFish Cookbook
 
-<a href="https://www.tinyfish.ai/accelerator">
-  <img width="1034" height="407" alt="CKBOOK" src="https://github.com/user-attachments/assets/ce4fccb9-70b8-4023-8022-4e8e3b244fbe" />
-</a>
-
 <div align="center">
+  <img width="600" alt="TinyFish Hackathon QR" src="https://i.imgur.com/8KwRGrK.png" />
 </div>
-
 
 <div align="center">
 
@@ -26,14 +22,6 @@
 ## About This Repository
 
 Welcome to the **TinyFish Cookbook!** This is a growing collection of recipes, demos, and automations built with TinyFish.
-
-**🏆 We're SOTA!** — we just scored 90% on Mind2Web benchmark, outperforming Gemini by 21 points, OpenAI by 29, and Anthropic by 34. We ran all 300 tasks in parallel and published every single run publicly. [Read our benchmark results →](https://tinyfish.ai/blog/mind2web) | [View all runs →](https://docs.google.com/spreadsheets/d/1jgRESVlSYygPO4dKKqzPohGUX5b78Ay59422mM29CsU/edit?gid=436688783#gid=436688783)
-
-## What is TinyFish?
-
-**SOTA web agents in an API** that lets you treat real websites like programmable surfaces. Instead of juggling headless browsers, selectors, proxies, and weird edge cases, you call a single API with a goal and some URLs and get back clean JSON. It handles navigation, forms, filters, dynamic content, proxies, and multi-step flows across many sites at once.
-
-The same infrastructure and agents used by big enterprises (like Google, Doordash and Classpass), now for everyone!
 
 ### Core Endpoints
 
@@ -59,6 +47,19 @@ TinyFish provides four distinct endpoints, each designed to tackle different lay
 
 Each folder in this repo is a standalone project. Dive in to see how to solve real-world problems.
 
+### Featured Recipes (Live Demos)
+
+These recipes use the latest TinyFish SDK and are deployed with live demos you can try right now.
+
+| Recipe | Description | Live Demo |
+|--------|-------------|-----------|
+| [viet-bike-scout](./viet-bike-scout) | Motorbike rental price comparison tool across Vietnamese cities using parallel browser agents | [Live Demo](https://cookbook-viet-bike-scout.vercel.app) |
+| [tutor-finder](./tutor-finder) | AI-powered tutor discovery platform for competitive exams across multiple platforms | [Live Demo](https://cookbook-tutor-finder.vercel.app) |
+| [openbox-deals](./openbox-deals) | Real-time open-box and refurbished deal aggregator across 8 retailers | [Live Demo](https://cookbook-openbox-deals.vercel.app) |
+| [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world | [Live Demo](https://cookbook-summer-school-finder.vercel.app) |
+
+### More Recipes
+
 | Recipe | Description |
 |--------|-------------|
 | [anime-watch-hub](./anime-watch-hub) | Helps you find sites to read/watch your favorite manga/anime for free |
@@ -73,17 +74,13 @@ Each folder in this repo is a standalone project. Dive in to see how to solve re
 | [loan-decision-copilot](./loan-decision-copilot) | AI-powered loan comparison tool across banks and regions |
 | [logistics-sentry](./logistics-sentry) | Logistics intelligence platform for port congestion and carrier risk tracking |
 | [Manga-Availability-Finder](./Manga-Availability-Finder) | Searches multiple reading platforms for manga/webtoon availability |
-| [openbox-deals](./openbox-deals) | Real-time open-box and refurbished deal aggregator across 8 retailers |
 | [research-sentry](./research-sentry) | Voice-first academic research co-pilot scanning ArXiv, PubMed, and more |
 | [restaurant-comparison-tool](./restaurant-comparison-tool) | Pre-visit restaurant safety intelligence tool analyzing Google Maps reviews, menus, and allergen signals |
 | [scholarship-finder](./scholarship-finder) | AI-powered scholarship discovery system pulling live data from official websites |
 | [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when traveling for conventions or events |
-| [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world |
 | [tenders-finder](./tenders-finder) | AI-powered Singapore government tender discovery tool scraping multiple tender portals in parallel |
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
-| [tutor-finder](./tutor-finder) | AI-powered tutor discovery platform for competitive exams across multiple platforms |
-| [viet-bike-scout](./viet-bike-scout) | Motorbike rental price comparison tool across Vietnamese cities using parallel browser agents |
 | [waifu-deal-sniper](./waifu-deal-sniper) | Discord bot for anime figure collectors finding discounted pre-owned figures from AmiAmi, Mercari, and Solaris Japan |
 | [wing-command](./wing-command) | Chicken wing tracker using AI-powered scraping to find the best wings near you by flavor preference |
 | Many more! | this list is updated quite often! |

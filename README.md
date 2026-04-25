@@ -1,6 +1,6 @@
 # The TinyFish Cookbook
 
-<a href="https://www.tinyfish.ai/accelerator">
+<a href="https://www.tinyfish.ai">
   <img width="1034" height="407" alt="CKBOOK" src="https://github.com/user-attachments/assets/ce4fccb9-70b8-4023-8022-4e8e3b244fbe" />
 </a>
 

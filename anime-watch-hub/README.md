@@ -56,7 +56,7 @@ cp .env.example .env.local
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | OpenAI API key for platform URL discovery ([get one](https://platform.openai.com/api-keys)) |
-| `TINYFISH_API_KEY` | TinyFish API key for browser automation ([get one](https://tinyfish.ai/api-keys)) |
+| `TINYFISH_API_KEY` | TinyFish API key for browser automation ([get one](https://agent.tinyfish.ai/api-keys)) |
 
 3. Start the dev server:
 

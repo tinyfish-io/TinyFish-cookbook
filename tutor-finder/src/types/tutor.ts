@@ -19,20 +19,20 @@ export interface AgentStatus {
   websiteName: string;
   websiteUrl: string;
   streamingUrl: string | null;
-  status: 'searching' | 'complete' | 'error';
+  status: "searching" | "complete" | "error";
   message: string;
   tutors: Tutor[];
 }
 
-export type ExamType = 
-  | 'SAT'
-  | 'ACT'
-  | 'AP'
-  | 'GRE'
-  | 'GMAT'
-  | 'TOEFL/IELTS'
-  | 'JEE/NEET'
-  | 'Olympiads';
+export type ExamType =
+  | "SAT"
+  | "ACT"
+  | "AP"
+  | "GRE"
+  | "GMAT"
+  | "TOEFL/IELTS"
+  | "JEE/NEET"
+  | "Olympiads";
 
 export interface SearchState {
   exam: ExamType | null;

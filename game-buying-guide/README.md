@@ -38,7 +38,7 @@ Enter a game title and the app fires one browser agent per storefront in paralle
                      │ Promise.allSettled (all parallel)      │
                      └────────────────────────────────────────┘
 
-No database. No cache. No Mino. Pure in-memory — results fetched live.
+No database. No cache. Pure in-memory — results fetched live.
 ```
 
 ### TinyFish SDK event flow
@@ -138,7 +138,7 @@ game-buying-guide/
 | Constraint | Status |
 |---|---|
 | External database used? | NO (pure in-memory) |
-| Mino / raw SSE fetch? | NO (TinyFish SDK throughout) |
+| Raw SSE fetch? | NO (TinyFish SDK throughout) |
 | LLM for platform discovery? | NO (hardcoded store list with templated URLs) |
 | Scraping parallel? | YES (`Promise.allSettled` across 10 platforms + SteamDB) |
 | Live browser preview? | YES (`EventType.STREAMING_URL` → iframe per agent) |

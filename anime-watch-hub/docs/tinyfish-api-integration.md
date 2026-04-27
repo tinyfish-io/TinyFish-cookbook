@@ -1,4 +1,6 @@
-# Anime Watch Hub - TinyFish API Integration Documentation
+# Anime Watch Hub — TinyFish integration
+
+This document describes how **Anime Watch Hub** uses the **TinyFish TypeScript SDK** (`@tiny-fish/sdk`) for parallel per-platform checks. The SDK’s `agent.stream()` call exposes the same **SSE event model** as the HTTP endpoint documented in [Run browser automation with SSE streaming](https://docs.tinyfish.ai/api-reference/automation/run-browser-automation-with-sse-streaming). The Next.js route forwards each event to the browser as `data: {...}\n\n`.
 
 ## Product Architecture Overview
 
@@ -27,7 +29,7 @@ Anime Watch Hub is an application that helps users find where a specific anime i
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    STAGE 2: PARALLEL AVAILABILITY CHECK                      │
-│                   (TinyFish API - 6-8 concurrent calls)                      │
+│                (TinyFish SDK/Agent - 6-8 concurrent calls)                   │
 │                                                                              │
 │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌──────────────┐ │
 │  │ TinyFish       │ │ TinyFish       │ │ TinyFish       │ │ TinyFish     │ │
@@ -58,7 +60,7 @@ Anime Watch Hub is an application that helps users find where a specific anime i
 | Stage | API | Calls Per Search | Purpose |
 |-------|-----|------------------|---------|
 | 1 | OpenAI API | 1 | Generate platform-specific search URLs |
-| 2 | TinyFish API | 6-8 (parallel) | Browse each platform and verify availability |
+| 2 | TinyFish (SDK) | 6-8 (parallel) | Browse each platform and verify availability |
 
 **Total API calls per search: 7-9 calls** (1 OpenAI + 6-8 TinyFish)
 
@@ -69,9 +71,9 @@ Anime Watch Hub is an application that helps users find where a specific anime i
 ### 1. OpenAI API (Platform Discovery)
 - **When called**: Once at the start of each search
 - **Purpose**: Generates intelligent search URLs for each streaming platform
-- **Output feeds into**: TinyFish API calls (provides URLs for browser automation)
+- **Output feeds into**: TinyFish checks (provides URLs for browser automation)
 
-### 2. TinyFish API (Browser Automation)
+### 2. TinyFish (Browser Automation)
 - **When called**: Once per platform, all in parallel
 - **Purpose**: Spawns browser agents that navigate to search URLs and verify anime availability
 - **Depends on**: OpenAI API output (search URLs)
@@ -129,6 +131,7 @@ export async function POST(request: NextRequest) {
 // Returns: Server-Sent Events (SSE) stream
 
 import { NextRequest } from 'next/server';
+import { TinyFish } from '@tiny-fish/sdk';
 
 export async function POST(request: NextRequest) {
   const { animeTitle, platformName, searchUrl } = await request.json();
@@ -160,21 +163,28 @@ Return a JSON object with these fields:
 
 If the anime is NOT found or not available, set available to false and explain why in the message.`;
 
-  // Call TinyFish API with SSE
-  const tinyFishResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
+  const client = new TinyFish({ apiKey });
+
+  const stream = await client.agent.stream({ url: searchUrl, goal });
+
+  const encoder = new TextEncoder();
+  const readable = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of stream) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        }
+      } catch (e) {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ type: 'ERROR', message: 'Stream interrupted' })}\n\n`)
+        );
+      } finally {
+        controller.close();
+      }
     },
-    body: JSON.stringify({
-      url: searchUrl,
-      goal: goal,
-    }),
   });
 
-  // Stream the response back to client
-  return new Response(tinyFishResponse.body, {
+  return new Response(readable, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -204,7 +214,10 @@ async function searchAnime(animeTitle: string) {
   );
 }
 
-async function checkPlatformWithSSE(animeTitle: string, platform: Platform) {
+async function checkPlatformWithSSE(
+  animeTitle: string,
+  platform: { id: string; name: string; searchUrl: string }
+) {
   const response = await fetch('/api/check-platform', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -215,7 +228,7 @@ async function checkPlatformWithSSE(animeTitle: string, platform: Platform) {
     }),
   });
 
-  const reader = response.body.getReader();
+  const reader = response.body!.getReader();
   const decoder = new TextDecoder();
 
   while (true) {
@@ -226,20 +239,17 @@ async function checkPlatformWithSSE(animeTitle: string, platform: Platform) {
     const lines = chunk.split('\n');
 
     for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.slice(6));
+      if (!line.startsWith('data: ')) continue;
+      const data = JSON.parse(line.slice(6));
 
-        // Handle different event types
-        if (data.streaming_url) {
-          // Live browser preview URL available
-          console.log('Browser stream:', data.streaming_url);
-        }
-        if (data.purpose) {
-          console.log('Status update:', data.purpose);
-        }
-        if (data.status === 'COMPLETED') {
-          console.log('Result:', data.result_json);
-        }
+      if (data.type === 'STREAMING_URL' && data.streaming_url) {
+        console.log('Live view:', data.streaming_url);
+      }
+      if (data.type === 'PROGRESS' && data.purpose) {
+        console.log('Progress:', data.purpose);
+      }
+      if (data.type === 'COMPLETE' && data.status === 'COMPLETED') {
+        console.log('Result:', data.result);
       }
     }
   }
@@ -268,7 +278,7 @@ curl -X POST https://your-app.vercel.app/api/check-platform \
   }'
 ```
 
-#### 3. Direct TinyFish API Call
+#### 3. Direct TinyFish API Call (Alternative to SDK)
 
 ```bash
 curl -X POST https://agent.tinyfish.ai/v1/automation/run-sse \
@@ -284,7 +294,7 @@ curl -X POST https://agent.tinyfish.ai/v1/automation/run-sse \
 
 ## Goal (Prompt)
 
-The following is the exact natural language prompt sent to the TinyFish API for each platform check:
+The following is the exact natural language prompt sent to TinyFish browser automation for each platform check:
 
 ```
 You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
@@ -362,49 +372,39 @@ If you encounter a geo-restriction or region block, mention that in the message.
 }
 ```
 
-### TinyFish API SSE Stream Response
+### TinyFish SSE stream (via SDK or `/v1/automation/run-sse`)
 
-The TinyFish API returns a Server-Sent Events (SSE) stream. Here's a simulated sequence of events:
+Events are JSON objects with a `type` field. Typical order: `STARTED` → optional `STREAMING_URL` → repeated `PROGRESS` → `COMPLETE`. See the [official SSE reference](https://docs.tinyfish.ai/api-reference/automation/run-browser-automation-with-sse-streaming).
+
+Example sequence (simplified):
 
 ```
-data: {"streaming_url":"https://agent.tinyfish.ai/stream/sess_abc123"}
+data: {"type":"STARTED","run_id":"run_123","timestamp":"..."}
 
-data: {"purpose":"Navigating to search page..."}
+data: {"type":"STREAMING_URL","run_id":"run_123","streaming_url":"https://...","timestamp":"..."}
 
-data: {"purpose":"Page loaded, dismissing cookie banner..."}
+data: {"type":"PROGRESS","run_id":"run_123","purpose":"Dismissing cookie banner...","timestamp":"..."}
 
-data: {"purpose":"Searching for Attack on Titan..."}
-
-data: {"purpose":"Analyzing search results..."}
-
-data: {"purpose":"Found matching anime series..."}
-
-data: {"status":"COMPLETED","result_json":"{\"available\":true,\"watchUrl\":\"https://www.crunchyroll.com/series/attack-on-titan\",\"subscriptionRequired\":true,\"message\":\"Attack on Titan is available on Crunchyroll. All seasons are available with a Premium subscription.\"}"}
+data: {"type":"COMPLETE","run_id":"run_123","status":"COMPLETED","result":{"available":true,"watchUrl":"https://www.crunchyroll.com/series/attack-on-titan","subscriptionRequired":true,"message":"..."},"timestamp":"..."}
 ```
 
-### Parsed Final Result
+### Parsed final result (inside `COMPLETE`)
+
+The UI reads `data.result` when `type === "COMPLETE"` and `status === "COMPLETED"`:
 
 ```json
 {
   "available": true,
   "watchUrl": "https://www.crunchyroll.com/series/attack-on-titan",
   "subscriptionRequired": true,
-  "message": "Attack on Titan is available on Crunchyroll. All seasons are available with a Premium subscription."
+  "message": "Attack on Titan is available on Crunchyroll."
 }
 ```
 
-### Error Response Example
+### Failure example
 
 ```
-data: {"streaming_url":"https://agent.tinyfish.ai/stream/sess_xyz789"}
-
-data: {"purpose":"Navigating to search page..."}
-
-data: {"purpose":"Page loaded..."}
-
-data: {"purpose":"Searching for Attack on Titan..."}
-
-data: {"status":"COMPLETED","result_json":"{\"available\":false,\"message\":\"Attack on Titan was not found in Disney+ catalog. The search returned no matching anime series.\"}"}
+data: {"type":"COMPLETE","run_id":"run_456","status":"FAILED","error":"...","timestamp":"..."}
 ```
 
 ---
@@ -424,22 +424,18 @@ data: {"status":"COMPLETED","result_json":"{\"available\":false,\"message\":\"At
 - **429 Rate Limit**: Implements retry with exponential backoff and model fallback (gpt-4o-mini with exponential backoff)
 - **Invalid JSON**: Attempts to extract and repair truncated JSON responses
 
-### TinyFish API Errors
-- **503 Service Unavailable**: Check API endpoint URL
-- **Connection timeout**: Individual platform checks fail gracefully without affecting others
-- **SSE stream interruption**: Handled with error event in stream
+### TinyFish / SDK errors
+- **Stream errors**: The route catches failures and emits `{ type: "ERROR", message: "..." }` when the stream cannot complete; the client maps that to an error state.
+- **Per-platform isolation**: One platform failing does not cancel the others (`Promise.all` still resolves; failed agents show `error` status).
+- **Reference**: [Run browser automation with SSE streaming](https://docs.tinyfish.ai/api-reference/automation/run-browser-automation-with-sse-streaming)
 
 ---
 
-## TypeScript Types
+## TypeScript types (app)
+
+`TinyFishAgentState` lives in `lib/types.ts` and drives the per-platform cards. Platform rows from OpenAI are shaped as `{ id, name, searchUrl }` in `hooks/use-anime-search.ts` (not exported from `lib/types`).
 
 ```typescript
-interface StreamingPlatform {
-  id: string;
-  name: string;
-  searchUrl: string;
-}
-
 interface TinyFishAgentState {
   platformId: string;
   platformName: string;
@@ -451,6 +447,7 @@ interface TinyFishAgentState {
     available: boolean;
     watchUrl?: string;
     subscriptionRequired?: boolean;
+    region?: string;
     message?: string;
   };
 }

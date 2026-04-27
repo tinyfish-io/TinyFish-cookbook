@@ -1,3 +1,4 @@
+"use client";
 import { useState } from 'react';
 import { MapPin, Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';

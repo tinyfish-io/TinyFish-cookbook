@@ -38,11 +38,7 @@ export async function POST(req: NextRequest) {
             if (event.status === RunStatus.COMPLETED) {
               // COMPLETED only means the browser ran without crashing
               // — always validate result content, not just the status
-              const raw = event.result;
-              const result =
-                typeof raw === "string"
-                  ? JSON.parse(raw.replace(/```json|```/g, "").trim())
-                  : raw;
+              const result = event.result ?? {};
               send({ type: "COMPLETE", result });
             } else {
               send({ type: "ERROR", error: event.error?.message || "Agent run failed" });

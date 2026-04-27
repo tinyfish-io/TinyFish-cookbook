@@ -101,7 +101,7 @@ bestbet/
 | Constraint | Status |
 |---|---|
 | External database used? | NO (pure in-memory) |
-| Mino / raw SSE fetch? | NO (TinyFish SDK on server-side API route) |
+| Raw SSE fetch? | NO (TinyFish SDK on server-side API route) |
 | API key exposed to browser? | NO (server-side only, no NEXT_PUBLIC_) |
 | Scraping parallel? | YES (Promise.all across all selected sportsbooks) |
 | Live browser preview? | YES (EventType.STREAMING_URL → iframe per agent) |

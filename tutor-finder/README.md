@@ -1,125 +1,151 @@
-# Project Title - Exam Tutor Finder  
+# Tutor Finder
+**Live Demo:** _add URL after deploy_
 
-**Live Link**: https://tinyfishtutorsfinder.lovable.app/ 
+**AI-powered tutor search — parallel TinyFish browser agents scrape multiple tutoring platforms simultaneously and stream results in real time.**
 
-## What This Project Is -
-The Exam Tutor Finder Tool is an AI-powered tutor discovery and comparison platform that helps students find the best competitive exam tutors from across the web in real time.
+Select an exam type and enter your location. The app discovers relevant tutoring websites via the TinyFish Search API, then fires one browser agent per site in parallel — each extracting tutor profiles, rates, ratings, and availability. Results stream back as each site completes.
 
-Instead of manually searching multiple tutoring websites, this system automatically:
+## Architecture
 
-1) Uses AI to discover relevant tutor platforms based on user intent
-
-2) Uses the TinyFish Web Agent to browse tutor websites like a real user
-
-3) Extracts live tutor listings directly from source websites
-
-4) Normalizes tutor data into a structured, comparable format
-
-5) Returns a consolidated list of tutors that can be filtered and compared
-
-The goal is to give students a single place to discover, evaluate, and choose tutors for competitive exams based on exam type, budget, teaching mode, and experience. 
-
-## What to Expect
-
-1) Live tutor data extracted directly from real tutoring websites, ensuring up-to-date listings
-
-2) Fast multi-platform search using parallel browser agents
-
-3) Real-time progress updates while tutor websites are being scanned
-
-4) Clean, structured tutor results in standardized JSON format for easy comparison
-
-5) AI-focused matching to show only relevant tutors for selected competitive exams
-
-6) Easy comparison of tutors based on subjects, experience, teaching mode, and pricing
-
-7) Coverage across multiple global tutor marketplaces in one search
-
-8) Scalable system designed to handle multiple websites efficiently
-
-**Demo Video** - https://drive.google.com/file/d/1GOe82HPSTilV_MGob09oexmoiRhEtfbW/view?usp=sharing 
-
-## Code snippet - 
-```bash
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-API-Key": "sk-mino-YOUR_API_KEY",
-  },
-  body: JSON.stringify({
-    url: "https://www.superprof.com",
-    goal: "Extract tutor listings for competitive exams (SAT, ACT, AP, GRE, GMAT, Olympiads). Return JSON with tutorName, examsTaught, subjects, teachingMode, location, price, experience, qualifications, contactLink.",
-    browser_profile: "lite",
-  }),
-});
-
-const reader = response.body!.getReader();
-const decoder = new TextDecoder();
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-
-  const chunk = decoder.decode(value);
-  for (const line of chunk.split("\n")) {
-    if (line.startsWith("data: ")) {
-      const data = JSON.parse(line.slice(6));
-
-      if (data.streamingUrl) {
-        console.log("Live view:", data.streamingUrl);
-      }
-
-      if (data.type === "COMPLETE" && data.resultJson) {
-        console.log("Tutor Results:", data.resultJson);
-      }
-    }
-  }
-}
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  ExamSelector → LocationInput → TutorResultsGrid            │
+│  AgentPreviewGrid (live iframes) → CompareDashboard         │
+│  (results stream in as agents finish)                       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                  ┌────────┴────────┐
+                  ▼                 ▼
+          POST /api/discover   POST /api/scrape
+                  │                 │
+                  ▼                 ▼
+┌─────────────────────┐  ┌──────────────────────────────────┐
+│ TinyFish Search API │  │        TinyFish SDK              │
+│                     │  │                                  │
+│ Finds tutoring      │  │ client.agent.stream({            │
+│ platform URLs for   │  │   url, goal                      │
+│ exam + location     │  │ })                               │
+│                     │  │                                  │
+│ Falls back to       │  │ EventType.STREAMING_URL          │
+│ hardcoded list if   │  │   → live iframe per agent        │
+│ Search unavailable  │  │ EventType.PROGRESS               │
+│                     │  │   → status updates               │
+│                     │  │ EventType.COMPLETE               │
+│                     │  │   + RunStatus.COMPLETED          │
+│                     │  │   → tutor profiles → SSE         │
+└─────────────────────┘  └──────────────────────────────────┘
+
+No database. No cache. Pure in-memory — results fetched live every search.
+```
+
+### TinyFish SDK event flow
+
+```
+client.agent.stream({ url, goal })
+  │
+  ├── EventType.STREAMING_URL  → live iframe URL forwarded to client
+  ├── EventType.PROGRESS       → status message forwarded to client
+  └── EventType.COMPLETE
+        └── RunStatus.COMPLETED → parse event.result → tutor profiles → SSE
+```
+
+## Supported Exams
+
+SAT, ACT, GRE, GMAT, LSAT, MCAT, AP exams, IB, and more — configurable via the exam selector.
+
+## Scraping Flow
+
+1. User selects exam type and enters location
+2. `/api/discover` calls TinyFish Search API to find relevant tutoring platforms for that exam + location (falls back to a curated list if Search is unavailable)
+3. One TinyFish browser agent fires per discovered site — all in parallel
+4. Each agent extracts up to 10 tutor profiles: name, rate, rating, subjects, availability, profile URL
+5. `EventType.STREAMING_URL` events forward live iframe URLs to the client as agents start
+6. `EventType.COMPLETE` + `RunStatus.COMPLETED` → parse `event.result` → stream profiles to client
+7. UI updates as each site finishes — no waiting for the slowest one
+8. Select tutors and compare side-by-side in the Compare Dashboard
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- TinyFish API key
+
+### Environment Variables
+
+```bash
+cp .env.example .env.local
+```
+
+Then fill in:
+
+```env
+# TinyFish Web Agent API key
+# Get yours at: https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=
+```
+
+### Install & Run
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+## Project Structure
+
+```
+tutor-finder/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx                    # Main UI
+│   │   ├── globals.css
+│   │   └── api/
+│   │       ├── discover/route.ts       # POST — TinyFish Search → tutoring site URLs
+│   │       └── scrape/route.ts         # POST — TinyFish Agent stream → tutor profiles
+│   ├── components/
+│   │   ├── ExamSelector.tsx            # Exam type picker
+│   │   ├── LocationInput.tsx           # Location input
+│   │   ├── AgentPreviewGrid.tsx        # Live agent iframe grid
+│   │   ├── AgentPreviewCard.tsx        # Per-agent status + iframe
+│   │   ├── TutorResultsGrid.tsx        # Tutor profile cards
+│   │   ├── TutorCard.tsx               # Individual tutor card
+│   │   ├── CompareButton.tsx           # Trigger comparison
+│   │   ├── CompareDashboard.tsx        # Side-by-side comparison
+│   │   ├── DiscoveringState.tsx        # Loading state while discovering
+│   │   └── ui/                         # button, dialog, input, label,
+│   │                                   # scroll-area, separator, sheet,
+│   │                                   # skeleton, toast, toggle, tooltip
+│   ├── hooks/
+│   │   └── useTutorSearch.ts           # Search state + SSE client
+│   ├── lib/
+│   │   └── utils.ts
+│   └── types/
+│       └── tutor.ts                    # TypeScript definitions
+├── .env.example
+└── package.json
+```
+
+## Constraint Checklist
+
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Cache layer used? | NO (all results fetched live) |
+| Scraping parallel? | YES (one agent per discovered site, all concurrent) |
+| Live browser preview? | YES (`EventType.STREAMING_URL` → iframe per agent) |
+| Fallback for discovery? | YES (hardcoded platform list if Search API unavailable) |
+| Tutor comparison? | YES (select multiple, compare side-by-side) |
 
 ## Tech Stack
-**Next.js (TypeScript)**
 
-**Mino API**
-
-**AI**
-
-## Architecture Diagram
-```mermaid
-flowchart TB
-
-%% =======================
-%% UI LAYER
-%% =======================
-UI["USER INTERFACE<br/>(React + Tailwind + Lovable)"]
-
-%% =======================
-%% ORCHESTRATION
-%% =======================
-ORCH["Tender Search Orchestration Layer<br/>(Next.js API / Server Actions)"]
-
-%% =======================
-%% SERVICES
-%% =======================
-DB["SUPABASE<br/>(Cached Tenders & Metadata)"]
-MINO["MINO API<br/>(Browser Automation)"]
-
-%% =======================
-%% DETAILS
-%% =======================
-DBD["• Cached tender listings<br/>• Deduplicated tenders<br/>• Historical records"]
-MINOD["• Parallel web agents<br/>• Browse govt tender portals<br/>• Open tender pages<br/>• Extract structured fields<br/>• SSE streaming updates"]
-
-%% =======================
-%% CONNECTIONS
-%% =======================
-UI --> ORCH
-
-ORCH --> DB
-ORCH --> MINO
-
-DB --> DBD
-MINO --> MINOD
-```
-
+- **Framework:** Next.js 15 (App Router), TypeScript, Tailwind CSS
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **URL Discovery:** TinyFish Search API
+- **Icons:** Lucide React
+- **Deployment:** Vercel

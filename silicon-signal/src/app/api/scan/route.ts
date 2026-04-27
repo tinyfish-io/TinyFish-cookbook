@@ -83,8 +83,6 @@ const SCAN_TIMEOUT_MS = 110000; // 110s total scan budget
 
 const scanCache = new Map<string, { expires: number; result: ScanResult }>();
 
-const tinyFishClient = new TinyFish();
-
 const getDirectSearchUrls = (partNumber: string) => [
     { name: 'DigiKey', url: `https://www.digikey.com/en/products/result?keywords=${encodeURIComponent(partNumber)}` },
     { name: 'Mouser', url: `https://www.mouser.com/c/?q=${encodeURIComponent(partNumber)}` },
@@ -184,6 +182,8 @@ export async function POST(request: Request) {
                 try {
                     // Use TinyFish SDK streaming to preserve SSE-style progress and completion events.
                     const run = async (): Promise<SourceSignal> => {
+                        // Initialize client at request time so build does not require TINYFISH_API_KEY.
+                        const tinyFishClient = new TinyFish();
                         const stream = await tinyFishClient.agent.stream({
                             url: source.url,
                             goal: `Find the product listing for ${part_number}. Extract: price, availability/stock status, lead time, lifecycle status. Return as JSON.`,

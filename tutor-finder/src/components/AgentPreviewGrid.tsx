@@ -1,3 +1,4 @@
+"use client";
 import { AgentPreviewCard } from './AgentPreviewCard';
 import type { AgentStatus } from '@/types/tutor';
 

@@ -50,9 +50,9 @@ export function SearchForm({ onSearch, isSearching }: SearchFormProps) {
   const isValid = formData.programType && formData.location;
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto">
-      <div className="bg-card rounded-2xl shadow-card border border-border p-6 md:p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <form onSubmit={handleSubmit} className="w-full max-w-3xl mx-auto">
+      <div className="bg-card rounded-2xl shadow-card border border-border p-5 md:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Program Type */}
           <div className="space-y-2">
             <Label htmlFor="programType" className="flex items-center gap-2 text-sm font-medium">
@@ -130,12 +130,12 @@ export function SearchForm({ onSearch, isSearching }: SearchFormProps) {
           </div>
         </div>
 
-        <div className="mt-8 flex justify-center">
+        <div className="mt-6 flex justify-center">
           <Button
             type="submit"
             size="lg"
             disabled={!isValid || isSearching}
-            className="gradient-orange text-primary-foreground h-14 px-10 text-lg font-semibold shadow-orange hover:opacity-90 transition-opacity"
+            className="gradient-orange text-primary-foreground h-12 px-8 text-base font-semibold shadow-orange hover:opacity-90 transition-opacity"
           >
             {isSearching ? (
               <>

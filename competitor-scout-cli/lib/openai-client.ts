@@ -1,4 +1,8 @@
-import type { Competitor, ResearchGoal } from "./types";
+import type {
+  Competitor,
+  CompetitorEvidenceAssessment,
+  ResearchGoal,
+} from "./types";
 import { ensureLocalEnvLoaded } from "./env";
 
 function getApiKey(): string {
@@ -115,6 +119,72 @@ Provide a clear, concise summary of what was found regarding the research questi
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt },
   ]);
+}
+
+export async function assessAndSummarizeFromFetchedPages(params: {
+  competitorName: string;
+  competitorUrl: string;
+  question: string;
+  searchQuery: string;
+  fetchedPages: { url: string; title?: string | null; text?: string }[];
+}): Promise<CompetitorEvidenceAssessment> {
+  const systemPrompt = `You are a competitive research analyst.
+
+You will be given a user research question about ONE competitor, plus web pages that were fetched from that competitor's domain (or closely related docs pages).
+
+Your tasks:
+1) Decide if the provided pages contain enough evidence to answer the question well enough to be included in a comparison report.
+2) If sufficient, produce a concise, factual markdown summary and a structured JSON payload that can be used for presentation.
+3) If not sufficient, clearly say what is missing and what type of page would likely contain the answer.
+
+Rules:
+- Do NOT invent facts. Only use what is supported by the provided page text.
+- Prefer quoting or paraphrasing exact phrases from the text when making claims.
+- Always include sources: provide the exact URLs you relied on.
+- If the pages are off-domain, low-signal, or don't mention the asked thing, mark insufficient.`;
+
+  const userPrompt = `Competitor: ${params.competitorName}
+Competitor base URL: ${params.competitorUrl}
+User question: "${params.question}"
+Search query used: "${params.searchQuery}"
+
+Fetched pages (markdown/text excerpts):
+${params.fetchedPages
+  .map((p, i) => {
+    const body = (p.text || "").slice(0, 6000);
+    return `\n[${i + 1}] ${p.title ? `${p.title} — ` : ""}${p.url}\n${body}\n`;
+  })
+  .join("\n")}
+
+Return ONLY a JSON object with this shape:
+{
+  "sufficient": boolean,
+  "confidence": "low"|"medium"|"high",
+  "reason": string,
+  "summary_markdown": string,
+  "structured": {
+    "key_points": string[],
+    "comparison_attributes": { [key: string]: string|number|boolean|null },
+    "extracted_entities": any
+  },
+  "sources": [{ "url": string, "title": string? }]
+}
+
+Make summary_markdown short (<= 200 words) and directly answer the question.`;
+
+  const response = await chatCompletion(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    { response_format: { type: "json_object" } }
+  );
+
+  try {
+    return JSON.parse(response) as CompetitorEvidenceAssessment;
+  } catch {
+    throw new Error(`Failed to parse OpenAI assessment JSON: ${response}`);
+  }
 }
 
 export async function generateComparisonReport(

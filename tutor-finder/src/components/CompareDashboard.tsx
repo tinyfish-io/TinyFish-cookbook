@@ -1,7 +1,8 @@
+"use client";
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import type { Tutor } from '@/types/tutor';
 
 interface CompareDashboardProps {
@@ -127,14 +128,8 @@ export function CompareDashboard({ tutors, onClose }: CompareDashboardProps) {
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-border bg-card text-center">
-          <span className="text-sm text-muted-foreground">
-            Powered by <span className="text-primary font-semibold">TinyFish Web Agent</span>
-          </span>
-        </div>
       </div>
     </div>
   );
 }
+

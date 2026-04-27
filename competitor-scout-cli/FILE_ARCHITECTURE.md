@@ -7,7 +7,7 @@ High‑level map of the project and what each file is for.
 ├─ app/
 │  ├─ api/
 │  │  └─ research/
-│  │     └─ route.ts          # API route: orchestrates OpenAI + Tinyfish runs
+│  │     └─ route.ts          # API route: OpenAI + Tinyfish Search→Fetch→LLM, Agent fallback
 │  ├─ globals.css             # Global styles and Tailwind theme tokens
 │  ├─ layout.tsx              # Root layout, fonts, metadata
 │  └─ page.tsx                # Main UI page (competitors, query, results)
@@ -22,7 +22,7 @@ High‑level map of the project and what each file is for.
 ├─ lib/
 │  ├─ env.ts                   # Local env loader for dev
 │  ├─ openai-client.ts         # OpenAI planning + summarization + report
-│  ├─ tinyfish.ts              # TinyFish API client
+│  ├─ tinyfish.ts              # TinyFish SDK: Search, Fetch, Agent (queue + runs)
 │  ├─ types.ts                 # Shared TypeScript types
 │  └─ utils.ts                 # Shared utilities (className helpers, etc.)
 ├─ public/

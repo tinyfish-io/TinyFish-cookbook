@@ -314,5 +314,4 @@ module.exports = {
   logSearch,
   getStats,
   getUserStats,
-  get db() { return db; },
 };

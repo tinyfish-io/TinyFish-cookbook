@@ -1,7 +1,8 @@
 {
-  "name": "my-v0-project",
+  "name": "competitor-scout-cli",
   "version": "1.0.0",
   "private": true,
+  "description": "Competitive research CLI and Next.js UI: OpenAI planning, Tinyfish Search+Fetch with Agent fallback, comparison reports.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -37,6 +38,7 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
+    "@tiny-fish/sdk": "^0.0.7",
     "@vercel/analytics": "1.3.1",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",

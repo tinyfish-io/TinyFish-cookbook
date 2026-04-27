@@ -161,7 +161,7 @@ fast-qa/
 | Constraint | Status |
 |---|---|
 | External database used? | NO (pure in-memory React context) |
-| Mino / raw SSE fetch? | NO (TinyFish SDK throughout) |
+| Raw SSE fetch? | NO (TinyFish SDK throughout) |
 | OpenRouter / AI SDK? | NO (Groq SDK directly) |
 | Test execution parallel? | YES (configurable batch size, `Promise.allSettled`) |
 | Live browser preview? | YES (`EventType.STREAMING_URL` → iframe per agent) |

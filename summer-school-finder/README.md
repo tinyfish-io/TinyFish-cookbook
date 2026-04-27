@@ -1,100 +1,77 @@
-# Project Title - Summer School Comparison tool 
+# Summer School Finder
 
-**Live Link**: https://tinyfishsummerschool.lovable.app
+Discover summer school programs with AI-powered browser agents that scan multiple university sites in parallel.
 
-## About the project - 
-An AI-powered web app that discovers and compares summer school programs from universities around the world in one place. It uses the TinyFish API to automatically browse official program websites in parallel, extract key details in real time, and present up-to-date, structured results to users.
+**Live demo:** _add URL after deploy_
 
-**Demo Video** - https://drive.google.com/file/d/1IHkVxF453SXV3uecvxbeUDMIMr1rTtX7/view?usp=sharing
+## What it does
 
+Search by program type, location, age group, and duration. The app runs two stages:
 
-## Code snippet - 
+1. **Discover** — queries the TinyFish Search API to find relevant program pages
+2. **Scrape** — spins up parallel browser agents (one per URL) that extract structured program data in real time
+
+Results stream in as each agent finishes — you don't wait for all of them.
+
+## Demo
+
+```
+Search: "STEM programs, San Francisco, ages 13-16"
+→ Discovers 8 program URLs
+→ 8 browser agents run in parallel
+→ Results appear as each agent completes
+```
+
+## Architecture
+
+```
+page.tsx  →  /api/discover  →  TinyFish Search API
+          →  /api/scrape    →  TinyFish Agent (stream, one per URL)
+                                ↳ EventType.STARTED
+                                ↳ EventType.STREAMING_URL  (live iframe)
+                                ↳ EventType.PROGRESS
+                                ↳ EventType.COMPLETE → structured JSON
+```
+
+## Run locally
+
 ```bash
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-API-Key": "sk-mino-YOUR_API_KEY",
-  },
-  body: JSON.stringify({
-    url: "https://www.example-summerschool.com/programs",
-    goal: "Extract the top 3–5 summer school programs. Return JSON with schoolName, programName, startDate, endDate, location, ageGroup, fees, applicationDeadline, programFocus, eligibilityCriteria, officialProgramURL.",
-    browser_profile: "lite",
-  }),
-});
+# 1. Install
+npm install
 
-const reader = response.body!.getReader();
-const decoder = new TextDecoder();
+# 2. Set your API key (get one at https://agent.tinyfish.ai/api-keys)
+cp .env.example .env.local
+# add: TINYFISH_API_KEY=your_key_here
 
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
+# 3. Start
+npm run dev
+# → http://localhost:3000
+```
 
-  const chunk = decoder.decode(value);
-  for (const line of chunk.split("\n")) {
-    if (line.startsWith("data: ")) {
-      const data = JSON.parse(line.slice(6));
+## Environment variables
 
-      if (data.streamingUrl) {
-        console.log("Live view:", data.streamingUrl);
-      }
+| Variable | Description |
+|---|---|
+| `TINYFISH_API_KEY` | Required. Covers Search + Agent APIs. Get at [agent.tinyfish.ai/api-keys](https://agent.tinyfish.ai/api-keys) |
 
-      if (data.type === "COMPLETE" && data.resultJson) {
-        console.log("Result:", data.resultJson);
-      }
-    }
+## Key code
+
+**Parallel agents** (`src/hooks/useSummerSchoolSearch.ts`):
+```ts
+await Promise.all(
+  newAgents.map((agent) => runAgent(agent.url, agent.id, searchData))
+);
+```
+
+**SDK streaming** (`src/app/api/scrape/route.ts`):
+```ts
+const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
+const agentStream = await client.agent.stream({ url, goal });
+
+for await (const event of agentStream) {
+  if (event.type === EventType.COMPLETE) {
+    send({ type: "COMPLETE", result: event.result });
+    break; // always break after COMPLETE
   }
 }
 ```
-
-
-## Tech Stack
-**Next.js (TypeScript)**
-
-**Mino API**
-
-**AI**
-
-## Architecture Diagram
-```mermaid
-flowchart TB
-
-%% =======================
-%% UI LAYER
-%% =======================
-UI["USER INTERFACE<br/>(React + Tailwind + Lovable)"]
-
-%% =======================
-%% INTELLIGENCE LAYER
-%% =======================
-AI["AI Requirement Analyzer<br/>(User Preferences → Search Targets)"]
-
-%% =======================
-%% ORCHESTRATION
-%% =======================
-ORCH["Search Orchestration Layer<br/>(Next.js API / Hook)"]
-
-%% =======================
-%% SERVICES
-%% =======================
-DB["SUPABASE<br/>(Cached Results & Metadata)"]
-MINO["MINO API<br/>(Browser Automation)"]
-
-%% =======================
-%% DETAILS
-%% =======================
-DBD["• Cached summer school programs<br/>• Deduplicated & normalized entries"]
-MINOD["• Parallel web agents<br/>• Browse university & program sites<br/>• Extract program details<br/>• SSE streaming"]
-
-%% =======================
-%% CONNECTIONS
-%% =======================
-UI --> AI
-AI --> ORCH
-
-ORCH --> DB
-ORCH --> MINO
-
-DB --> DBD
-MINO --> MINOD
-``` 

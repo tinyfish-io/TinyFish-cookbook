@@ -3,16 +3,15 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
 import { useBikeSearch } from '@/hooks/use-bike-search';
 import type { Bike, BikeShop } from '@/hooks/use-bike-search';
 import { ResultsGrid } from '@/components/results-grid';
 import { LivePreviewGrid } from '@/components/live-preview-grid';
 
 const CITIES = [
-  { name: 'hcmc', label: '🏙️ HCMC' },
-  { name: 'hanoi', label: '🏛️ Hanoi' },
-  { name: 'danang', label: '🌊 Da Nang' },
+  { name: 'hcmc',     label: '🏙️ HCMC' },
+  { name: 'hanoi',    label: '🏛️ Hanoi' },
+  { name: 'danang',   label: '🌊 Da Nang' },
   { name: 'nhatrang', label: '🏖️ Nha Trang' },
 ];
 
@@ -44,7 +43,6 @@ type SortOrder = 'none' | 'price-asc' | 'price-desc';
 function applySortAndFilter(shops: BikeShop[], sortOrder: SortOrder, modelFilter: string): BikeShop[] {
   let result = shops;
 
-  // Filter by model name (case-insensitive partial match)
   if (modelFilter.trim()) {
     const q = modelFilter.trim().toLowerCase();
     result = result
@@ -52,7 +50,6 @@ function applySortAndFilter(shops: BikeShop[], sortOrder: SortOrder, modelFilter
       .filter(shop => shop.bikes.length > 0);
   }
 
-  // Sort bikes within each shop by price, then sort shops by cheapest bike
   if (sortOrder !== 'none') {
     const priceOf = (b: Bike) => b.price_daily_usd ?? (sortOrder === 'price-asc' ? Infinity : -Infinity);
     const cmp = sortOrder === 'price-asc'
@@ -72,23 +69,16 @@ function applySortAndFilter(shops: BikeShop[], sortOrder: SortOrder, modelFilter
 }
 
 export default function Home() {
-  // 4 fixed hook instances — React rules: hooks must be called unconditionally
   const hook0 = useBikeSearch();
   const hook1 = useBikeSearch();
   const hook2 = useBikeSearch();
   const hook3 = useBikeSearch();
   const allHooks = [hook0, hook1, hook2, hook3];
 
-  // activeSlotHookIndices maps slot position → hook index (0-3).
-  // Decoupling slots from hooks lets us remove any slot without shifting hook state.
-  // e.g. [0] = 1 slot using hook0 | [0, 2] = slots using hook0 and hook2
   const [activeSlotHookIndices, setActiveSlotHookIndices] = useState<number[]>([0]);
-
-  // All data keyed by hook index (not slot position) so removes don't corrupt other slots
   const [cities,   setCities]   = useState<(string | null)[]>([null, null, null, null]);
   const [typeSets, setTypeSets] = useState<Set<Bike['type']>[]>([new Set(), new Set(), new Set(), new Set()]);
   const [triggered, setTriggered] = useState<boolean[]>([false, false, false, false]);
-  const [useCache, setUseCache] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>('none');
   const [modelFilter, setModelFilter] = useState('');
 
@@ -97,14 +87,12 @@ export default function Home() {
   const canSearchAll = activeSlotHookIndices.every(hi => !!cities[hi] && typeSets[hi].size > 0) && !anySearching;
   const anyTriggered = activeSlotHookIndices.some(hi => triggered[hi]);
 
-  // ── handlers ────────────────────────────────────────────────────────────────
-
   const handleCitySelect = (slotPos: number, city: string) => {
     if (anySearching) return;
     const hi = activeSlotHookIndices[slotPos];
-    setCities(prev   => prev.map((c, i) => i === hi ? city      : c));
-    setTypeSets(prev => prev.map((t, i) => i === hi ? new Set() : t));
-    setTriggered(prev => prev.map((t, i) => i === hi ? false    : t));
+    setCities(prev    => prev.map((c, i) => i === hi ? city      : c));
+    setTypeSets(prev  => prev.map((t, i) => i === hi ? new Set() : t));
+    setTriggered(prev => prev.map((t, i) => i === hi ? false     : t));
   };
 
   const handleToggleType = (slotPos: number, type: Bike['type']) => {
@@ -113,11 +101,7 @@ export default function Home() {
     setTypeSets(prev => prev.map((set, i) => {
       if (i !== hi) return set;
       const next = new Set(set);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
+      next.has(type) ? next.delete(type) : next.add(type);
       return next;
     }));
   };
@@ -125,7 +109,7 @@ export default function Home() {
   const handleSearchAll = () => {
     if (!canSearchAll) return;
     setTriggered(prev => prev.map((t, i) => activeSlotHookIndices.includes(i) ? true : t));
-    activeSlotHookIndices.forEach(hi => allHooks[hi].search(cities[hi]!, useCache));
+    activeSlotHookIndices.forEach(hi => allHooks[hi].search(cities[hi]!));
   };
 
   const handleCancelAll = () => {
@@ -137,7 +121,6 @@ export default function Home() {
     const used = new Set(activeSlotHookIndices);
     const freeHook = [0, 1, 2, 3].find(i => !used.has(i));
     if (freeHook === undefined) return;
-    // Reset data for the recycled hook so it starts clean
     setCities(prev    => prev.map((c, i) => i === freeHook ? null      : c));
     setTypeSets(prev  => prev.map((t, i) => i === freeHook ? new Set() : t));
     setTriggered(prev => prev.map((t, i) => i === freeHook ? false     : t));
@@ -153,8 +136,6 @@ export default function Home() {
     setTriggered(prev => prev.map((t, i) => i === hi ? false     : t));
     setActiveSlotHookIndices(prev => prev.filter((_, i) => i !== slotPos));
   };
-
-  // ── render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-white text-zinc-950 font-sans">
@@ -173,7 +154,6 @@ export default function Home() {
           {activeSlotHookIndices.map((hi, slotPos) => (
             <div key={hi} className="border border-zinc-200 rounded-xl p-5 space-y-5">
 
-              {/* Slot header */}
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
                   {slotCount > 1 ? `Search ${slotPos + 1}` : 'Search'}
@@ -236,7 +216,6 @@ export default function Home() {
             </div>
           ))}
 
-          {/* Add another city */}
           {slotCount < MAX_SLOTS && (
             <button
               onClick={handleAddSlot}
@@ -248,7 +227,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Search / Cancel + cache toggle */}
+        {/* Search / Cancel */}
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -278,22 +257,9 @@ export default function Home() {
                 : 'Each search needs a city and at least one bike type.'}
             </p>
           )}
-
-          <div className="flex items-center gap-3">
-            <Switch
-              id="cache-toggle"
-              checked={useCache}
-              onCheckedChange={setUseCache}
-              disabled={anySearching}
-            />
-            <label htmlFor="cache-toggle" className="text-sm text-zinc-600 cursor-pointer select-none">
-              {useCache ? '⚡ Cached results (faster)' : '🔴 Live scraping (shows TinyFish in action)'}
-            </label>
-          </div>
         </div>
 
-        {/* Per-slot results */}
-        {/* Sort & filter toolbar — only show when there are results */}
+        {/* Sort & filter toolbar */}
         {anyTriggered && activeSlotHookIndices.some(hi => allHooks[hi].state.shops.length > 0) && (
           <div className="flex flex-wrap items-center gap-3 py-3 px-4 bg-zinc-50 rounded-xl border border-zinc-100">
             <div className="flex items-center gap-1.5">
@@ -330,21 +296,20 @@ export default function Home() {
           </div>
         )}
 
+        {/* Per-slot results */}
         {anyTriggered ? (
           <div className="flex flex-col gap-12">
             {activeSlotHookIndices.map((hi) => {
               if (!triggered[hi]) return null;
-              const hook       = allHooks[hi];
-              const filtered   = applySortAndFilter(filterShops(hook.state.shops, typeSets[hi]), sortOrder, modelFilter);
-              const noMatches  = typeSets[hi].size > 0 && hook.state.shops.length > 0 && filtered.length === 0;
-              const hasLiveResults = filtered.length > 0;
-              const cityLabel  = cities[hi] ? CITY_LABELS[cities[hi]!] : '';
-              const typeLabel  = Array.from(typeSets[hi]).join(', ');
+              const hook      = allHooks[hi];
+              const filtered  = applySortAndFilter(filterShops(hook.state.shops, typeSets[hi]), sortOrder, modelFilter);
+              const noMatches = typeSets[hi].size > 0 && hook.state.shops.length > 0 && filtered.length === 0;
+              const cityLabel = cities[hi] ? CITY_LABELS[cities[hi]!] : '';
+              const typeLabel = Array.from(typeSets[hi]).join(', ');
 
               return (
                 <div key={hi} className="space-y-4">
 
-                  {/* Section divider — only in multi-slot mode */}
                   {slotCount > 1 && (
                     <div className="flex items-center gap-3">
                       <h2 className="text-base font-semibold text-zinc-700 shrink-0">
@@ -360,16 +325,11 @@ export default function Home() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm text-zinc-600">
                         <span>
-                          {hook.state.isSearching
-                            ? 'Searching…'
-                            : hook.state.cachedCount > 0 && hook.state.cachedCount === hook.state.progress.total
-                              ? '⚡ Instant results from cache'
-                              : `Search complete — ${hook.state.elapsed || '0s'}`}
+                          {hook.state.isSearching ? 'Searching…' : `Search complete — ${hook.state.elapsed || '0s'}`}
                         </span>
                         <span>
                           {hook.state.progress.completed}
                           {hook.state.progress.total ? `/${hook.state.progress.total}` : ''} shops
-                          {hook.state.cachedCount > 0 && ` (${hook.state.cachedCount} cached)`}
                         </span>
                       </div>
                       <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
@@ -392,32 +352,29 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Partial results stream in as shops finish */}
-                  {hasLiveResults && (
+                  {/* Results stream in as shops finish */}
+                  {filtered.length > 0 && (
                     <div className="space-y-3">
                       {hook.state.isSearching && (
                         <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                          Incoming results — finished shops appear here immediately while the rest keep searching.
+                          Incoming results — finished shops appear here while the rest keep searching.
                         </div>
                       )}
                       <ResultsGrid shops={filtered} />
                     </div>
                   )}
 
-                  {/* Explain the "nothing yet" state while shops are still finishing */}
                   {hook.state.isSearching && noMatches && (
                     <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-100 rounded-xl bg-zinc-50/60">
                       {hook.state.progress.completed} shop{hook.state.progress.completed === 1 ? '' : 's'} finished, but none match your selected bike type yet.
                     </div>
                   )}
 
-                  {/* Live browser agent iframes */}
                   {hook.state.streamingUrls.length > 0 && (
                     <LivePreviewGrid previews={hook.state.streamingUrls} />
                   )}
 
-                  {/* Loading skeletons */}
                   {hook.state.isSearching && hook.state.shops.length === 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {[1, 2, 3, 4].map(i => (
@@ -426,21 +383,18 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Error */}
                   {hook.state.error && (
                     <div className="p-4 bg-red-50 text-red-600 rounded-md border border-red-100">
                       Error: {hook.state.error}
                     </div>
                   )}
 
-                  {/* No results from API */}
                   {!hook.state.isSearching && hook.state.elapsed && hook.state.shops.length === 0 && (
                     <div className="text-center py-12 text-zinc-400 border-2 border-dashed border-zinc-100 rounded-xl">
                       No results found. Try another city or try again.
                     </div>
                   )}
 
-                  {/* Filter mismatch */}
                   {noMatches && (
                     <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-100 rounded-xl">
                       No bikes match your filter. Try selecting more types.
@@ -451,7 +405,6 @@ export default function Home() {
             })}
           </div>
         ) : (
-          /* Initial empty state */
           <div className="text-center py-12 text-zinc-400 border-2 border-dashed border-zinc-100 rounded-xl">
             {!cities[activeSlotHookIndices[0]]
               ? 'Select a city to get started'

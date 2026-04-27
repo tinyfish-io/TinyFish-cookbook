@@ -30,17 +30,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
-
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.env*.local
+.env
+.env.local
+.env.*.local
 
 # Son Le speaker brief (personal, not project docs)
 /docs-sonle/
+

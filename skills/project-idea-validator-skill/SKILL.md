@@ -44,25 +44,25 @@ If not authenticated, stop and tell the user:
 >
 > **Option 2 — PowerShell (current session only):**
 > ```powershell
-> $env:TINYFISH_API_KEY="sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg"
+> $env:TINYFISH_API_KEY="your_api_key_here"
 > ```
 >
 > **Option 3 — PowerShell (persist across sessions):**
 > ```powershell
-> [System.Environment]::SetEnvironmentVariable("TINYFISH_API_KEY", "sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg", "User")
+> [System.Environment]::SetEnvironmentVariable("TINYFISH_API_KEY", "your_api_key_here", "User")
 > ```
 > Then close and reopen PowerShell for it to take effect.
 >
 > **Option 4 — bash/zsh (Mac/Linux):**
 > ```bash
-> export TINYFISH_API_KEY="sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg"
+> export TINYFISH_API_KEY="your_api_key_here"
 > ```
 >
 > **Option 5 — Claude Code settings:** Add to `~/.claude/settings.local.json`:
 > ```json
 > {
 >   "env": {
->     "TINYFISH_API_KEY": "sk-tinyfish-k7KpC3TypJEAwK4j1yN0Ww7yB8h7VPLg"
+>     "TINYFISH_API_KEY": "your_api_key_here"
 >   }
 > }
 > ```

@@ -23,7 +23,7 @@ Select a city (HCMC, Hanoi, or Da Nang). The app fires parallel browser agents a
                   ▼                 ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    TinyFish SDK                             │
-│  browser_profile: STEALTH  +  proxy_config: VN              │
+│  browser_profile: STEALTH                                    │
 │                                                             │
 │  /api/search — parallel agents (Promise.allSettled)         │
 │    Agent → chotot.com/HCMC listings                         │
@@ -143,7 +143,7 @@ district-rent-shark/
 |---|---|
 | External database used? | NO (pure in-memory, Supabase fully removed) |
 | Cache layer used? | NO (all results fetched live) |
-| Stealth + proxy for protected sites? | YES (`BrowserProfile.STEALTH` + `proxy_config: VN`) |
+| Stealth for protected sites? | YES (`BrowserProfile.STEALTH`) |
 | Rental agents parallel? | YES (`Promise.allSettled` across sites) |
 | Vibe agents staggered? | YES (2s between districts — Google Maps anti-bot) |
 | Live browser preview? | YES (`STREAMING_URL` → iframe per agent) |
@@ -153,7 +153,7 @@ district-rent-shark/
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4
-- **Browser Agents:** TinyFish SDK (`client.agent.stream`, stealth + VN proxy)
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`, stealth mode)
 - **Map:** Mapbox GL + react-map-gl (optional)
 - **Icons:** Lucide React
 - **Tests:** Vitest

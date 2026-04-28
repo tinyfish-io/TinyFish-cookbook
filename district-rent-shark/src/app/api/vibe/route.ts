@@ -3,8 +3,6 @@ export const maxDuration = 800;
 
 import {
   BrowserProfile,
-  type ProxyConfig,
-  ProxyCountryCode,
   RunStatus,
   TinyFish,
 } from "@tiny-fish/sdk";
@@ -15,10 +13,6 @@ import {
 
 const REQUEST_TIMEOUT_MS = 780_000;
 const REQUEST_STAGGER_MS = 2000; // 2s between districts — Google Maps anti-bot
-const TINYFISH_PROXY_CONFIG: ProxyConfig = {
-  enabled: true,
-  country_code: "VN" as unknown as ProxyCountryCode,
-};
 
 const CITY_DISTRICTS: Record<
   string,
@@ -111,7 +105,6 @@ async function runAgentForDistrict(
       url: mapsUrl,
       goal: buildVibeGoalPrompt(district.name, city),
       browser_profile: BrowserProfile.STEALTH,
-      proxy_config: TINYFISH_PROXY_CONFIG,
     });
 
     let resultJson: unknown;

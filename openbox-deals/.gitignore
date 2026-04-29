@@ -1,7 +1,21 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment files
 .env
-venv/
-__pycache__/
-*.pyc
-.vscode/
-.idea/
+.env.local
+.env.*.local
+
+# Build outputs
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# OS
 .DS_Store
+Thumbs.db

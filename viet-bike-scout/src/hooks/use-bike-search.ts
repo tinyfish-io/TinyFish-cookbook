@@ -21,8 +21,6 @@ export interface BikeShop {
   website: string;
   bikes: Bike[];
   notes: string | null;
-  source?: 'cache' | 'live';
-  cached_at?: string;
 }
 
 export interface StreamingPreview {
@@ -37,7 +35,6 @@ export interface SearchState {
   progress: { completed: number; total: number };
   error: string | null;
   elapsed: string | null;
-  cachedCount: number;
   streamingUrls: StreamingPreview[];
 }
 
@@ -70,7 +67,6 @@ const normalizeType = (raw: unknown): Bike['type'] => {
 function normalizeShop(raw: unknown): BikeShop {
   const obj = raw as Record<string, unknown>;
 
-  // Convert VND to USD if price > 1000 (assume VND, 1 USD = 25,000 VND)
   const convertPrice = (val: unknown): number | null => {
     if (val === null || val === undefined || val === '') return null;
     const n = Number(val);
@@ -78,7 +74,6 @@ function normalizeShop(raw: unknown): BikeShop {
     return n > 1000 ? Math.round(n / 25000) : n;
   };
 
-  // Ensure bikes is always an array
   let bikes: unknown[] = [];
   if (Array.isArray(obj.bikes)) {
     bikes = obj.bikes;
@@ -86,15 +81,11 @@ function normalizeShop(raw: unknown): BikeShop {
     bikes = [obj.bikes];
   }
 
-  // Normalize each bike and filter out bikes with no name
   const normalizedBikes: Bike[] = bikes
     .map((bike) => {
       const b = bike as Record<string, unknown>;
       const name = String(b.name || '').trim();
-
-      // Skip bikes with no name
       if (!name) return null;
-
       return {
         name,
         engine_cc: b.engine_cc ? Number(b.engine_cc) : null,
@@ -119,18 +110,13 @@ function normalizeShop(raw: unknown): BikeShop {
   };
 }
 
-function markStreamingPreviewDone(
-  previews: StreamingPreview[],
-  siteUrl: string,
-): StreamingPreview[] {
-  return previews.map((preview) =>
-    preview.siteUrl === siteUrl ? { ...preview, done: true } : preview
-  );
+function markStreamingPreviewDone(previews: StreamingPreview[], siteUrl: string): StreamingPreview[] {
+  return previews.map((p) => (p.siteUrl === siteUrl ? { ...p, done: true } : p));
 }
 
 export function useBikeSearch(): {
   state: SearchState;
-  search: (city: string, useCache?: boolean) => void;
+  search: (city: string) => void;
   abort: () => void;
 } {
   const [state, setState] = useState<SearchState>({
@@ -139,7 +125,6 @@ export function useBikeSearch(): {
     progress: { completed: 0, total: 0 },
     error: null,
     elapsed: null,
-    cachedCount: 0,
     streamingUrls: [],
   });
 
@@ -147,29 +132,22 @@ export function useBikeSearch(): {
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
   const abort = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    if (readerRef.current) {
-      readerRef.current.cancel();
-      readerRef.current = null;
-    }
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    readerRef.current?.cancel();
+    readerRef.current = null;
   }, []);
 
   const search = useCallback(
-    (city: string, useCache?: boolean) => {
-      // Abort any in-flight request
+    (city: string) => {
       abort();
 
-      // Reset state
       setState({
         shops: [],
         isSearching: true,
         progress: { completed: 0, total: 0 },
         error: null,
         elapsed: null,
-        cachedCount: 0,
         streamingUrls: [],
       });
 
@@ -181,17 +159,12 @@ export function useBikeSearch(): {
           const response = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ city, useCache: useCache ?? false }),
+            body: JSON.stringify({ city }),
             signal: controller.signal,
           });
 
-          if (!response.ok) {
-            throw new Error(`Search failed: ${response.status}`);
-          }
-
-          if (!response.body) {
-            throw new Error('Response body is empty');
-          }
+          if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+          if (!response.body) throw new Error('Response body is empty');
 
           const reader = response.body.getReader();
           readerRef.current = reader;
@@ -207,9 +180,7 @@ export function useBikeSearch(): {
             buffer = lines.pop() ?? '';
 
             for (const line of lines) {
-              if (!line.startsWith('data: ')) {
-                continue;
-              }
+              if (!line.startsWith('data: ')) continue;
 
               let event: Record<string, unknown>;
               try {
@@ -218,81 +189,57 @@ export function useBikeSearch(): {
                 continue;
               }
 
-              if (event.type === 'STREAMING_URL') {
-                const MAX_IFRAMES_PER_SEARCH = 5;
+              if (event.type === 'SEARCH_STARTED') {
+                // Set total immediately so progress bar is accurate from the start
+                setState((prev) => ({
+                  ...prev,
+                  progress: { ...prev.progress, total: Number(event.total ?? 0) },
+                }));
+              } else if (event.type === 'STREAMING_URL') {
+                const MAX_IFRAMES = 5;
                 setState((prev) => {
                   const url = String(event.siteUrl || '');
                   const streamingUrl = String(event.streaming_url || '');
-
                   if (!streamingUrl) return prev;
-                  // Dedup: skip if we already have a streaming URL for this site
-                  if (prev.streamingUrls.some(s => s.siteUrl === url)) return prev;
-                  // Hard cap: don't accumulate more than MAX_IFRAMES_PER_SEARCH
-                  if (prev.streamingUrls.length >= MAX_IFRAMES_PER_SEARCH) return prev;
+                  if (prev.streamingUrls.some((s) => s.siteUrl === url)) return prev;
+                  if (prev.streamingUrls.length >= MAX_IFRAMES) return prev;
                   return {
                     ...prev,
-                    streamingUrls: [
-                      ...prev.streamingUrls,
-                      {
-                        siteUrl: url,
-                        streamingUrl,
-                        done: false,
-                      },
-                    ],
+                    streamingUrls: [...prev.streamingUrls, { siteUrl: url, streamingUrl, done: false }],
                   };
                 });
               } else if (event.type === 'SHOP_RESULT') {
                 const shop = normalizeShop(event.shop);
-                shop.source = (event.source as BikeShop['source']) ?? 'live';
-                shop.cached_at = event.cached_at ? String(event.cached_at) : undefined;
                 setState((prev) => ({
                   ...prev,
                   shops: [...prev.shops, shop],
-                  progress: {
-                    ...prev.progress,
-                    completed: prev.progress.completed + 1,
-                  },
-                  streamingUrls: markStreamingPreviewDone(
-                    prev.streamingUrls,
-                    String(event.siteUrl || ''),
-                  ),
+                  progress: { ...prev.progress, completed: prev.progress.completed + 1 },
+                  streamingUrls: markStreamingPreviewDone(prev.streamingUrls, String(event.siteUrl || '')),
                 }));
               } else if (event.type === 'STREAMING_DONE') {
                 setState((prev) => ({
                   ...prev,
-                  streamingUrls: markStreamingPreviewDone(
-                    prev.streamingUrls,
-                    String(event.siteUrl || ''),
-                  ),
+                  streamingUrls: markStreamingPreviewDone(prev.streamingUrls, String(event.siteUrl || '')),
                 }));
               } else if (event.type === 'SEARCH_COMPLETE') {
-                const total = Number(event.total ?? 0);
-                const elapsed = String(event.elapsed ?? '');
-                const cachedCount = Number(event.cached ?? 0);
                 setState((prev) => ({
                   ...prev,
                   isSearching: false,
-                  progress: { ...prev.progress, total },
-                  elapsed,
-                  cachedCount,
-                  streamingUrls: prev.streamingUrls.map((preview) => ({
-                    ...preview,
-                    done: true,
-                  })),
+                  progress: { ...prev.progress, total: Number(event.total ?? prev.progress.total) },
+                  elapsed: String(event.elapsed ?? ''),
+                  streamingUrls: prev.streamingUrls.map((p) => ({ ...p, done: true })),
                 }));
               }
             }
           }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {
-            // User aborted, don't set error
             setState((prev) => ({ ...prev, isSearching: false }));
           } else {
-            const errorMsg = err instanceof Error ? err.message : 'Unknown error';
             setState((prev) => ({
               ...prev,
               isSearching: false,
-              error: errorMsg,
+              error: err instanceof Error ? err.message : 'Unknown error',
             }));
           }
         } finally {
@@ -303,12 +250,7 @@ export function useBikeSearch(): {
     [abort]
   );
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      abort();
-    };
-  }, [abort]);
+  useEffect(() => () => abort(), [abort]);
 
   return { state, search, abort };
 }

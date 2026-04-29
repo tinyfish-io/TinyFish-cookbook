@@ -1,0 +1,22 @@
+{
+  "name": "tinyfish",
+  "version": "1.0.0",
+  "description": "The complete web toolkit for your agent. Search the web and get answers in milliseconds. Fetch any URL and get clean markdown content back. Send a browser agent to navigate sites, fill forms, and extract structured data. Spin up a headless browser for full programmatic control when you need it.",
+  "author": {
+    "name": "TinyFish",
+    "email": "support@tinyfish.io",
+    "url": "https://tinyfish.ai"
+  },
+  "homepage": "https://docs.tinyfish.ai",
+  "repository": "https://github.com/tinyfish-io/tinyfish-cookbook",
+  "license": "MIT",
+  "keywords": [
+    "web-automation",
+    "web-agent",
+    "browser-automation",
+    "web-scraping",
+    "data-extraction",
+    "search",
+    "fetch"
+  ]
+}

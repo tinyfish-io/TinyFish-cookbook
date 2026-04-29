@@ -12,11 +12,6 @@ vi.mock("@tiny-fish/sdk", () => ({
   TinyFish: tinyFishCtorMock,
 }));
 
-vi.mock("@/lib/supabase", () => ({
-  getSupabaseAdmin: () => {
-    throw new Error("Supabase not configured");
-  },
-}));
 
 async function importRoute() {
   vi.resetModules();

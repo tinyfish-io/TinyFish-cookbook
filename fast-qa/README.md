@@ -1,204 +1,177 @@
-# Fast QA - No-Code Testing Dashboard
+# Fast QA
+**Live Demo:** _add URL after deploy_
 
-**Live Demo:** https://fastqa.vercel.app/
+**AI-powered QA test execution platform — describe tests in plain English, run them as parallel browser agents, and get structured pass/fail results with AI-generated summaries.**
 
-Fast QA is a no-code QA testing platform where users describe tests in plain English, AI converts them to structured test cases, and **Mino API** executes all tests in parallel with live browser previews. The system tracks pass/fail rates and generates AI-powered bug reports for failures.
+Write test cases in plain English (e.g. "Go to the login page, enter valid credentials, verify the dashboard loads"). Groq parses them into structured steps, TinyFish browser agents execute them against your website in parallel, and Groq summarises the results with bullet-point explanations of what passed or failed.
 
----
+## Architecture
 
-## Demo
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  ProjectCard → TestCaseList → TestExecutionGrid             │
+│  AITestGenerator → TestResultsTable → TestCaseDetail        │
+│  (results stream in as agents finish)                       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+     ┌─────────────────────┼──────────────────────┐
+     ▼                     ▼                      ▼
+/api/generate-tests   /api/parse-test      /api/execute-tests
+/api/generate-report       │                      │
+     │                     ▼                      ▼
+     ▼              ┌─────────────┐    ┌──────────────────────┐
+┌──────────┐        │  Groq LLM   │    │    TinyFish SDK       │
+│ Groq LLM │        │             │    │                      │
+│          │        │ Parse plain │    │ client.agent.stream  │
+│ Generate │        │ English →   │    │ per test case        │
+│ test     │        │ structured  │    │                      │
+│ cases    │        │ steps       │    │ EventType.STREAMING  │
+│ from raw │        └─────────────┘    │   _URL → live iframe │
+│ text     │                           │ EventType.PROGRESS   │
+│          │                           │   → step updates     │
+│ Generate │                           │ EventType.COMPLETE   │
+│ bug      │                           │ + RunStatus.COMPLETED│
+│ reports  │                           │   → result → SSE     │
+└──────────┘                           │                      │
+                                       │ Promise.allSettled   │
+                                       │ (batch parallel)     │
+                                       └──────────────────────┘
 
-![Fast QA Dashboard - Parallel Test Execution](./demo-screenshot.jpg)
-
-*Parallel test execution with live browser previews and real-time SSE streaming*
-
----
-
-## How Mino API is Used
-
-The Mino API powers the parallel browser automation for test execution. Each test case sends a structured goal prompt to Mino, which executes the steps in a real browser and streams back live progress + results.
-
-### Code Snippet
-
-From `app/api/execute-tests/route.ts`:
-
-```typescript
-// Execute tests in batches based on parallelLimit
-const batches: TestCase[][] = [];
-for (let i = 0; i < testCases.length; i += parallelLimit) {
-  batches.push(testCases.slice(i, i + parallelLimit));
-}
-
-for (const batch of batches) {
-  // Execute batch in parallel
-  const batchPromises = batch.map(async (testCase) => {
-    const result = await executeTestCase(testCase, websiteUrl, apiKey, settings, sendEvent);
-    results.push(result);
-    return result;
-  });
-  await Promise.all(batchPromises);
-}
-
-// Individual test execution with Mino
-async function executeTestCase(testCase, websiteUrl, apiKey, settings, sendEvent) {
-  const goal = buildGoalFromTestCase(testCase);
-  
-  const minoResponse = await runMinoAutomation({
-    url: websiteUrl,
-    goal, // Structured test prompt with expected outcome
-    browser_profile: settings?.browserProfile || "lite",
-  }, apiKey, {
-    onStreamingUrl: async (streamingUrl) => {
-      await sendEvent({ type: "streaming_url", testCaseId, data: { streamingUrl } });
-    },
-    onStep: async (step) => {
-      await sendEvent({ type: "step_progress", testCaseId, data: { stepDescription: step } });
-    },
-  });
-  // ... process result and send test_complete event
-}
+No database. No cache. Pure in-memory — state managed in React context.
 ```
 
-### Example Mino Goal Prompt
+### TinyFish SDK event flow
 
-```markdown
-Navigate to the login page at /login. Enter "user@example.com" in the email field and "SecurePass123" in the password field. Click the "Sign In" button.
-
-Expected outcome: User should be logged in and redirected to the dashboard page showing "Welcome back, User".
-
-After completing the steps, verify that the expected outcome is met. Return a JSON object with { "success": true/false, "reason": "explanation" }
+```
+client.agent.stream({ url, goal, browser_profile })
+  │
+  ├── EventType.STREAMING_URL → live iframe URL → SSE → client
+  ├── EventType.PROGRESS      → step description → SSE → client
+  └── EventType.COMPLETE
+        └── RunStatus.COMPLETED
+              // COMPLETED only means the browser ran without crashing
+              // — always validate result content, not just the status
+              → parse event.result → { success, reason, extractedData }
+              → Groq generates bullet-point summary if no reason returned
+              → test_complete → SSE → client
 ```
 
----
+### Groq usage
 
-## How to Run
+```
+groq-client.ts:
+  parseTestDescription()     → plain English → structured test steps
+  generateTestsFromText()    → raw requirements → test case list
+  generateBugReport()        → failed test → structured bug report
+  generateTestResultSummary() → test outcome → bullet-point explanation
+```
+
+## Features
+
+- **Plain English tests** — describe what to test, Groq structures it into steps
+- **Bulk generation** — paste requirements or feature descriptions, get a full test suite
+- **Parallel execution** — configurable batch size (1–10 concurrent agents)
+- **Live browser preview** — watch each agent navigate in real time via iframe
+- **AI result summaries** — Groq explains why each test passed or failed
+- **Bug report generation** — one-click structured bug reports for failed tests
+- **PII sanitisation** — email, phone, and card numbers redacted before sending to Groq
+
+## Setup
 
 ### Prerequisites
 
-- Node.js 18+
-- Mino API key (get from [mino.ai](https://mino.ai))
-- OpenRouter API key (for AI test generation)
+- Node.js 22.x
+- TinyFish API key
+- Groq API key
 
-### Setup
+### Environment Variables
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/tinyfish-io/TinyFish-cookbook
-cd TinyFish-cookbook/fast-qa
+cp .env.example .env.local
 ```
 
-2. Install dependencies:
+Then fill in:
+
+```env
+# TinyFish Web Agent API key (server-side only)
+# Get yours at: https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=
+
+# Groq API key — used for test generation, parsing, and result summaries
+# Get yours at: https://console.groq.com
+GROQ_API_KEY=
+```
+
+### Install & Run
+
 ```bash
 npm install
-```
-
-3. Create `.env.local` file:
-```bash
-# Mino API Key (required for test execution)
-TINYFISH_API_KEY=sk-mino-...
-
-# OpenRouter API Key (required for AI test generation)
-OPENROUTER_API_KEY=sk-or-...
-```
-
-4. Run the development server:
-```bash
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+Open http://localhost:3000
 
----
+## Project Structure
 
-## Architecture Diagram
-
-### System Overview
-
-```mermaid
-graph TD
-    subgraph Frontend [Next.js Client]
-        UI[Dashboard UI - Projects/Tests/Execution]
-        Context[QA Context - State Management]
-        LS[(LocalStorage - Persistence)]
-    end
-
-    subgraph Backend [Next.js API Routes]
-        GenTests[/api/generate-tests]
-        ExecTests[/api/execute-tests]
-        GenReport[/api/generate-report]
-    end
-
-    subgraph External_APIs [External Services]
-        OpenRouter[OpenRouter AI - MiniMax M2.1]
-        Mino[Mino API - Browser Automation]
-    end
-
-    %% User Interactions
-    UI -->|Plain English Tests| GenTests
-    UI -->|Run Selected Tests| ExecTests
-    UI -->|Request Bug Report| GenReport
-    
-    %% State Management
-    Context <-->|Read/Write| LS
-    
-    %% AI Services
-    GenTests -->|Generate Test Cases| OpenRouter
-    GenReport -->|Generate Bug Report| OpenRouter
-    
-    %% Automation
-    ExecTests -->|Parallel Execution| Mino
-    Mino --.->|SSE: Live Preview + Progress| UI
-    Mino --.->|Test Results JSON| ExecTests
-    ExecTests --.->|Consolidated SSE| UI
+```
+fast-qa/
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx                          # Main UI
+│   ├── globals.css
+│   └── api/
+│       ├── generate-tests/route.ts       # POST — Groq: raw text → test cases
+│       ├── parse-test/route.ts           # POST — Groq: plain English → steps
+│       ├── execute-tests/route.ts        # POST — TinyFish SDK → SSE stream
+│       └── generate-report/route.ts      # POST — Groq: failed test → bug report
+├── components/
+│   ├── qa/
+│   │   ├── ai-test-generator.tsx         # Bulk test generation UI
+│   │   ├── dashboard-layout.tsx          # App shell
+│   │   ├── project-card.tsx              # Project summary card
+│   │   ├── project-dialog.tsx            # Create/edit project
+│   │   ├── settings-panel.tsx            # Browser profile, parallel limit, proxy
+│   │   ├── test-case-detail.tsx          # Test case detail view
+│   │   ├── test-case-editor.tsx          # Create/edit test case
+│   │   ├── test-case-list.tsx            # Test case list
+│   │   ├── test-execution-grid.tsx       # Live agent grid during execution
+│   │   └── test-results-table.tsx        # Results table with bug report trigger
+│   └── ui/                               # accordion, alert, alert-dialog, badge,
+│                                         # button, card, checkbox, dialog,
+│                                         # dropdown-menu, input, label, progress,
+│                                         # select, skeleton, switch, table,
+│                                         # textarea, tooltip
+├── hooks/
+│   └── hooks.ts                          # Custom hooks
+├── lib/
+│   ├── groq-client.ts                    # Groq LLM — test gen, parse, summaries
+│   ├── qa-context.tsx                    # React context for QA state
+│   └── utils.ts                          # Shared helpers
+├── types/
+│   └── index.ts                          # TypeScript definitions
+├── .env.example
+├── .gitignore
+└── package.json
 ```
 
-### Parallel Execution Flow
+## Constraint Checklist
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant A as API (/api/execute-tests)
-    participant M as Mino (Parallel Agents)
-    participant AI as OpenRouter (AI Summary)
-    
-    U->>A: Run 5 Selected Tests
-    A->>A: Split into Batches (parallelLimit: 3)
-    
-    par Batch 1 (Tests 1-3)
-        A->>M: Execute Test 1
-        M-->>U: SSE: streaming_url (Live Preview)
-        M-->>U: SSE: step_progress
-        M-->>A: Test Result JSON
-        A->>AI: Generate Result Summary
-        A-->>U: SSE: test_complete
-    and
-        A->>M: Execute Test 2
-        M-->>U: SSE Events
-        A-->>U: SSE: test_complete
-    and
-        A->>M: Execute Test 3
-        M-->>U: SSE Events
-        A-->>U: SSE: test_complete
-    end
-    
-    Note over A: Batch 1 Complete, Start Batch 2
-    
-    par Batch 2 (Tests 4-5)
-        A->>M: Execute Test 4
-        A->>M: Execute Test 5
-    end
-    
-    A->>U: SSE: all_complete (Summary)
-```
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory React context) |
+| Raw SSE fetch? | NO (TinyFish SDK throughout) |
+| OpenRouter / AI SDK? | NO (Groq SDK directly) |
+| Test execution parallel? | YES (configurable batch size, `Promise.allSettled`) |
+| Live browser preview? | YES (`EventType.STREAMING_URL` → iframe per agent) |
+| Result validation? | YES (COMPLETED ≠ goal achieved — content always validated) |
+| PII sanitisation? | YES (email, phone, card redacted before Groq calls) |
 
----
+## Tech Stack
 
-## Key Features
-
-- **AI Test Generation** - Paste requirements → AI generates structured test cases
-- **Parallel Execution** - Run up to 10 tests simultaneously
-- **Live Browser Previews** - Watch tests execute in real-time via Mino streaming
-- **AI Result Summaries** - Detailed pass/fail explanations
-- **Bug Report Generation** - AI-powered bug reports with severity & reproduction steps
-- **Project Management** - Organize tests by project/website
-- **Persistent Storage** - LocalStorage for session continuity
+- **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **LLM:** Groq (`llama-3.3-70b-versatile`)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

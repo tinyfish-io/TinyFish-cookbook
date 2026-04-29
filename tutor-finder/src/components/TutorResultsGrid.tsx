@@ -1,3 +1,4 @@
+"use client";
 import { TutorCard } from './TutorCard';
 import { ChevronDown } from 'lucide-react';
 import type { Tutor } from '@/types/tutor';

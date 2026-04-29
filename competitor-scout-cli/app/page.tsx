@@ -10,7 +10,6 @@ import { CliPreview } from "@/components/cli-preview";
 import { Radar, Terminal, Github } from "lucide-react";
 
 export default function Home() {
-  console.log("[v0] Home page rendering");
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [events, setEvents] = useState<ResearchEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);

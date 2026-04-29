@@ -5,7 +5,6 @@ import Image from "next/image";
 import { AnimatePresence } from "framer-motion";
 import MoneyParticle from "./components/MoneyParticle";
 import SportsbookSelector, { type Sportsbook } from "./components/SportsbookSelector";
-import { runMinoSSE } from "./webagent";
 
 const placeholdersBySport: Record<string, string> = {
   soccer: "Galatasaray vs Atletico Madrid",
@@ -75,71 +74,50 @@ export default function Home() {
   const [moneyParticles, setMoneyParticles] = useState<MoneyParticleType[]>([]);
   const particleIdRef = useRef(0);
 
-  // Sportsbook selection state
   const [sportsbooks, setSportsbooks] = useState<Sportsbook[]>(DEFAULT_SPORTSBOOKS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     new Set(DEFAULT_SPORTSBOOKS.map((s) => s.id))
   );
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load from localStorage on mount
   useEffect(() => {
     const savedSportsbooks = localStorage.getItem(STORAGE_KEY);
     const savedSelections = localStorage.getItem(SELECTION_KEY);
-
     if (savedSportsbooks) {
       try {
         const parsed = JSON.parse(savedSportsbooks) as Sportsbook[];
-        // Merge with defaults to ensure new default sportsbooks are included
         const customBooks = parsed.filter((s) => s.isCustom);
         setSportsbooks([...DEFAULT_SPORTSBOOKS, ...customBooks]);
-      } catch {
-        // Invalid data, use defaults
-      }
+      } catch { /* use defaults */ }
     }
-
     if (savedSelections) {
       try {
         const parsed = JSON.parse(savedSelections) as string[];
         setSelectedIds(new Set(parsed));
-      } catch {
-        // Invalid data, use defaults
-      }
+      } catch { /* use defaults */ }
     }
-
     setIsHydrated(true);
   }, []);
 
-  // Save to localStorage when sportsbooks change
   useEffect(() => {
-    if (isHydrated) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sportsbooks));
-    }
+    if (isHydrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(sportsbooks));
   }, [sportsbooks, isHydrated]);
 
-  // Save to localStorage when selections change
   useEffect(() => {
-    if (isHydrated) {
-      localStorage.setItem(SELECTION_KEY, JSON.stringify([...selectedIds]));
-    }
+    if (isHydrated) localStorage.setItem(SELECTION_KEY, JSON.stringify([...selectedIds]));
   }, [selectedIds, isHydrated]);
 
   const handleToggleSportsbook = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   }, []);
 
   const handleAddCustomSportsbook = useCallback((name: string, url: string) => {
     const id = `custom-${Date.now()}`;
-    const newSportsbook: Sportsbook = { id, name, url, isCustom: true };
-    setSportsbooks((prev) => [...prev, newSportsbook]);
+    setSportsbooks((prev) => [...prev, { id, name, url, isCustom: true }]);
     setSelectedIds((prev) => new Set([...prev, id]));
   }, []);
 
@@ -152,26 +130,20 @@ export default function Home() {
     });
   }, []);
 
-  // Spawn money randomly while loading
   useEffect(() => {
     if (!isLoading) return;
-
     const interval = setInterval(() => {
       const id = `p-${particleIdRef.current++}`;
       const image = MONEY_IMAGES[Math.floor(Math.random() * MONEY_IMAGES.length)];
       const isLeft = Math.random() > 0.5;
       const x = isLeft ? Math.random() * 100 : window.innerWidth - 100 - Math.random() * 100;
-      const y = -50;
-
-      setMoneyParticles((prev) => [...prev, { id, image, x, y }]);
+      setMoneyParticles((prev) => [...prev, { id, image, x, y: -50 }]);
     }, 600);
-
     return () => clearInterval(interval);
   }, [isLoading]);
 
-  const removeParticle = (id: string) => {
+  const removeParticle = (id: string) =>
     setMoneyParticles((prev) => prev.filter((p) => p.id !== id));
-  };
 
   const handleSportChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSport(e.target.value);
@@ -188,8 +160,6 @@ CONTEXT:
 - Match: ${match}
 
 Focus only on "Pre-match" or "Upcoming" games. If live games are present, prioritize extracting data for games that have not yet started.
-
----
 
 STEP 1 - LOCATE BETTING ODDS PAGE (if required):
 - If the page does not show betting odds, locate the button or text for "Odds" or "Betting Odds"
@@ -222,59 +192,86 @@ STEP 4 - RETURN RESULT:
 }`;
 
     try {
-      const resultJson = await runMinoSSE(sportsbook.url, goal, {
-        onStreamingUrl: (url) => {
-          setStreamUrls((prev) => ({ ...prev, [sportsbook.name]: url }));
-        },
-        onComplete: (data) => {
-          setStreamUrls((prev) => {
-            const updated = { ...prev };
-            delete updated[sportsbook.name];
-            return updated;
-          });
-
-          if (data?.error) {
-            setResults((prev) => ({
-              ...prev,
-              [sportsbook.name]: {
-                success: false,
-                data: {
-                  error: data.error as string,
-                  reason: (data.reason as string) || "Unknown error",
-                },
-              },
-            }));
-          } else if (data?.betting_odds) {
-            setResults((prev) => ({
-              ...prev,
-              [sportsbook.name]: {
-                success: true,
-                data: data as unknown as OddsResult,
-              },
-            }));
-          }
-        },
+      const response = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: sportsbook.url, goal }),
       });
 
-      if (!resultJson) {
-        setResults((prev) => ({
-          ...prev,
-          [sportsbook.name]: {
-            success: false,
-            data: { error: "No Response", reason: "No result returned from API" },
-          },
-        }));
+      if (!response.ok || !response.body) throw new Error("Failed to start agent");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === "STREAMING_URL") {
+              setStreamUrls((prev) => ({ ...prev, [sportsbook.name]: data.streamingUrl }));
+            } else if (data.type === "COMPLETE") {
+              setStreamUrls((prev) => {
+                const updated = { ...prev };
+                delete updated[sportsbook.name];
+                return updated;
+              });
+
+              const result = data.result;
+              if (result?.error) {
+                setResults((prev) => ({
+                  ...prev,
+                  [sportsbook.name]: {
+                    success: false,
+                    data: { error: result.error, reason: result.reason || "Unknown error" },
+                  },
+                }));
+              } else if (result?.betting_odds) {
+                setResults((prev) => ({
+                  ...prev,
+                  [sportsbook.name]: { success: true, data: result as OddsResult },
+                }));
+              } else {
+                setResults((prev) => ({
+                  ...prev,
+                  [sportsbook.name]: {
+                    success: false,
+                    data: { error: "No Data", reason: "Agent completed but returned no odds" },
+                  },
+                }));
+              }
+            } else if (data.type === "ERROR") {
+              setStreamUrls((prev) => {
+                const updated = { ...prev };
+                delete updated[sportsbook.name];
+                return updated;
+              });
+              setResults((prev) => ({
+                ...prev,
+                [sportsbook.name]: {
+                  success: false,
+                  data: { error: "Agent Error", reason: data.error || "Unknown error" },
+                },
+              }));
+            }
+          } catch { /* skip malformed chunks */ }
+        }
       }
     } catch (error) {
-      console.error(`[${sportsbook.name}] Error:`, error);
       setResults((prev) => ({
         ...prev,
         [sportsbook.name]: {
           success: false,
-          data: {
-            error: "Network Error",
-            reason: "Failed to connect to the API",
-          },
+          data: { error: "Network Error", reason: error instanceof Error ? error.message : "Failed to connect" },
         },
       }));
     }
@@ -282,16 +279,14 @@ STEP 4 - RETURN RESULT:
 
   const handleFindOdds = async () => {
     const selectedSportsbooks = sportsbooks.filter((s) => selectedIds.has(s.id));
-    if (selectedSportsbooks.length === 0) {
-      return;
-    }
+    if (!selectedSportsbooks.length) return;
 
     setIsLoading(true);
     setStreamUrls({});
     setResults({});
 
     try {
-      await Promise.all(selectedSportsbooks.map((sportsbook) => fetchSportsbook(sportsbook)));
+      await Promise.all(selectedSportsbooks.map((sb) => fetchSportsbook(sb)));
     } finally {
       setIsLoading(false);
     }
@@ -305,7 +300,6 @@ STEP 4 - RETURN RESULT:
       className="relative flex min-h-screen flex-col items-center font-sans"
       style={{ backgroundColor: "rgb(253, 253, 248)" }}
     >
-      {/* Settings button in top-right */}
       <div className="absolute right-4 top-4 z-10">
         <SportsbookSelector
           sportsbooks={sportsbooks}
@@ -319,16 +313,8 @@ STEP 4 - RETURN RESULT:
 
       <main className="flex w-full max-w-6xl flex-col items-center gap-8 px-6 pt-16">
         <div className="flex flex-col items-center gap-4">
-          <Image
-            src="/bestBetLogoWithText.png"
-            alt="BestBet"
-            width={250}
-            height={250}
-            priority
-          />
-          <p className="text-zinc-600">
-            helping you find the best odds for any match online
-          </p>
+          <Image src="/bestBetLogoWithText.png" alt="BestBet" width={250} height={250} priority />
+          <p className="text-zinc-600">helping you find the best odds for any match online</p>
         </div>
 
         <div className="flex w-full max-w-2xl flex-col gap-4 sm:flex-row sm:gap-6">
@@ -338,9 +324,7 @@ STEP 4 - RETURN RESULT:
             disabled={isLoading}
             className="h-12 flex-1 rounded-lg border border-zinc-300 bg-white px-4 text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option value="" disabled>
-              Select Sport
-            </option>
+            <option value="" disabled>Select Sport</option>
             <option value="soccer">Soccer</option>
           </select>
 
@@ -364,24 +348,15 @@ STEP 4 - RETURN RESULT:
 
         {(activeStreams.length > 0 || completedResults.length > 0) && (
           <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Active streams */}
             {activeStreams.map(([name, url]) => (
               <div key={name} className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-zinc-700">{name}</span>
-                <div
-                  className="relative w-full overflow-hidden rounded-lg border border-zinc-300"
-                  style={{ paddingBottom: "56.25%" }}
-                >
-                  <iframe
-                    src={url}
-                    className="absolute inset-0 h-full w-full"
-                    allow="autoplay"
-                  />
+                <div className="relative w-full overflow-hidden rounded-lg border border-zinc-300" style={{ paddingBottom: "56.25%" }}>
+                  <iframe src={url} className="absolute inset-0 h-full w-full" allow="autoplay" />
                 </div>
               </div>
             ))}
 
-            {/* Completed results */}
             {completedResults.map(([name, result]) => (
               <div key={name} className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-zinc-700">{name}</span>
@@ -395,34 +370,20 @@ STEP 4 - RETURN RESULT:
                         {(result.data as OddsResult).home_team} vs {(result.data as OddsResult).away_team}
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
-                        <div className="rounded bg-zinc-100 p-2">
-                          <div className="text-xs text-zinc-500">Home</div>
-                          <div className="font-bold text-zinc-900">
-                            {(result.data as OddsResult).betting_odds.home_wins}
+                        {["home_wins", "draw", "away_wins"].map((key, i) => (
+                          <div key={key} className="rounded bg-zinc-100 p-2">
+                            <div className="text-xs text-zinc-500">{["Home", "Draw", "Away"][i]}</div>
+                            <div className="font-bold text-zinc-900">
+                              {(result.data as OddsResult).betting_odds[key as keyof OddsResult["betting_odds"]]}
+                            </div>
                           </div>
-                        </div>
-                        <div className="rounded bg-zinc-100 p-2">
-                          <div className="text-xs text-zinc-500">Draw</div>
-                          <div className="font-bold text-zinc-900">
-                            {(result.data as OddsResult).betting_odds.draw}
-                          </div>
-                        </div>
-                        <div className="rounded bg-zinc-100 p-2">
-                          <div className="text-xs text-zinc-500">Away</div>
-                          <div className="font-bold text-zinc-900">
-                            {(result.data as OddsResult).betting_odds.away_wins}
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      <div className="text-sm font-medium text-red-600">
-                        {(result.data as ErrorResult).error}
-                      </div>
-                      <div className="text-xs text-zinc-500">
-                        {(result.data as ErrorResult).reason}
-                      </div>
+                      <div className="text-sm font-medium text-red-600">{(result.data as ErrorResult).error}</div>
+                      <div className="text-xs text-zinc-500">{(result.data as ErrorResult).reason}</div>
                     </div>
                   )}
                 </div>
@@ -432,7 +393,6 @@ STEP 4 - RETURN RESULT:
         )}
       </main>
 
-      {/* Money particle overlay */}
       <AnimatePresence>
         {moneyParticles.map((particle) => (
           <MoneyParticle

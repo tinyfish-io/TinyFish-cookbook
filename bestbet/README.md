@@ -1,98 +1,116 @@
 # BestBet
+**Live Demo:** _add URL after deploy_
 
-**Live:** [https://tinyfish-best-bet.vercel.app](https://tinyfish-best-bet.vercel.app)
+**Compare live betting odds across multiple sportsbooks simultaneously — parallel TinyFish browser agents scrape each sportsbook and stream results back in real time.**
 
-BestBet helps you find the best betting odds for any sports match by comparing moneyline prices across multiple sportsbooks simultaneously. It uses the TinyFish API to dispatch web agents to each sportsbook site (DraftKings, FanDuel, BetMGM, Kalshi, Bet365, Polymarket, and any custom ones you add), scrape the live odds, and display them side-by-side so you can spot the best value instantly.
+Select a sport and enter a match name. BestBet fires one browser agent per sportsbook in parallel — DraftKings, FanDuel, BetMGM, Kalshi, Bet365, Polymarket (or any custom URL you add). Each agent navigates to the sportsbook, finds the match, and extracts moneyline odds. Results stream back as each agent finishes.
 
-## Demo
+## Architecture
 
-https://github.com/user-attachments/assets/ee1d7f23-6bbd-4b88-92e0-4811382cbb77
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  Sport selector → Match input → Sportsbook grid             │
+│  Live iframes while agents run → Odds cards when done       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ POST /api/scrape { url, goal }
+                           │ (SSE — one request per sportsbook)
+┌──────────────────────────▼──────────────────────────────────┐
+│                   Next.js API Route                         │
+│                   /api/scrape/route.ts                      │
+│                                                             │
+│  TINYFISH_API_KEY stored server-side — never exposed        │
+│                                                             │
+│  client.agent.stream({ url, goal })                         │
+│    EventType.STREAMING_URL → live iframe forwarded to client│
+│    EventType.COMPLETE + RunStatus.COMPLETED                 │
+│      // COMPLETED only means the browser ran without crashing│
+│      // — always validate result content, not just the status│
+│      → parse event.result → odds JSON → SSE → client        │
+└─────────────────────────────────────────────────────────────┘
 
-## TinyFish API Usage
-
-The app calls the TinyFish SSE endpoint to run a web agent on each selected sportsbook URL. The agent navigates the site, finds the requested match, and extracts the moneyline odds:
-
-```typescript
-
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.NEXT_PUBLIC_TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: sportsbook.url,
-    goal: `You are extracting current betting market data from this sports betting webpage.
-           ...
-           STEP 3 - FIND UPCOMING BETTING SLOTS:
-           - Find games matching "${match}" on ${getCurrentDate()}
-           - Bet values appear on buttons/links with "+" or "-" symbols (e.g., +280, -105)
-           STEP 4 - RETURN RESULT:
-           { "betting_odds": { "home_wins": "+240", "draw": "+270", "away_wins": "+105" } }`,
-  }),
-});
+All sportsbooks run in parallel via Promise.all on the client.
+No database. No cache. Pure in-memory — results fetched live.
 ```
 
-The response streams SSE events including a `STREAMING_URL` (live view of the agent navigating) and a final `COMPLETE` event with the extracted odds JSON.
+## Supported Sportsbooks
 
-## How to Run
+| Sportsbook | URL |
+|---|---|
+| DraftKings | draftkings.com |
+| FanDuel | fanduel.com |
+| BetMGM | nj.betmgm.com |
+| Kalshi | kalshi.com |
+| Bet365 | bet365.com |
+| Polymarket | polymarket.com |
+
+You can also add any custom sportsbook URL via the settings panel.
+
+## Setup
 
 ### Prerequisites
 
-- Node.js 18+ (or Bun)
-- A TinyFish API key ([get one here](https://mino.ai/api-keys))
+- Node.js 22.x
+- TinyFish API key
 
-### Setup
-
-1. Install dependencies:
+### Environment Variables
 
 ```bash
-cd bestbet
+cp .env.example .env.local
+```
+
+Then fill in:
+
+```env
+# TinyFish Web Agent API key (server-side only)
+# Get yours at: https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=
+```
+
+### Install & Run
+
+```bash
 npm install
-```
-
-2. Create a `.env.local` file with your TinyFish API key:
-
-```
-NEXT_PUBLIC_TINYFISH_API_KEY=your_tinyfish_api_key_here
-```
-
-3. Start the dev server:
-
-```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000)
+Open http://localhost:3000
 
-## Architecture Diagram
+## Project Structure
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     User (Browser)                       │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  Next.js Frontend (React + Tailwind + Framer)   │    │
-│  │                                                  │    │
-│  │  1. Select sport & match                        │    │
-│  │  2. Choose sportsbooks (settings panel)         │    │
-│  │  3. Click "Find Best Odds"                      │    │
-│  └──────────────────┬──────────────────────────────┘    │
-└─────────────────────┼───────────────────────────────────┘
-                      │  POST /v1/automation/run-sse (x N sportsbooks, parallel)
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                  TinyFish API (mino.ai)                  │
-│                                                          │
-│  Receives goal prompt + target URL per sportsbook        │
-│  Spins up a web agent for each request                   │
-│                                                          │
-│  SSE Stream Events:                                      │
-│    • STREAMING_URL → live browser view                   │
-│    • COMPLETE      → extracted odds JSON                 │
-└────────┬────────────────┬──────────────┬────────────────┘
-         │                │              │
-         ▼                ▼              ▼
-   ┌──────────┐    ┌──────────┐   ┌──────────┐
-   │DraftKings│    │ FanDuel  │   │  BetMGM  │  ... (N sportsbooks)
-   └──────────┘    └──────────┘   └──────────┘
+bestbet/
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx                    # Main UI — sport/match input, results grid
+│   ├── globals.css
+│   └── api/
+│       └── scrape/route.ts         # POST — TinyFish agent stream per sportsbook
+├── components/
+│   ├── SportsbookSelector.tsx      # Sportsbook picker + custom URL support
+│   └── MoneyParticle.tsx           # Animated money particles during loading
+├── public/                         # Logo and coin assets
+├── .env.example
+├── .gitignore
+└── package.json
 ```
+
+## Constraint Checklist
+
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Raw SSE fetch? | NO (TinyFish SDK on server-side API route) |
+| API key exposed to browser? | NO (server-side only, no NEXT_PUBLIC_) |
+| Scraping parallel? | YES (Promise.all across all selected sportsbooks) |
+| Live browser preview? | YES (EventType.STREAMING_URL → iframe per agent) |
+| Result validation? | YES (COMPLETED ≠ goal achieved — content validated) |
+| Custom sportsbooks? | YES (user can add any URL) |
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4
+- **Animations:** Framer Motion
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **Deployment:** Vercel

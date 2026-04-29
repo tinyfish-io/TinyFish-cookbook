@@ -6,7 +6,7 @@ import { normalizePharmacyResult, isEmptyResult } from '@/lib/normalize';
 
 export function usePharmacySearch(): {
   state: SearchState;
-  search: (query: string, useCache?: boolean) => void;
+  search: (query: string) => void;
   abort: () => void;
 } {
   const [state, setState] = useState<SearchState>({
@@ -15,7 +15,6 @@ export function usePharmacySearch(): {
     progress: { completed: 0, total: 0 },
     error: null,
     elapsed: null,
-    cachedCount: 0,
     streamingUrls: [],
   });
 
@@ -34,7 +33,7 @@ export function usePharmacySearch(): {
   }, []);
 
   const search = useCallback(
-    (query: string, useCache?: boolean) => {
+    (query: string) => {
       abort();
 
       setState({
@@ -43,7 +42,6 @@ export function usePharmacySearch(): {
         progress: { completed: 0, total: 0 },
         error: null,
         elapsed: null,
-        cachedCount: 0,
         streamingUrls: [],
       });
 
@@ -55,7 +53,7 @@ export function usePharmacySearch(): {
           const response = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, useCache: useCache ?? false }),
+            body: JSON.stringify({ query }),
             signal: controller.signal,
           });
 
@@ -81,9 +79,7 @@ export function usePharmacySearch(): {
             buffer = lines.pop() ?? '';
 
             for (const line of lines) {
-              if (!line.startsWith('data: ')) {
-                continue;
-              }
+              if (!line.startsWith('data: ')) continue;
 
               let event: Record<string, unknown>;
               try {
@@ -93,13 +89,11 @@ export function usePharmacySearch(): {
               }
 
               if (event.type === 'STREAMING_URL') {
-                const MAX_IFRAMES_PER_SEARCH = 5;
+                const MAX_IFRAMES = 5;
                 setState((prev) => {
                   const url = String(event.siteUrl || '');
-                  // Dedup: skip if we already have a streaming URL for this site
-                  if (prev.streamingUrls.some(s => s.siteUrl === url)) return prev;
-                  // Hard cap: don't accumulate more than MAX_IFRAMES_PER_SEARCH
-                  if (prev.streamingUrls.length >= MAX_IFRAMES_PER_SEARCH) return prev;
+                  if (prev.streamingUrls.some((s) => s.siteUrl === url)) return prev;
+                  if (prev.streamingUrls.length >= MAX_IFRAMES) return prev;
                   return {
                     ...prev,
                     streamingUrls: [
@@ -116,13 +110,9 @@ export function usePharmacySearch(): {
                 const result = normalizePharmacyResult(event.result);
 
                 if (isEmptyResult(result)) {
-                  console.warn(
-                    `[PHARMACY] Empty result from ${result.pharmacy} — 0 products found`
-                  );
+                  console.warn(`[PHARMACY] Empty result from ${result.pharmacy}`);
                 }
 
-                // The route sends pharmacy key (e.g. "longchau"), not the full URL.
-                // Match streaming preview by checking if siteUrl contains the pharmacy key.
                 const pharmacyKey = String(event.pharmacy || '');
 
                 setState((prev) => ({
@@ -132,22 +122,20 @@ export function usePharmacySearch(): {
                     ...prev.progress,
                     completed: prev.progress.completed + 1,
                   },
-                  streamingUrls: prev.streamingUrls.map(s =>
+                  streamingUrls: prev.streamingUrls.map((s) =>
                     s.siteUrl.toLowerCase().includes(pharmacyKey.toLowerCase())
                       ? { ...s, done: true }
-                      : s
+                      : s,
                   ),
                 }));
               } else if (event.type === 'SEARCH_COMPLETE') {
                 const total = Number(event.total ?? 0);
                 const elapsed = String(event.elapsed ?? '');
-                const cachedCount = Number(event.cached ?? 0);
                 setState((prev) => ({
                   ...prev,
                   isSearching: false,
                   progress: { ...prev.progress, total },
                   elapsed,
-                  cachedCount,
                 }));
               }
             }
@@ -160,9 +148,7 @@ export function usePharmacySearch(): {
             setState((prev) => ({
               ...prev,
               isSearching: false,
-              // Suppress error if we already have results (connection dropped after partial success)
               error: prev.results.length > 0 ? null : errorMsg,
-              // If results exist, mark elapsed as approximate
               elapsed: prev.results.length > 0 ? (prev.elapsed ?? 'partial') : prev.elapsed,
             }));
           }
@@ -171,7 +157,7 @@ export function usePharmacySearch(): {
         }
       })();
     },
-    [abort]
+    [abort],
   );
 
   useEffect(() => {

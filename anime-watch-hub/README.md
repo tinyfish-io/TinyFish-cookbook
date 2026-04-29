@@ -2,9 +2,11 @@
 
 **Live**: [https://cookbook-anime-watch-hub.vercel.app/](https://cookbook-anime-watch-hub.vercel.app/)
 
+Next.js app that discovers streaming-platform search URLs with OpenAI, then verifies availability in parallel using the **[@tiny-fish/sdk](https://www.npmjs.com/package/@tiny-fish/sdk)** agent in **SSE streaming** mode (same event model as [Run browser automation with SSE streaming](https://docs.tinyfish.ai/api-reference/automation/run-browser-automation-with-sse-streaming)).
+
 ## What This Project Is
 
-Anime Watch Hub helps users find exactly where a specific anime is available to stream. It uses AI-powered platform discovery and real-time browser automation to check Netflix, Crunchyroll, Hulu, Prime Video, and more -- all in parallel.
+Anime Watch Hub helps users find where a specific anime is available to stream. It uses AI-powered platform discovery and real-time browser automation to check Netflix, Crunchyroll, Hulu, Prime Video, and more—in parallel.
 
 ## Demo
 
@@ -12,55 +14,28 @@ https://github.com/user-attachments/assets/5425211a-43b9-40c1-b5f7-8451c7549931
 
 ## How It Works
 
-1. **User enters an anime title** -- e.g., "Attack on Titan"
-2. **OpenAI discovers platform URLs** -- GPT-4o Mini generates search URLs for 6-8 streaming platforms (Crunchyroll, Netflix, Hulu, etc.)
-3. **TinyFish agents check each platform in parallel** -- One browser agent per platform navigates to the search URL, dismisses popups, reads search results, and determines availability
-4. **Results streamed back live** -- Each agent streams SSE events back to the UI with live browser previews and final availability results
+1. **User enters an anime title** — e.g. "Attack on Titan"
+2. **OpenAI discovers platform URLs** — GPT-4o Mini returns search URLs for several streaming platforms
+3. **TinyFish checks each platform in parallel** — For each URL, `client.agent.stream({ url, goal })` runs browser automation; the API route forwards SSE events to the client
+4. **Live UI** — `STREAMING_URL` (live preview iframe), `PROGRESS`, then `COMPLETE` with the parsed result JSON
 
-## TinyFish API Usage
+## Implementation Notes
 
-After getting search URLs from OpenAI, the app calls the TinyFish SSE endpoint for each platform simultaneously. Each call spawns a browser agent that navigates to the platform's search page and verifies the anime's presence.
+| Piece | Role |
+|--------|------|
+| `app/api/discover-platforms` | OpenAI: returns `{ platforms: [{ id, name, searchUrl }] }` |
+| `app/api/check-platform` | Server: `TinyFish` + `agent.stream`, emits `data: {...}\n\n` SSE lines to the browser |
+| `hooks/use-anime-search.ts` | Client: reads the stream and updates per-platform UI state |
+| `app/dashboard` | Redirects to `/` (avoids 404 if something hits `/dashboard`) |
 
-```typescript
-// app/api/check-platform/route.ts
-const tinyFishResponse = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: searchUrl,
-    goal: `You are checking if the anime "${animeTitle}" is available to stream on ${platformName}.
-
-STEP 1 - HANDLE POPUPS:
-Dismiss any cookie banners, login prompts, or modal dialogs.
-
-STEP 2 - SEARCH:
-If a search box is visible, search for "${animeTitle}".
-
-STEP 3 - ANALYZE SEARCH RESULTS:
-- Check if "${animeTitle}" or a very close match appears
-- Verify it is the anime series, not related content
-
-STEP 4 - RETURN RESULT:
-{
-  "available": true/false,
-  "watchUrl": "URL if available",
-  "message": "Brief description of what was found"
-}`,
-  }),
-});
-```
-
-The app processes the SSE stream to show live browser status updates and provides a "Live View" iframe via the `streaming_url` event.
+The production app does **not** call `https://agent.tinyfish.ai/.../run-sse` directly; it uses the SDK, which speaks the same SSE event types.
 
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4 + shadcn/ui
-- **APIs**: OpenAI GPT-4o Mini (platform discovery), TinyFish (browser automation)
+- **APIs**: OpenAI (gpt-4o-mini) for discovery; **TinyFish SDK** (`@tiny-fish/sdk`) for browser automation
 - **Deployment**: Vercel
 
 ## Setup
@@ -81,7 +56,7 @@ cp .env.example .env.local
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | OpenAI API key for platform URL discovery ([get one](https://platform.openai.com/api-keys)) |
-| `TINYFISH_API_KEY` | TinyFish API key for browser automation ([get one](https://tinyfish.ai/api-keys)) |
+| `TINYFISH_API_KEY` | TinyFish API key for browser automation ([get one](https://agent.tinyfish.ai/api-keys)) |
 
 3. Start the dev server:
 
@@ -100,15 +75,20 @@ graph TD
     OpenAI -->|Returns Search URLs| FE
 
     subgraph TinyFish_Agents [Stage 2: Verification]
-        FE -->|POST /run-sse| API[TinyFish API]
-        API --> A1[Agent: Crunchyroll]
-        API --> A2[Agent: Netflix]
-        API --> A3[Agent: Hulu]
+        FE -->|POST /api/check-platform| API[TinyFish via SDK]
+        API --> A1[Run: platform 1]
+        API --> A2[Run: platform 2]
+        API --> A3[Run: platform N]
     end
 
-    A1 -.->|Real-time Events| FE
-    A2 -.->|Real-time Events| FE
-    A3 -.->|Real-time Events| FE
+    A1 -.->|SSE events| FE
+    A2 -.->|SSE events| FE
+    A3 -.->|SSE events| FE
 
     FE -->|Update UI| User
 ```
+
+## Further Reading
+
+- [TinyFish: Run browser automation with SSE streaming](https://docs.tinyfish.ai/api-reference/automation/run-browser-automation-with-sse-streaming) — event types (`STARTED`, `STREAMING_URL`, `PROGRESS`, `COMPLETE`, etc.)
+- In-repo detail: [`docs/tinyfish-api-integration.md`](docs/tinyfish-api-integration.md)

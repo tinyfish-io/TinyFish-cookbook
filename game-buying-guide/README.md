@@ -1,172 +1,154 @@
-# GamePulse
+# Game Buying Guide
+**Live Demo:** _add URL after deploy_
 
-**Live:** [https://v0-game-buying-guide.vercel.app/](https://v0-game-buying-guide.vercel.app/)
+**AI-powered game price comparison — parallel TinyFish browser agents analyze 10 gaming storefronts simultaneously and check SteamDB price history to help you decide when to buy.**
 
-GamePulse helps users decide **whether to buy a video game now or wait for a better deal**.  
-It compares pricing, discounts, and store signals across **10 major gaming platforms in parallel** using **Mino autonomous browser agents**, then surfaces a clear recommendation for each store.
+Enter a game title and the app fires one browser agent per storefront in parallel — Steam, Epic Games, GOG, PlayStation Store, Xbox Store, Nintendo eShop, Humble Bundle, Green Man Gaming, Fanatical, and CDKeys. Each agent extracts current price, discount, rating, and gives a buy/wait/consider recommendation. A separate SteamDB agent fetches price history to show the all-time historic low.
 
-Instead of relying on price-tracking APIs or scraped datasets, GamePulse launches real browser agents that visit each store, observe the live page, and return structured pricing analysis in real time.
+## Architecture
 
----
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  SearchForm → AgentGrid → ResultsSummary                    │
+│  SteamDB price card + live agent iframes                    │
+│  (results stream in as agents finish)                       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+          ┌────────────────┼──────────────────┐
+          ▼                ▼                  ▼
+ POST /api/discover-  POST /api/analyze-  POST /api/steamdb-
+ platforms            platform            price-history
+          │                │                  │
+          ▼                ▼                  ▼
+┌──────────────────┐ ┌────────────────────────────────────────┐
+│ Hardcoded list   │ │           TinyFish SDK                 │
+│ of 10 gaming     │ │                                        │
+│ storefronts with │ │ client.agent.stream({ url, goal })     │
+│ templated search │ │                                        │
+│ URLs — no LLM    │ │ EventType.STREAMING_URL                │
+│ needed           │ │   → live iframe per agent              │
+└──────────────────┘ │ EventType.PROGRESS                     │
+                     │   → status updates                     │
+                     │ EventType.COMPLETE                     │
+                     │   + RunStatus.COMPLETED                │
+                     │   → price/rating/rec JSON → SSE        │
+                     │                                        │
+                     │ Promise.allSettled (all parallel)      │
+                     └────────────────────────────────────────┘
 
-## Demo
-
-https://github.com/user-attachments/assets/61c22b80-2cfc-40a6-bc3a-7d5917cf71a9
-
----
-
-## Mino API Usage
-
-GamePulse uses the **TinyFish SSE Browser Automation API** to analyze multiple game stores simultaneously.
-
-For each platform (Steam, Epic, PlayStation Store, etc.), the app launches a Mino agent that:
-- Navigates to the store search page
-- Locates the requested game
-- Extracts pricing, discounts, and sale signals
-- Returns a structured JSON recommendation
-
-### Example API Call
-
-```ts
-const response = await fetch("https://mino.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.MINO_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: platformSearchUrl,
-    goal: `
-You are analyzing a game store page to help a user decide
-whether to buy "${gameTitle}" now or wait.
-
-Observe:
-- Current price
-- Sale or discount indicators
-- User ratings and review signals
-
-Return a JSON object with pricing and a recommendation.
-`,
-    timeout: 300000,
-  }),
-})
+No database. No cache. Pure in-memory — results fetched live.
 ```
 
-The response streams **Server-Sent Events (SSE)**, including:
+### TinyFish SDK event flow
 
-- `STREAMING_URL` → live browser preview of the agent
+```
+client.agent.stream({ url, goal })
+  │
+  ├── EventType.STREAMING_URL → live iframe URL forwarded to client
+  ├── EventType.PROGRESS      → status message forwarded to client
+  └── EventType.COMPLETE
+        └── RunStatus.COMPLETED
+              // COMPLETED only means the browser ran without crashing
+              // — always validate result content, not just the status
+              → parse event.result → analysis JSON → SSE → client
+```
 
-- `STATUS` → navigation and extraction progress
+## Covered Platforms
 
-- `COMPLETE` → final structured pricing analysis JSON
+| Platform | What the agent extracts |
+|---|---|
+| Steam | Price, discount, rating, sale end date |
+| Epic Games Store | Price, discount, free game status |
+| GOG | Price, DRM-free status, rating |
+| PlayStation Store | Price, PS Plus discount, rating |
+| Xbox Store | Price, Game Pass availability |
+| Nintendo eShop | Price, regional pricing |
+| Humble Bundle | Price, bundle availability |
+| Green Man Gaming | Price, discount |
+| Fanatical | Price, bundle deals |
+| CDKeys | Key price, discount |
 
-## How It Works
-
-1. User enters a game title (e.g., Elden Ring)
-
-2. Platform discovery generates search URLs from a curated list of 10 stores
-
-3. Parallel Mino agents launch (one per platform)
-
-4. Live browser previews stream into the UI
-
-5. Results aggregate into a buy / wait / consider recommendation dashboard
-
-## Supported Platforms
-
-GamePulse checks the following platforms for every search:
-
-- Steam
-
-- Epic Games Store
-
-- GOG
-
-- PlayStation Store
-
-- Xbox Store
-
-- Nintendo eShop
-
-- Humble Bundle
-
-- Green Man Gaming
-
-- Fanatical
-
-- CDKeys
-
-No external discovery APIs or LLMs are used — the platform list is curated and deterministic.
-
-
-## How to Run
-**Prerequisites**
-- Node.js 18+
-- A Mino API key [get one here](https://mino.ai/api-keys)
+Plus a dedicated **SteamDB** agent that finds the all-time historic lowest price and whether now is a good time to buy.
 
 ## Setup
 
-1. Install dependencies:
+### Prerequisites
+
+- Node.js 22.x
+- TinyFish API key
+
+### Environment Variables
+
 ```bash
-cd game-buying-guide
+cp .env.example .env.local
+```
+
+Then fill in:
+
+```env
+# TinyFish Web Agent API key (server-side only)
+# Get yours at: https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=
+```
+
+### Install & Run
+
+```bash
 npm install
-```
-
-
-2. Create a .env.local file:
-```bash
-MINO_API_KEY=your_mino_api_key_here
-```
-
-3. Start the dev server:
-```bash
 npm run dev
 ```
 
 Open http://localhost:3000
 
-## Architecture Diagram
-```bash
-┌─────────────────────────────────────────────────────────┐
-│                     User (Browser)                       │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  Next.js Frontend                                │    │
-│  │                                                  │    │
-│  │  1. Enter game title                             │    │
-│  │  2. View 10 live agent cards                     │    │
-│  │  3. See buy / wait recommendations               │    │
-│  └──────────────────┬──────────────────────────────┘    │
-└─────────────────────┼───────────────────────────────────┘
-                      │  POST /api/analyze-platform (x10, parallel)
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│               Next.js API Routes                         │
-│                                                         │
-│  - /api/discover-platforms                              │
-│  - /api/analyze-platform → Mino SSE proxy               │
-└─────────────────────┬───────────────────────────────────┘
-                      │  POST /v1/automation/run-sse
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                     Mino API                            │
-│                                                         │
-│  - Spins up autonomous browser agents                   │
-│  - Streams live previews and status                     │
-│  - Returns structured pricing JSON                     │
-└──────────┬──────────┬──────────┬──────────┬────────────┘
-           ▼          ▼          ▼          ▼
-       Steam      Epic      PlayStation   Xbox   ... (10 platforms)
+## Project Structure
+
+```
+game-buying-guide/
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx                              # Main UI
+│   ├── globals.css
+│   └── api/
+│       ├── discover-platforms/route.ts       # POST — hardcoded store list + search URLs
+│       ├── analyze-platform/route.ts         # POST — TinyFish Agent → price/rating/rec SSE
+│       └── steamdb-price-history/route.ts    # POST — TinyFish Agent → SteamDB historic low SSE
+├── components/
+│   ├── search-form.tsx                       # Game title input
+│   ├── agent-grid.tsx                        # Agent card grid
+│   ├── agent-card.tsx                        # Per-platform status + iframe + result
+│   ├── live-browser-preview.tsx              # Expandable live browser iframe
+│   ├── results-summary.tsx                   # Best deal summary
+│   ├── steamdb-price-card.tsx                # SteamDB historic low card
+│   ├── theme-provider.tsx
+│   └── ui/                                   # alert, badge, button, card, input
+├── hooks/
+│   └── use-game-search.ts                    # Search state + SSE client
+├── lib/
+│   ├── types.ts                              # TypeScript definitions
+│   └── utils.ts
+├── .env.example
+├── .gitignore
+└── package.json
 ```
 
-## Environment Variables
+## Constraint Checklist
 
-MINO_API_KEY	- API key for Mino browser automation
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Raw SSE fetch? | NO (TinyFish SDK throughout) |
+| LLM for platform discovery? | NO (hardcoded store list with templated URLs) |
+| Scraping parallel? | YES (`Promise.allSettled` across 10 platforms + SteamDB) |
+| Live browser preview? | YES (`EventType.STREAMING_URL` → iframe per agent) |
+| Result validation? | YES (COMPLETED ≠ goal achieved — content always validated) |
+| SteamDB price history? | YES (dedicated agent for historic low price) |
 
+## Tech Stack
 
-## Notes
-
-- All platform analysis is performed via live browser automation
-
-- No price databases, scraping services, or AI discovery APIs are used
-
-- Results reflect real-time store state, not cached data
+- **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4
+- **Animations:** Framer Motion
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **Icons:** Lucide React
+- **Deployment:** Vercel

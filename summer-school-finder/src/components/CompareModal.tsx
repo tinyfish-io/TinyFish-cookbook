@@ -1,6 +1,5 @@
-import { X, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { SummerSchool } from '@/types/summer-school';
 
@@ -29,32 +28,27 @@ export function CompareModal({ isOpen, onClose, schools }: CompareModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">
-              Compare Programs ({schools.length})
-            </DialogTitle>
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
+      <DialogContent className="max-w-5xl max-h-[90vh] p-0 gap-0">
+        <DialogHeader className="px-6 py-4 border-b border-border">
+          <DialogTitle className="text-lg font-semibold">
+            Compare Programs ({schools.length})
+          </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-100px)]">
+        <ScrollArea className="max-h-[calc(90vh-64px)]">
           <div className="p-6 overflow-x-auto">
-            <table className="w-full border-collapse min-w-[800px]">
+            <table className="w-full border-collapse min-w-[600px]">
               <thead>
                 <tr>
-                  <th className="text-left p-3 bg-secondary rounded-tl-lg font-medium text-secondary-foreground sticky left-0 z-10 min-w-[150px]">
+                  <th className="text-left p-3 bg-secondary font-medium text-secondary-foreground sticky left-0 z-10 min-w-[130px] rounded-tl-lg">
                     Criteria
                   </th>
                   {schools.map((school, idx) => (
                     <th
                       key={idx}
-                      className="text-left p-3 bg-secondary font-medium text-secondary-foreground min-w-[200px] last:rounded-tr-lg"
+                      className="text-left p-3 bg-secondary font-medium text-secondary-foreground min-w-[180px] last:rounded-tr-lg"
                     >
-                      <div className="line-clamp-2">{school.programName || `Program ${idx + 1}`}</div>
+                      <div className="line-clamp-2 text-sm">{school.programName || `Program ${idx + 1}`}</div>
                     </th>
                   ))}
                 </tr>
@@ -62,7 +56,7 @@ export function CompareModal({ isOpen, onClose, schools }: CompareModalProps) {
               <tbody>
                 {comparisonFields.map((field, rowIdx) => (
                   <tr key={field.key} className={rowIdx % 2 === 0 ? 'bg-muted/30' : ''}>
-                    <td className="p-3 font-medium text-sm border-b border-border sticky left-0 bg-inherit z-10">
+                    <td className="p-3 font-medium text-sm border-b border-border sticky left-0 bg-inherit z-10 whitespace-nowrap">
                       {field.label}
                     </td>
                     {schools.map((school, colIdx) => (

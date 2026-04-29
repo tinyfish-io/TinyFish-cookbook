@@ -17,11 +17,11 @@
 
 import fs from "fs";
 import path from "path";
+import { TinyFish } from "@tiny-fish/sdk";
 
 const CONFIG_FILE = path.resolve(process.cwd(), ".scout.json");
 const RUNS_FILE = path.resolve(process.cwd(), ".scout-runs.json");
 const RATE_LIMIT_FILE = path.resolve(process.cwd(), ".scout-ratelimit.json");
-const TINYFISH_BASE = "https://agent.tinyfish.ai/v1";
 const ENV_FILE = path.resolve(process.cwd(), ".env.local");
 
 /** Maximum number of competitors per run (API bill protection). */
@@ -165,50 +165,47 @@ function requireEnv(name) {
 
 // ─── Tinyfish Client ────────────────────────────────────────────────────────
 
+let tinyfishClient = null;
+function getTinyfishClient() {
+  // Validate env early for friendlier errors; SDK reads env itself.
+  requireEnv("TINYFISH_API_KEY");
+  if (!tinyfishClient) tinyfishClient = new TinyFish();
+  return tinyfishClient;
+}
+
 async function tinyfishSubmit(url, goal) {
-  const apiKey = requireEnv("TINYFISH_API_KEY");
-  const res = await fetch(`${TINYFISH_BASE}/automation/run-async`, {
-    method: "POST",
-    headers: { "X-API-Key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ url, goal }),
-  });
-  if (!res.ok) throw new Error(`Tinyfish submit failed: ${await res.text()}`);
-  const data = await res.json();
+  const data = await getTinyfishClient().agent.queue({ url, goal });
+  if (data.error) {
+    throw new Error(`Failed to queue Tinyfish run: ${data.error.message || "Unknown error"}`);
+  }
+  if (!data.run_id) {
+    throw new Error("Tinyfish queue did not return a run_id");
+  }
   return data.run_id;
 }
 
 async function tinyfishStatus(runId) {
-  const apiKey = requireEnv("TINYFISH_API_KEY");
   const maxAttempts = 3;
   let attempt = 0;
   let lastError = null;
 
   while (attempt < maxAttempts) {
     attempt += 1;
-    const res = await fetch(`${TINYFISH_BASE}/runs/${runId}`, {
-      headers: { "X-API-Key": apiKey },
-    });
-    if (res.ok) return await res.json();
-    const text = await res.text();
-    lastError = new Error(`Tinyfish status failed: ${text}`);
-    if (res.status >= 500 && attempt < maxAttempts) {
+    try {
+      return await getTinyfishClient().runs.get(runId);
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
       await new Promise((r) => setTimeout(r, 1000 * attempt));
-      continue;
+      if (attempt < maxAttempts) continue;
+      throw lastError;
     }
-    throw lastError;
   }
 
   throw lastError || new Error("Tinyfish status failed");
 }
 
 async function tinyfishCancel(runId) {
-  const apiKey = requireEnv("TINYFISH_API_KEY");
-  const res = await fetch(`${TINYFISH_BASE}/runs/${runId}/cancel`, {
-    method: "POST",
-    headers: { "X-API-Key": apiKey },
-  });
-  if (!res.ok) throw new Error(`Tinyfish cancel failed: ${await res.text()}`);
-  return await res.json();
+  return await getTinyfishClient().runs.cancel(runId);
 }
 
 async function tinyfishWait(runId, label, onStatus) {

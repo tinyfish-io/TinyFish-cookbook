@@ -6,11 +6,53 @@
 // A hosted Discord bot for anime figure collectors
 // Users just DM the bot - no setup required!
 
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load `.env`, then override with `.env.local` when present (local dev).
+dotenv.config({ path: path.join(__dirname, '.env') });
+if (fs.existsSync(path.join(__dirname, '.env.local'))) {
+  dotenv.config({ path: path.join(__dirname, '.env.local'), override: true });
+}
 
 const { Client, GatewayIntentBits, EmbedBuilder, ActivityType, Partials } = require('discord.js');
 const { TEMPLATES, SPICY_KEYWORDS, HUSBANDO_KEYWORDS, FIGURE_TYPE_KEYWORDS, GACHA_TEMPLATES, ROAST_TEMPLATES, COPIUM_TEMPLATES } = require('./templates');
 const db = require('./database');
+
+// TinyFish SDK is ESM; this app is CommonJS. Use a lazy dynamic import.
+let tinyFishClientPromise = null;
+async function getTinyFishClient() {
+  if (!tinyFishClientPromise) {
+    tinyFishClientPromise = import('@tiny-fish/sdk').then(({ TinyFish }) => new TinyFish());
+  }
+  return tinyFishClientPromise;
+}
+
+/**
+ * Wait for a TinyFish scrape using the SSE stream (`/v1/automation/run-sse`).
+ * This matches the pre-migration HTTP integration, which only parsed items from the final COMPLETE event.
+ *
+ * `agent.run()` (`/v1/automation/run`) can return while the run is still in progress with `result: null`,
+ * which produced empty searches even though progress logs (e.g. BACKGROUND) showed work continuing.
+ */
+async function runTinyFishSearch(client, searchUrl, goal) {
+  const { RunStatus, EventType } = await import('@tiny-fish/sdk');
+  const stream = await client.agent.stream({ url: searchUrl, goal });
+  for await (const event of stream) {
+    if (event.type !== EventType.COMPLETE) continue;
+
+    if (event.status === RunStatus.FAILED || event.status === RunStatus.CANCELLED) {
+      const msg = event.error?.message || `Run ${event.status}`;
+      return { error: msg };
+    }
+    if (event.status === RunStatus.COMPLETED) {
+      return { result: event.result };
+    }
+    return { error: `Unexpected run status: ${event.status}` };
+  }
+  return { error: 'Stream ended before completion' };
+}
 
 // Store last search results per user for gacha/roast
 const lastSearchResults = new Map();
@@ -32,7 +74,6 @@ setInterval(() => {
 const CONFIG = {
   DISCORD_TOKEN: process.env.DISCORD_TOKEN,
   TINYFISH_API_KEY: process.env.TINYFISH_API_KEY,
-  TINYFISH_ENDPOINT: 'https://agent.tinyfish.ai/v1/automation/run-sse',
   WATCH_INTERVAL: 5 * 60 * 1000, // 5 minutes
   RATE_LIMIT_WINDOW: 60000,      // 1 minute
   RATE_LIMIT_MAX: 10,            // 10 searches per minute
@@ -221,7 +262,7 @@ function findItemsArray(obj) {
 }
 
 // =====================================
-// 🔍 TINYFISH API - Multi-Site Search
+// 🔍 TINYFISH SDK - Multi-Site Search
 // =====================================
 
 // Site configurations
@@ -379,61 +420,16 @@ async function searchSite(siteKey, query, maxPrice = null) {
   const goal = site.goal + (maxPrice ? `\n\nOnly items under ${maxPrice} JPY.` : '');
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 90000);
-    
-    const response = await fetch(CONFIG.TINYFISH_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': CONFIG.TINYFISH_API_KEY,
-      },
-      body: JSON.stringify({ url: searchUrl, goal }),
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeout);
+    const client = await getTinyFishClient();
+    const { result, error: tinyfishError } = await runTinyFishSearch(client, searchUrl, goal);
 
-    if (!response.ok) {
-      console.error(`${site.name} API error:`, response.status);
-      return { success: false, error: `API error: ${response.status}` };
+    if (tinyfishError) {
+      console.error(`${site.name} TinyFish error:`, tinyfishError);
+      return { success: false, error: String(tinyfishError) };
     }
 
-    // Parse SSE response
-    const text = await response.text();
-    const lines = text.split('\n');
-    
-    console.log(`${site.name} response length:`, text.length, 'bytes');
-    
-    let foundItems = null;
-    
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const event = JSON.parse(line.slice(6));
-          
-          if (event.type) {
-            console.log(`${site.name} event: ${event.type}`);
-          }
-          
-          if (event.type === 'COMPLETE') {
-            console.log(`${site.name} COMPLETE event received`);
-            let items = findItemsArray(event);
-            if (items && items.length > 0) {
-              foundItems = items;
-            }
-          }
-          
-          if (event.type === 'ERROR' || event.status === 'FAILED') {
-            console.error(`${site.name} error event:`, event.error || event.message);
-            return { success: false, error: event.error || event.message };
-          }
-        } catch (e) {
-          // Not valid JSON, skip
-        }
-      }
-    }
-    
+    let foundItems = findItemsArray(result);
+
     if (foundItems && foundItems.length > 0) {
       // Post-process items
       foundItems = foundItems.map(item => {
@@ -467,27 +463,6 @@ async function searchSite(siteKey, query, maxPrice = null) {
       return { success: true, items: foundItems, site: siteKey };
     }
     
-    // Fallback
-    try {
-      const fullJson = JSON.parse(text);
-      const items = findItemsArray(fullJson);
-      if (items && items.length > 0) {
-        const processedItems = items.map(item => {
-          item.rarity = calculateRarity(item);
-          item.rarityDetails = getRarityDetails(item);
-          item.site = siteKey;
-          item.siteName = site.name;
-          item.siteEmoji = site.emoji;
-          return item;
-        });
-        console.log(`✅ ${site.name} found ${processedItems.length} items (fallback)`);
-        return { success: true, items: processedItems, site: siteKey };
-      }
-    } catch (e) {
-      // Not valid JSON
-    }
-    
-    console.log(`${site.name} response tail:`, text.slice(-500));
     console.error(`❌ No items found from ${site.name}`);
     return { success: false, error: 'No results found' };
   } catch (error) {

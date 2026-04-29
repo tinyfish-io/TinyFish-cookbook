@@ -30,8 +30,6 @@ export interface PharmacyResult {
   search_term: string;
   products: PharmacyProduct[];
   error?: string;
-  source?: "cache" | "live";
-  cached_at?: string;
 }
 
 export interface StreamingPreview {
@@ -46,6 +44,5 @@ export interface SearchState {
   progress: { completed: number; total: number };
   error: string | null;
   elapsed: string | null;
-  cachedCount: number;
   streamingUrls: StreamingPreview[];
 }

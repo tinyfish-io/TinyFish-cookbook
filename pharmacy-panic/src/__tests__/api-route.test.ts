@@ -1,12 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock @/lib/supabase BEFORE importing the route
-vi.mock("@/lib/supabase", () => ({
-  getSupabaseAdmin: vi.fn(() => {
-    throw new Error("Supabase not configured");
-  }),
-}));
-
 const sdkMock = vi.hoisted(() => {
   const state = {
     events: [] as Array<Record<string, unknown>>,
@@ -21,9 +14,7 @@ const sdkMock = vi.hoisted(() => {
   );
 
   const TinyFish = vi.fn(() => ({
-    agent: {
-      stream,
-    },
+    agent: { stream },
   }));
 
   return { state, stream, TinyFish };
@@ -31,6 +22,13 @@ const sdkMock = vi.hoisted(() => {
 
 vi.mock("@tiny-fish/sdk", () => ({
   TinyFish: sdkMock.TinyFish,
+  EventType: {
+    STREAMING_URL: "STREAMING_URL",
+    COMPLETE: "COMPLETE",
+  },
+  RunStatus: {
+    COMPLETED: "COMPLETED",
+  },
 }));
 
 import { POST } from "@/app/api/search/route";
@@ -56,7 +54,7 @@ function makeInvalidJsonRequest(): Request {
 }
 
 // ---------------------------------------------------------------------------
-// Tests — request validation
+// Tests
 // ---------------------------------------------------------------------------
 
 describe("POST /api/search — validation", () => {
@@ -76,9 +74,7 @@ describe("POST /api/search — validation", () => {
 
   it("returns 400 for invalid JSON body", async () => {
     process.env.TINYFISH_API_KEY = "test-key";
-
     const res = await POST(makeInvalidJsonRequest());
-
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/Invalid JSON/i);
@@ -86,9 +82,7 @@ describe("POST /api/search — validation", () => {
 
   it("returns 400 for empty body (missing query)", async () => {
     process.env.TINYFISH_API_KEY = "test-key";
-
     const res = await POST(makeRequest({}));
-
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/Missing search query/i);
@@ -96,9 +90,7 @@ describe("POST /api/search — validation", () => {
 
   it('returns 400 for { query: "" }', async () => {
     process.env.TINYFISH_API_KEY = "test-key";
-
     const res = await POST(makeRequest({ query: "" }));
-
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/Missing search query/i);
@@ -106,9 +98,7 @@ describe("POST /api/search — validation", () => {
 
   it("returns 400 for whitespace-only query", async () => {
     process.env.TINYFISH_API_KEY = "test-key";
-
     const res = await POST(makeRequest({ query: "   " }));
-
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/Missing search query/i);
@@ -116,9 +106,7 @@ describe("POST /api/search — validation", () => {
 
   it("returns 500 when TINYFISH_API_KEY is missing", async () => {
     delete process.env.TINYFISH_API_KEY;
-
     const res = await POST(makeRequest({ query: "paracetamol" }));
-
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toMatch(/TINYFISH_API_KEY/i);
@@ -127,42 +115,20 @@ describe("POST /api/search — validation", () => {
   it("returns SSE stream with correct headers for valid request", async () => {
     process.env.TINYFISH_API_KEY = "test-key";
     sdkMock.state.events = [
-      {
-        type: "STARTED",
-        run_id: "run_123",
-        timestamp: "2026-03-31T00:00:00Z",
-      },
-      {
-        type: "STREAMING_URL",
-        run_id: "run_123",
-        streaming_url: "https://stream.example.test/pharmacy",
-        timestamp: "2026-03-31T00:00:01Z",
-      },
+      { type: "STREAMING_URL", streaming_url: "https://stream.example.test/pharmacy" },
       {
         type: "COMPLETE",
-        run_id: "run_123",
         status: "COMPLETED",
-        timestamp: "2026-03-31T00:00:02Z",
-        result: {
-          pharmacy: "Long Châu",
-          search_term: "paracetamol",
-          products: [],
-        },
-        error: null,
+        result: { pharmacy: "Long Châu", search_term: "paracetamol", products: [] },
       },
     ];
 
     const res = await POST(makeRequest({ query: "paracetamol" }));
-
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");
     expect(res.headers.get("Cache-Control")).toBe("no-cache, no-transform");
     expect(res.headers.get("Connection")).toBe("keep-alive");
-    expect(sdkMock.TinyFish).toHaveBeenCalledWith({
-      apiKey: "test-key",
-      timeout: 780000,
-      maxRetries: 0,
-    });
+
     if (res.body) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -170,62 +136,12 @@ describe("POST /api/search — validation", () => {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (value) {
-          chunks.push(decoder.decode(value, { stream: true }));
-        }
+        if (value) chunks.push(decoder.decode(value, { stream: true }));
       }
       const fullStream = chunks.join("");
       expect(fullStream).toContain("STREAMING_URL");
       expect(fullStream).toContain("PHARMACY_RESULT");
       expect(fullStream).toContain("SEARCH_COMPLETE");
-      expect(fullStream).toContain("https://stream.example.test/pharmacy");
     }
-  });
-
-  it("SSE stream contains SEARCH_COMPLETE event on valid request", async () => {
-    process.env.TINYFISH_API_KEY = "test-key";
-    sdkMock.state.events = [
-      {
-        type: "STARTED",
-        run_id: "run_456",
-        timestamp: "2026-03-31T00:00:00Z",
-      },
-      {
-        type: "STREAMING_URL",
-        run_id: "run_456",
-        streaming_url: "https://stream.example.test/pharmacy-2",
-        timestamp: "2026-03-31T00:00:01Z",
-      },
-      {
-        type: "COMPLETE",
-        run_id: "run_456",
-        status: "COMPLETED",
-        timestamp: "2026-03-31T00:00:02Z",
-        result: {
-          pharmacy: "Pharmacity",
-          search_term: "paracetamol",
-          products: [],
-        },
-        error: null,
-      },
-    ];
-
-    const res = await POST(makeRequest({ query: "paracetamol" }));
-    expect(res.status).toBe(200);
-
-    const chunks: string[] = [];
-    if (res.body) {
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(decoder.decode(value, { stream: true }));
-      }
-    }
-
-    const fullStream = chunks.join("");
-
-    expect(fullStream).toContain("SEARCH_COMPLETE");
   });
 });

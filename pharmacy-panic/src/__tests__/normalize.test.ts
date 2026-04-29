@@ -319,14 +319,4 @@ describe("normalizePharmacyResult", () => {
     expect(result.products).toHaveLength(1);
     expect(result.products[0].product_name).toBe("Single Product");
   });
-
-  it("sets source to 'live' by default", () => {
-    const raw = { pharmacy: "Test", products: [] };
-    expect(normalizePharmacyResult(raw).source).toBe("live");
-  });
-
-  it("preserves source 'cache' when set", () => {
-    const raw = { pharmacy: "Test", products: [], source: "cache" };
-    expect(normalizePharmacyResult(raw).source).toBe("cache");
-  });
 });

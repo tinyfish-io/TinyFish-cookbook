@@ -57,6 +57,15 @@ export function useAnimeSearch() {
               try {
                 const data = JSON.parse(line.slice(6))
 
+                if (data.type === 'ERROR') {
+                  updateAgent(platform.id, {
+                    status: 'error',
+                    statusMessage: typeof data.message === 'string' ? data.message : 'Error',
+                    streamingUrl: undefined,
+                  })
+                  continue
+                }
+
                 if (data.type === 'STREAMING_URL' && data.streaming_url) {
                   updateAgent(platform.id, {
                     status: 'browsing',
@@ -70,10 +79,21 @@ export function useAnimeSearch() {
                 }
 
                 if (data.type === 'COMPLETE') {
-                  if (data.status === 'failed') {
+                  const statusUpper = typeof data.status === 'string' ? data.status.toUpperCase() : data.status
+                  const isFailure =
+                    statusUpper === 'FAILED' ||
+                    statusUpper === 'CANCELLED' ||
+                    data.status === 'failed'
+
+                  if (isFailure) {
                     updateAgent(platform.id, {
                       status: 'error',
-                      statusMessage: data.error?.message ?? 'Automation failed',
+                      statusMessage:
+                        data.error?.message ??
+                        data.error ??
+                        data.help_message ??
+                        data.message ??
+                        'Automation failed',
                       streamingUrl: undefined,
                     })
                   } else {
@@ -84,13 +104,6 @@ export function useAnimeSearch() {
                       streamingUrl: undefined,
                     })
                   }
-                }
-
-                if (data.status === 'FAILED') {
-                  updateAgent(platform.id, {
-                    status: 'error',
-                    statusMessage: data.message || 'An error occurred',
-                  })
                 }
               } catch {
                 // Skip malformed JSON lines

@@ -1,0 +1,35 @@
+{
+  "name": "tinyfish-marketplace",
+  "owner": {
+    "name": "TinyFish",
+    "email": "support@tinyfish.io"
+  },
+  "metadata": {
+    "description": "Official TinyFish plugins for Claude Code",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "tinyfish",
+      "source": "./tinyfish",
+      "description": "The complete web toolkit for your agent. Search the web, fetch clean content from URLs, automate browsers with natural language, spin up headless browsers for full programmatic control, and expose local ports to the internet.",
+      "version": "1.0.0",
+      "author": {
+        "name": "TinyFish",
+        "url": "https://tinyfish.ai"
+      },
+      "category": "automation",
+      "tags": [
+        "web-automation",
+        "web-agent",
+        "browser-automation",
+        "web-scraping",
+        "data-extraction",
+        "search",
+        "fetch",
+        "tunneling"
+      ]
+    }
+  ]
+}

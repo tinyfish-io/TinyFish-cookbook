@@ -80,6 +80,7 @@ These recipes use the latest TinyFish SDK and are deployed with live demos you c
 | [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when traveling for conventions or events |
 | [tenders-finder](./tenders-finder) | AI-powered Singapore government tender discovery tool scraping multiple tender portals in parallel |
+| [TinyDetective](./TinyDetective) | Brand protection for Vietnam's ecommerce industry, using TinyFish agent swarms for parallel counterfeit detection & reporting |
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
 | [waifu-deal-sniper](./waifu-deal-sniper) | Discord bot for anime figure collectors finding discounted pre-owned figures from AmiAmi, Mercari, and Solaris Japan |
 | [wing-command](./wing-command) | Chicken wing tracker using AI-powered scraping to find the best wings near you by flavor preference |
@@ -212,6 +213,5 @@ This repository is a community-driven space for sharing derivatives, code sample
 ---
 
 <img src="https://github.com/user-attachments/assets/2cf004f0-0065-4f21-9835-12ac693964f1" width="100%" />
-
 
 

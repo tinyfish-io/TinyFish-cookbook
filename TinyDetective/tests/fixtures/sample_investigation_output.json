@@ -1,0 +1,22 @@
+{
+  "investigation_id": "sample-123",
+  "status": "completed",
+  "reports": [
+    {
+      "source_url": "https://www.casetify.com/product/impact-case-hello-kitty",
+      "summary": "Results suggest a legitimate matching listing with strong structured overlap and limited counterfeit indicators.",
+      "top_matches": [
+        {
+          "product_url": "https://shopee.sg/product/impact-case-hello-kitty-official-store-1",
+          "marketplace": "Shopee",
+          "match_score": 0.95,
+          "is_exact_match": true,
+          "counterfeit_risk_score": 0.2,
+          "suspicious_signals": [],
+          "reason": "Strong structured attribute match with limited counterfeit signals.",
+          "evidence": []
+        }
+      ]
+    }
+  ]
+}

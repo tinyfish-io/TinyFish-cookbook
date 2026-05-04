@@ -69,7 +69,6 @@ These recipes use the latest TinyFish SDK and are deployed with live demos you c
 | [code-reference-finder](./code-reference-finder) | AI-powered code snippet analyzer that finds real-world usage examples from GitHub and Stack Overflow |
 | [competitor-analysis](./competitor-analysis) | Live competitive pricing intelligence dashboard |
 | [competitor-scout-cli](./competitor-scout-cli) | Natural language CLI tool for researching competitor feature decisions across multiple websites |
-| [concept-discovery-system](./concept-discovery-system) | Project idea validator that discovers similar existing projects across GitHub, Dev.to, and Stack Overflow |
 | [fast-qa](./fast-qa) | No-code QA testing platform with parallel test execution and live browser previews |
 | [game-buying-guide](./game-buying-guide) | Video game buying decision tool comparing pricing and deals across 10 gaming platforms in parallel |
 | [lego-hunter](./lego-hunter) | Global inventory search tool finding rare Lego sets across 15+ retailers with price and availability analysis |

@@ -73,7 +73,6 @@ These recipes use the latest TinyFish SDK and are deployed with live demos you c
 | [lego-hunter](./lego-hunter) | Global inventory search tool finding rare Lego sets across 15+ retailers with price and availability analysis |
 | [loan-decision-copilot](./loan-decision-copilot) | AI-powered loan comparison tool across banks and regions |
 | [logistics-sentry](./logistics-sentry) | Logistics intelligence platform for port congestion and carrier risk tracking |
-| [Manga-Availability-Finder](./Manga-Availability-Finder) | Searches multiple reading platforms for manga/webtoon availability |
 | [research-sentry](./research-sentry) | Voice-first academic research co-pilot scanning ArXiv, PubMed, and more |
 | [restaurant-comparison-tool](./restaurant-comparison-tool) | Pre-visit restaurant safety intelligence tool analyzing Google Maps reviews, menus, and allergen signals |
 | [scholarship-finder](./scholarship-finder) | AI-powered scholarship discovery system pulling live data from official websites |

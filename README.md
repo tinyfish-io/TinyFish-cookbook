@@ -56,7 +56,9 @@ These recipes use the latest TinyFish SDK and are deployed with live demos you c
 | [viet-bike-scout](./viet-bike-scout) | Motorbike rental price comparison tool across Vietnamese cities using parallel browser agents | [Live Demo](https://cookbook-viet-bike-scout.vercel.app) |
 | [tutor-finder](./tutor-finder) | AI-powered tutor discovery platform for competitive exams across multiple platforms | [Live Demo](https://cookbook-tutor-finder.vercel.app) |
 | [openbox-deals](./openbox-deals) | Real-time open-box and refurbished deal aggregator across 8 retailers | [Live Demo](https://cookbook-openbox-deals.vercel.app) |
+| [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals | [Live Demo](https://cookbook-silicon-signal.vercel.app) |
 | [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world | [Live Demo](https://cookbook-summer-school-finder.vercel.app) |
+| [tinyskills](./tinyskills) | Multi-source AI skill guide generator that scrapes docs, GitHub, and blogs to produce comprehensive SKILL.md files | [Live Demo](https://cookbook-tinyskills.vercel.app) |
 
 ### More Recipes
 
@@ -77,10 +79,8 @@ These recipes use the latest TinyFish SDK and are deployed with live demos you c
 | [research-sentry](./research-sentry) | Voice-first academic research co-pilot scanning ArXiv, PubMed, and more |
 | [restaurant-comparison-tool](./restaurant-comparison-tool) | Pre-visit restaurant safety intelligence tool analyzing Google Maps reviews, menus, and allergen signals |
 | [scholarship-finder](./scholarship-finder) | AI-powered scholarship discovery system pulling live data from official websites |
-| [silicon-signal](./silicon-signal) | Semiconductor supply chain tracker for lifecycle, availability, and lead-time signals |
 | [stay-scout-hub](./stay-scout-hub) | Searches across all sites for places to stay when traveling for conventions or events |
 | [tenders-finder](./tenders-finder) | AI-powered Singapore government tender discovery tool scraping multiple tender portals in parallel |
-| [tinyskills](./tinyskills) | Multi-source AI skill guide generator |
 | [waifu-deal-sniper](./waifu-deal-sniper) | Discord bot for anime figure collectors finding discounted pre-owned figures from AmiAmi, Mercari, and Solaris Japan |
 | [wing-command](./wing-command) | Chicken wing tracker using AI-powered scraping to find the best wings near you by flavor preference |
 | Many more! | this list is updated quite often! |

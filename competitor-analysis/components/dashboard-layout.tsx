@@ -14,7 +14,6 @@ import {
   PanelLeftClose,
   Menu,
   Users,
-  Bot,
 } from "lucide-react";
 import {
   Tooltip,
@@ -46,7 +45,6 @@ interface DashboardLayoutProps {
 const NAV_ITEMS: NavItem[] = [
   { id: "spreadsheet", label: "Data", icon: <Table2 className="w-5 h-5" /> },
   { id: "competitors", label: "Competitors", icon: <Users className="w-5 h-5" /> },
-  { id: "agents", label: "Agents", icon: <Bot className="w-5 h-5" /> },
   { id: "comparison", label: "Comparison", icon: <LayoutGrid className="w-5 h-5" /> },
   { id: "insights", label: "Insights", icon: <Lightbulb className="w-5 h-5" /> },
 ];

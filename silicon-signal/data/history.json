@@ -47,6 +47,14 @@
         "moq": 0,
         "availability": "Unknown",
         "risk_score": 50
+      },
+      {
+        "timestamp": "2026-04-10",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 15,
+        "moq": 0,
+        "availability": "Unknown",
+        "risk_score": 95
       }
     ]
   },
@@ -143,6 +151,13 @@
         "moq": 0,
         "availability": "Unknown",
         "risk_score": 50
+      },
+      {
+        "timestamp": "2026-04-18",
+        "lifecycle_status": "Active",
+        "lead_time_weeks": 12,
+        "availability": "In Stock",
+        "risk_score": 95
       }
     ]
   }

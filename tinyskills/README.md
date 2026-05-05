@@ -2,231 +2,266 @@
 
 **Live:** [https://tinyskills.vercel.app](https://tinyskills.vercel.app)
 
-TinySkills generates comprehensive technical skill guides by scraping multiple source types (official documentation, GitHub issues, Stack Overflow, and dev blogs) in parallel using TinyFish, then synthesizing everything with AI into a ready-to-use markdown skill guide. Perfect for quickly learning new technologies or creating documentation.
+TinySkills generates comprehensive technical **SKILL.md** guides by combining **TinyFish Search** (discover URLs by source type), **TinyFish Fetch** (pull clean page text in batches), and an **LLM** (OpenAI or OpenRouter) that synthesizes everything into a single markdown skill. It is aimed at learning or documenting a technology from **documentation**, **GitHub**, **Stack Overflow**, and **developer blogs** in one run.
 
 ## Demo
 
 ![TinySkills Demo](./screenshot.png)
 
-## How It Works
+## How it works (three phases)
 
-1. **Identify Sources** — Given a topic (e.g., "React Server Components"), the app uses AI to find 8 relevant URLs across 4 source types (2 per type)
-2. **Parallel Scraping** — TinyFish dispatches web agents to all 8 sources simultaneously, extracting structured content from each
-3. **AI Synthesis** — All scraped content is consolidated and synthesized into a comprehensive, well-organized skill guide
+### 1. Identify sources — `/api/identify-sources`
 
-## TinyFish API Usage
+The user enters a **topic** and selects which **source types** to include (docs, GitHub, Stack Overflow, blog). The server calls `identifySources()` in `lib/ai-client.ts`, which follows this order:
 
-The app uses TinyFish's SSE endpoint to scrape multiple sources in parallel. Each source type has a specialized extraction prompt:
+1. **TinyFish Search (primary)** — If `TINYFISH_API_KEY` is set, the app runs **one Search query per enabled source type in parallel** via `identifySourcesViaTinyFishSearch()` (`lib/tinyfish-source-discovery.ts`). Each query is tailored so results skew toward the right kind of page (see [Search queries](#tinyfish-search-url-discovery) below).
+2. **LLM fallback** — If Search returns **no URLs**, or Search throws, control falls back to `identifySourcesViaLlm()`, which asks the configured model to output a JSON list of URLs with types, titles, and reasons.
 
-### Scraping Documentation
+**Requirements:** You need at least **TinyFish** *or* an **LLM** key for this step to succeed; full app flows also need an LLM for synthesis (see [Environment variables](#environment-variables)).
 
-```typescript
-const result = await runMinoAutomation(
-  {
-    url: "https://react.dev/reference/rsc/server-components",
-    goal: `Extract technical documentation content about "react server components".
-    
-TASK: Scrape the main content from this documentation page.
+### 2. Fetch content — `/api/scrape-sources`
 
-Extract:
-1. Main concepts and explanations
-2. API methods, parameters, return types
-3. Code examples and usage patterns
-4. Important notes, warnings, or tips
-5. Links to related topics
+For every identified URL, the app calls the **TinyFish Fetch API** through the SDK: `client.fetch.getContents()`. This renders pages in a real browser and returns **markdown-oriented text**, which is ideal for feeding the synthesis model.
 
-Return JSON:
-{
-  "title": "Page title",
-  "content": "Full extracted content in markdown format",
-  "codeExamples": ["code snippet 1", "code snippet 2"],
-  "keyPoints": ["important point 1", "important point 2"]
-}`,
-    browser_profile: "lite",
-  },
-  apiKey,
-  {
-    onStep: async (message) => {
-      // Real-time progress updates
-      await sendEvent({ type: "source_step", sourceUrl: source.url, detail: message });
-    },
-    onStreamingUrl: async (url) => {
-      // Live browser view URL
-      await sendEvent({ type: "source_streaming", sourceUrl: source.url, streamingUrl: url });
-    },
-  }
-);
-```
+Key behaviors:
 
-### Parallel Scraping Pattern
+- **Batching:** Up to **10 URLs per `getContents` call** (`FETCH_BATCH_SIZE` in `app/api/scrape-sources/route.ts`). Example: 8 sources → usually **one** batch; 16 sources → **two batches**.
+- **Parallel batches:** Multiple batches run with **`Promise.all`**, so total wall-clock time stays closer to “one heavy round trip” than “N sequential fetches.”
+- **Format:** Requests use `format: "markdown"` so the `text` field is ready for LLM consumption.
+- **Resilience:** The Fetch API returns **per-URL errors** in an `errors` array without failing the whole batch; the route maps those to `source_error` SSE events.
+- **SSE:** The client still receives a **server-sent event stream**: `scrape_start`, `source_start`, `source_step`, `source_complete` or `source_error`, then `scrape_complete`. There is **no live browser preview URL** in this path (unlike the older TinyFish Agent stream).
 
-From `app/api/scrape-sources/route.ts`:
+### 3. Synthesize — `/api/synthesize`
+
+Collected markdown is passed to **`synthesizeSkill()`** in `lib/ai-client.ts`, which streams a **SKILL.md**-style document (YAML frontmatter + sections such as Quick Start, Core Concepts, Pitfalls, etc.) using the same LLM provider as the fallback step.
+
+---
+
+## TinyFish Search (URL discovery)
+
+The Search API returns ranked results with **title**, **snippet**, **URL**, and metadata. TinySkills uses the official **`@tiny-fish/sdk`**:
 
 ```typescript
-// Scrape all sources in parallel
-const scrapePromises = sources.map(async (source) => {
-  const goal = buildScrapeGoal(source.type, topic);
-  
-  const result = await runMinoAutomation(
-    {
-      url: source.url,
-      goal,
-      browser_profile: settings?.browserProfile || "lite",
-    },
-    apiKey,
-    {
-      onStep: async (message) => {
-        await sendEvent({ type: "source_step", sourceUrl: source.url, detail: message });
-      },
-      onStreamingUrl: async (url) => {
-        await sendEvent({ type: "source_streaming", sourceUrl: source.url, streamingUrl: url });
-      },
-    }
-  );
-  
-  return { source, content: parseScrapedContent(result.result), success: result.success };
+import { TinyFish } from "@tiny-fish/sdk";
+
+const client = new TinyFish(); // uses TINYFISH_API_KEY from the environment
+const response = await client.search.query({
+  query: "site:stackoverflow.com react hooks",
 });
-
-// Wait for all scrapes to complete
-const results = await Promise.allSettled(scrapePromises);
+// response.results[].url, .title, .snippet, .position, ...
 ```
 
-The app streams real-time progress for all 8 parallel scraping operations, showing:
-- Source being scraped
-- Current step ("Extracting main content...", etc.)
-- Live streaming URL to watch the agent navigate
-- Word count of extracted content
-- Final aggregated results
+### Query strings per source type
 
-## How to Run
+In `lib/tinyfish-source-discovery.ts`, each `SourceType` maps to a dedicated query (topic = user input, trimmed):
+
+| Source type   | Query pattern (conceptually) |
+|---------------|------------------------------|
+| **docs**      | `{topic} official documentation programming` |
+| **github**    | `site:github.com {topic}` |
+| **stackoverflow** | `site:stackoverflow.com {topic}` |
+| **blog**      | `{topic} developer tutorial blog` |
+
+These are **not** arbitrary site lists from an LLM—they are **live search results**, which tends to surface real, linkable pages.
+
+### Parallelism and deduplication
+
+- All enabled types are queried with **`Promise.all`**, so identification latency is roughly **one Search round-trip per “wave”**, not the sum of four serial calls.
+- URLs are **normalized** (fragment stripped) and **deduplicated** across types so the same page is not scraped twice.
+- Up to **`maxPerType`** results are taken per type (default **2** per type in settings, configurable from the UI / API).
+- Each `IdentifiedSource` stores **title** from Search, and **reason** from the **snippet** (or a short fallback string referencing the query and hit position).
+
+### When Search is skipped or supplemented
+
+- **LLM-only discovery** can run if TinyFish Search is not configured or returns nothing—see `identifySources()` in `lib/ai-client.ts`.
+- **Synthesis always requires** `OPENAI_API_KEY` or `OPENROUTER_API_KEY` unless you change the app.
+
+Official Search API overview: [TinyFish Search API](https://docs.tinyfish.ai/search-api).
+
+---
+
+## TinyFish Fetch (page content)
+
+Fetch turns **known URLs** into **clean extracted text** (HTML, Markdown, or JSON tree depending on options). TinySkills only needs **markdown** for the skill body.
+
+### SDK usage (conceptually what the server does)
+
+```typescript
+import { TinyFish } from "@tiny-fish/sdk";
+
+const client = new TinyFish();
+const result = await client.fetch.getContents({
+  urls: [
+    "https://example.com/docs/page-a",
+    "https://example.com/docs/page-b",
+    // ... up to 10 URLs per request in this app
+  ],
+  format: "markdown",
+});
+// result.results[] — per-URL title, description, text, final_url, …
+// result.errors[] — per-URL failures without failing siblings
+```
+
+### How TinySkills uses the response
+
+For each successful row, the API route builds a single string for synthesis:
+
+1. Optional **`# title`** from `title`
+2. **`description`** as introductory text when present
+3. Main body from **`text`** (markdown)
+
+If the API returns **JSON**-shaped content for a URL, the route stringifies it for inclusion so nothing is dropped silently.
+
+### Performance characteristics
+
+- **Batched Fetch** replaces **per-URL browser agents** for this step, which keeps latency and cost lower for typical documentation and article pages.
+- **Heavy or interactive-only content** may still be imperfect; the tradeoff is speed and simplicity vs. a full **TinyFish Agent** run (not used in the current scrape route).
+
+Official Fetch API overview: [TinyFish Fetch API](https://docs.tinyfish.ai/fetch-api).
+
+---
+
+## End-to-end flow (default settings)
+
+With all four source types enabled and **2 URLs per type** (8 sources total):
+
+1. **Search** runs **4 parallel** queries → up to **8** distinct URLs with titles and snippets.
+2. **Fetch** runs **`getContents`** in **one batch** (≤10 URLs) with **parallel batch execution** if you ever exceed 10 URLs.
+3. **Synthesize** streams one **SKILL.md** from the combined markdown.
+
+---
+
+## Architecture diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     User (browser)                          │
+│  Next.js UI — topic, source toggles, max per type, Generate │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────┐
+              │   POST /api/identify-sources   │
+              └────────────┬─────────────┘
+                           │
+         ┌─────────────────┴─────────────────┐
+         ▼                                   ▼
+┌────────────────────┐              ┌────────────────────┐
+│ TinyFish Search    │   (fallback) │ OpenAI / OpenRouter │
+│ client.search.query│              │ identifySourcesViaLlm│
+│ per source type    │              │ JSON URLs + reasons  │
+└─────────┬──────────┘              └──────────┬───────────┘
+          │                                   │
+          └──────────────┬────────────────────┘
+                         ▼
+              { sources: IdentifiedSource[] }
+                         │
+                         ▼
+              ┌──────────────────────────┐
+              │  POST /api/scrape-sources     │
+              │  SSE stream to client         │
+              └────────────┬─────────────┘
+                           │
+                           ▼
+              ┌──────────────────────────┐
+              │ TinyFish Fetch           │
+              │ client.fetch.getContents │
+              │ batches of ≤10 URLs      │
+              │ format: markdown         │
+              └────────────┬─────────────┘
+                           │
+                           ▼
+              ┌──────────────────────────┐
+              │  POST /api/synthesize       │
+              │  streamText → SKILL.md      │
+              └─────────────────────────────┘
+```
+
+---
+
+## Environment variables
+
+| Variable | Required | Role |
+|----------|----------|------|
+| `TINYFISH_API_KEY` | Strongly recommended | **Search** + **Fetch** via `@tiny-fish/sdk` ([API keys](https://agent.tinyfish.ai/api-keys)) |
+| `OPENAI_API_KEY` | For synthesis / fallback | Preferred LLM when set (`gpt-4.1-mini` default in code) |
+| `OPENROUTER_API_KEY` | Alternative to OpenAI | Used if `OPENAI_API_KEY` is unset (default model `google/gemini-2.5-flash-lite`) |
+
+Copy `.env.local.example` to `.env.local` and fill in values. **Restart** the dev server after changes.
+
+---
+
+## Setup
 
 ### Prerequisites
 
-- Node.js 18+ (or Bun)
-- A TinyFish API key ([get one here](https://mino.ai/api-keys))
-- OpenRouter API key for AI synthesis ([get one here](https://openrouter.ai))
+- Node.js 18+
+- TinyFish API key (Search + Fetch)
+- OpenAI and/or OpenRouter key for LLM steps
 
-### Setup
-
-1. Clone the repository:
+### Install and run
 
 ```bash
-git clone https://github.com/pranavjana/mino-tinyskills.git
-cd mino-tinyskills
-```
-
-2. Install dependencies:
-
-```bash
+git clone https://github.com/tinyfish-io/tinyfish-cookbook.git
+cd tinyfish-cookbook/tinyskills
 npm install
-```
+cp .env.local.example .env.local
+# Edit .env.local — at minimum TINYFISH_API_KEY and one LLM key
 
-3. Create a `.env.local` file with your API keys:
-
-```
-TINYFISH_API_KEY=your_tinyfish_api_key_here
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-```
-
-4. Start the dev server:
-
-```bash
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000).
 
-## Architecture
+---
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     User (Browser)                       │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │     Next.js Frontend (Terminal-style UI)        │    │
-│  │                                                  │    │
-│  │  1. Enter topic: "react server components"      │    │
-│  │  2. Select source types (Docs/GitHub/SO/Blogs)  │    │
-│  │  3. Click "Generate"                            │    │
-│  └──────────────────┬──────────────────────────────┘    │
-└─────────────────────┼───────────────────────────────────┘
-                      │
-                      ▼
-           ┌─────────────────────┐
-           │ /api/identify-sources│
-           │   (AI finds URLs)    │
-           └──────────┬───────────┘
-                      │ 8 URLs (2 per source type)
-                      ▼
-           ┌─────────────────────┐
-           │ /api/scrape-sources  │
-           │  (Parallel scraping) │
-           └──────────┬───────────┘
-                      │ POST to TinyFish (x8, parallel)
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                  TinyFish API (mino.ai)                  │
-│                                                          │
-│  8 parallel web agents, each with specialized prompts:   │
-│    • Docs → Extract APIs, examples, concepts            │
-│    • GitHub → Extract issues, solutions, gotchas        │
-│    • StackOverflow → Extract Q&A, common mistakes       │
-│    • Blogs → Extract tutorials, best practices          │
-│                                                          │
-│  SSE Stream Events:                                      │
-│    • STEP → "Extracting main content..."                │
-│    • STREAMING_URL → live browser view                   │
-│    • COMPLETE → extracted JSON content                   │
-└────────┬────────────────┬──────────────┬────────────────┘
-         │                │              │
-         ▼                ▼              ▼
-   ┌──────────┐    ┌──────────┐   ┌──────────┐
-   │React Docs│    │  GitHub  │   │Stack Over│  ... (8 sources)
-   └──────────┘    └──────────┘   └──flow────┘
-                      │
-                      │ All content extracted
-                      ▼
-           ┌─────────────────────┐
-           │  /api/synthesize     │
-           │  (AI consolidation)  │
-           └──────────┬───────────┘
-                      │ Streaming markdown output
-                      ▼
-           ┌─────────────────────┐
-           │  Generated Skill     │
-           │  Guide (markdown)    │
-           └─────────────────────┘
-```
-
-## Key Features
+## Key features
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Source Synthesis** | Combines docs, GitHub issues, Stack Overflow, and blogs |
-| **AI-Powered Discovery** | Automatically finds relevant URLs for each source type |
-| **Parallel Scraping** | Scrapes all sources simultaneously using TinyFish |
-| **Live Progress** | Real-time SSE updates with streaming URLs |
-| **Streaming Output** | Skill guide generated incrementally as text streams |
-| **Local History** | All generations saved to localStorage |
-| **Source-Specific Prompts** | Tailored extraction for each content type |
+| **TinyFish Search** | Typed web queries per source; parallel execution; deduplicated URLs |
+| **TinyFish Fetch** | Batched URL → markdown extraction; parallel batches when needed |
+| **LLM synthesis** | Structured SKILL.md with frontmatter and deep sections |
+| **LLM fallback** | URL discovery when Search returns no usable hits |
+| **SSE scraping** | Live progress for identify → scrape → synthesize pipeline |
+| **Streaming output** | Skill guide streams from `/api/synthesize` |
+| **Local history** | Saved in `localStorage` (keys use a legacy `skillforge_*` prefix for compatibility — see `types/index.ts`) |
+| **Settings** | Default sources, max per type, export/import |
 
-## Example Output
+---
 
-When generating a guide for "React Server Components", TinySkills will:
+## Example output (conceptual)
 
-1. Find 2 official React docs pages
-2. Find 2 relevant GitHub issues/discussions
-3. Find 2 Stack Overflow Q&As
-4. Find 2 blog posts/tutorials
+For a topic like **“React Server Components”**, TinySkills may:
 
-Then scrape all 8 in parallel, extracting:
-- API documentation and type definitions
-- Common issues and solutions from GitHub
-- Frequent questions and answers from Stack Overflow
-- Best practices and tutorials from blogs
+1. **Search** — Find doc pages, GitHub threads, Stack Overflow questions, and blog posts matching the typed queries.
+2. **Fetch** — Pull full readable text from each URL.
+3. **Synthesize** — Produce a skill that includes overview, patterns, pitfalls, and examples drawn from those sources.
 
-Finally, synthesize everything into a comprehensive skill guide with:
-- Overview and key concepts
-- API reference with examples
-- Common gotchas and solutions
-- Best practices and patterns
-- Code examples from all sources
+---
+
+## Project layout
+
+| Path | Purpose |
+|------|---------|
+| `lib/tinyfish-client.ts` | Singleton-style `getTinyFishClient()` for SDK access |
+| `lib/tinyfish-source-discovery.ts` | Search queries + `identifySourcesViaTinyFishSearch` |
+| `lib/ai-client.ts` | LLM provider, `identifySources`, `identifySourcesViaLlm`, `synthesizeSkill` |
+| `lib/utils.ts` | Shared helpers (`cn`, `countWords`, etc.) |
+| `app/api/identify-sources/route.ts` | Identify API |
+| `app/api/scrape-sources/route.ts` | Fetch + SSE |
+| `app/api/synthesize/route.ts` | Streaming synthesis |
+
+Package name in `package.json`: **`tinyskills`**.
+
+---
+
+## Further reading
+
+- [TinyFish Search API](https://docs.tinyfish.ai/search-api)
+- [TinyFish Fetch API](https://docs.tinyfish.ai/fetch-api)
+- [TinyFish Browser API](https://docs.tinyfish.ai/browser-api) — not used in this app’s default path; documented for comparison
+
+---
+
+Built with [TinyFish](https://tinyfish.ai). Part of the [TinyFish Cookbook](https://github.com/tinyfish-io/tinyfish-cookbook).

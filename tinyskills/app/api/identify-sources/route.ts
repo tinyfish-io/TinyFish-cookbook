@@ -1,25 +1,31 @@
 import { identifySources } from "@/lib/ai-client";
 import type { SourceType } from "@/types";
 
+function hasLlmKey(): boolean {
+  return !!(
+    process.env.OPENAI_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim()
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const { topic, enabledSources, maxPerType } = await request.json();
 
     if (!topic || typeof topic !== "string") {
+      return Response.json({ error: "Topic is required" }, { status: 400 });
+    }
+
+    const hasTinyFish = !!process.env.TINYFISH_API_KEY?.trim();
+    if (!hasTinyFish && !hasLlmKey()) {
       return Response.json(
-        { error: "Topic is required" },
-        { status: 400 }
+        {
+          error:
+            "Configure TINYFISH_API_KEY (Search), and/or OPENAI_API_KEY or OPENROUTER_API_KEY (fallback + synthesis)",
+        },
+        { status: 500 },
       );
     }
 
-    if (!process.env.OPENROUTER_API_KEY) {
-      return Response.json(
-        { error: "OpenRouter API key not configured" },
-        { status: 500 }
-      );
-    }
-
-    // Default to all sources if not specified
     const sources: SourceType[] = enabledSources || [
       "docs",
       "github",
@@ -30,7 +36,7 @@ export async function POST(request: Request) {
     const identifiedSources = await identifySources(
       topic,
       sources,
-      maxPerType || 2
+      maxPerType || 2,
     );
 
     return Response.json({
@@ -43,7 +49,7 @@ export async function POST(request: Request) {
         error:
           error instanceof Error ? error.message : "Failed to identify sources",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

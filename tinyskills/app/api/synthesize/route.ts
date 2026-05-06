@@ -23,9 +23,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!process.env.OPENROUTER_API_KEY) {
+    if (!process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
       return Response.json(
-        { error: "OpenRouter API key not configured" },
+        { error: "OpenAI or OpenRouter API key not configured" },
         { status: 500 }
       );
     }

@@ -104,10 +104,10 @@ The CLI writes results to the filesystem instead of piping them through your mod
 One-line install. Works with Claude Code, Codex, Cursor, OpenCode, Antigravity, and other coding agents. The Skill teaches your agent **when** to reach for Search vs. Fetch vs. Agent, and **how** to call them.
 
 ```bash
-npx skills add github.com/tinyfish-io/tinyfish-cookbook --skill tinyfish
+npx skills add github.com/tinyfish-io/tinyfish-cookbook --skill use-tinyfish
 ```
 
-Browse it on [skills.sh/tinyfish-io/skills/tinyfish](https://skills.sh/tinyfish-io/skills/tinyfish).
+Browse it on [skills.sh/tinyfish-io/tinyfish-cookbook/use-tinyfish](https://skills.sh/tinyfish-io/tinyfish-cookbook/use-tinyfish).
 
 ### SDKs
 

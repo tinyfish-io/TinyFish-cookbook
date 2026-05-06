@@ -1,9 +1,9 @@
-# Mino API Feedback
+# Tinyfish Agent API Feedback
 
 ## Project Context
-**Use Case:** Competitive Pricing Intelligence Dashboard
-**Scope:** Scraping 10-15 competitor pricing pages in parallel, extracting structured pricing data
-**Tech Stack:** Next.js 16, React 19, TypeScript, SSE streaming
+**Use Case:** Competitive Pricing Intelligence Dashboard  
+**Scope:** Scraping 10-15 competitor pricing pages in parallel, extracting structured pricing data  
+**Tech Stack:** Next.js 16, React 19, TypeScript, `@tiny-fish/sdk` (Tinyfish Agent streaming), SSE to the browser  
 
 ---
 
@@ -171,7 +171,7 @@ For long-running jobs, allow webhook notification instead of holding SSE connect
 {
   url: "...",
   goal: "...",
-  webhookUrl: "https://myapp.com/webhook/mino"
+  webhookUrl: "https://myapp.com/webhook/tinyfish-agent"
 }
 ```
 
@@ -206,9 +206,9 @@ Return a screenshot of the final page state along with extracted data for verifi
 
 **Overall Rating: 8/10**
 
-The Mino API delivers on its core promise of natural language web automation. The SSE streaming and JSON extraction are excellent. The main areas for improvement are around **consistency** (output schemas), **observability** (confidence scores, better errors), and **reliability** (partial results, retry guidance).
+Tinyfish Agent delivers on its core promise of natural language web automation. The SSE streaming and JSON extraction are excellent. The main areas for improvement are around **consistency** (output schemas), **observability** (confidence scores, better errors), and **reliability** (partial results, retry guidance).
 
-For our pricing intelligence use case, Mino reduced what would have been weeks of custom scraper development to hours. The tradeoff is more normalization code to handle output variations.
+For our pricing intelligence use case, Tinyfish Agent reduced what would have been weeks of custom scraper development to hours. The tradeoff is more normalization code to handle output variations.
 
 **Would recommend for:**
 - Rapid prototyping of scraping solutions
@@ -226,3 +226,4 @@ For our pricing intelligence use case, Mino reduced what would have been weeks o
 Feel free to reach out for clarification on any of this feedback.
 
 *Generated during development of Competitive Pricing Intelligence Dashboard*
+

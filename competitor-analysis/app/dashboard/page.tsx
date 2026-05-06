@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import {
   Tooltip,
   ResponsiveContainer,
@@ -36,7 +36,6 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Play,
   EyeOff,
 } from "lucide-react";
 import type { Competitor, CompetitorPricing } from "@/types";
@@ -68,6 +67,12 @@ export default function DashboardPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeView, setActiveView] = useState("spreadsheet");
 
+  /** Switching views must close the inline "Add competitors" form, or nav appears broken (same content for every tab). */
+  const handleViewChange = useCallback((view: string) => {
+    setShowAddInput(false);
+    setActiveView(view);
+  }, []);
+
   // State for panels
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const [isAddingCompetitors, setIsAddingCompetitors] = useState(false);
@@ -77,7 +82,6 @@ export default function DashboardPage() {
   const [editingCompetitor, setEditingCompetitor] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [excludedFromChart, setExcludedFromChart] = useState<Set<string>>(new Set());
 
   // Track if initial scraping has been triggered
@@ -380,8 +384,8 @@ export default function DashboardPage() {
 
   // Render view content based on activeView
   const renderContent = () => {
-    // Always show add input if no competitors or if toggled
-    if (showAddInput || state.competitors.length === 0) {
+    // Onboarding: no competitors yet — only the add flow
+    if (state.competitors.length === 0) {
       return (
         <div className="max-w-3xl mx-auto">
           <CompetitorInput
@@ -393,9 +397,27 @@ export default function DashboardPage() {
       );
     }
 
+    const addCompetitorsPanel =
+      showAddInput ? (
+        <div className="max-w-3xl mx-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <CompetitorInput
+            onStartScraping={handleAddCompetitors}
+            isLoading={isAddingCompetitors}
+            existingCompetitors={state.competitors.map((c) => c.name)}
+          />
+        </div>
+      ) : null;
+
+    const withAddPanel = (content: ReactNode) => (
+      <div className="space-y-6">
+        {addCompetitorsPanel}
+        {content}
+      </div>
+    );
+
     switch (activeView) {
       case "spreadsheet":
-        return (
+        return withAddPanel(
           <SpreadsheetView
             competitorPricing={spreadsheetData}
             onEditCell={editTierField}
@@ -409,11 +431,12 @@ export default function DashboardPage() {
             }}
             onRefreshCompetitor={handleRefreshCompetitor}
             isRefreshing={isRefreshing}
+            pendingCount={pendingCount}
           />
         );
 
       case "competitors":
-        return (
+        return withAddPanel(
           <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -573,202 +596,6 @@ export default function DashboardPage() {
           </div>
         );
 
-      case "agents":
-        return (
-          <div className="space-y-6">
-            {/* Header */}
-            <div>
-              <h3 className="text-lg font-medium text-slate-900">Agent Monitor</h3>
-              <p className="text-sm text-slate-500 mt-0.5">Watch real-time browser automation</p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Agent List */}
-              <div className="lg:col-span-1">
-                <div className="bg-white border border-slate-200 rounded-lg">
-                  <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Agents</p>
-                  </div>
-                  <div className="divide-y divide-slate-100 max-h-[600px] overflow-auto">
-                    {(() => {
-                      const activeAgents = Object.entries(state.scrapingResults)
-                        .filter(([, result]) => result.streamingUrl || result.status === "scraping" || result.status === "generating-url")
-                        .map(([id, result]) => ({
-                          id,
-                          competitor: state.competitors.find(c => c.id === id),
-                          result,
-                        }));
-
-                      if (activeAgents.length === 0) {
-                        return (
-                          <div className="px-4 py-8 text-center">
-                            <Play className="w-6 h-6 text-slate-300 mx-auto mb-2" />
-                            <p className="text-xs text-slate-400">No agents running</p>
-                            <p className="text-xs text-slate-400 mt-1">Start scraping to see agents here</p>
-                          </div>
-                        );
-                      }
-
-                      return activeAgents.map(({ id, competitor, result }) => (
-                        <button
-                          key={id}
-                          onClick={() => setSelectedAgentId(id)}
-                          className={`w-full px-4 py-3 text-left transition-colors ${
-                            selectedAgentId === id ? "bg-slate-50" : "hover:bg-slate-50"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0">
-                              {result.status === "scraping" || result.status === "generating-url" ? (
-                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                              ) : (
-                                <div className="w-2 h-2 rounded-full bg-slate-300" />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-slate-900 truncate">
-                                {competitor?.name || "Unknown"}
-                              </p>
-                              <p className="text-xs text-slate-500 truncate">
-                                {result.status === "generating-url" ? "Finding URL..." :
-                                 result.status === "scraping" ? "Scraping..." :
-                                 result.status}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      ));
-                    })()}
-                  </div>
-
-                  {/* Completed agents */}
-                  {(() => {
-                    const completedAgents = Object.entries(state.scrapingResults)
-                      .filter(([, result]) => result.status === "complete" && result.streamingUrl)
-                      .slice(0, 5);
-
-                    if (completedAgents.length === 0) return null;
-
-                    return (
-                      <>
-                        <div className="px-4 py-3 border-t border-b border-slate-100 bg-slate-50">
-                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Recent</p>
-                        </div>
-                        <div className="divide-y divide-slate-100">
-                          {completedAgents.map(([id]) => {
-                            const competitor = state.competitors.find(c => c.id === id);
-                            return (
-                              <button
-                                key={id}
-                                onClick={() => setSelectedAgentId(id)}
-                                className={`w-full px-4 py-3 text-left transition-colors ${
-                                  selectedAgentId === id ? "bg-slate-50" : "hover:bg-slate-50"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium text-slate-900 truncate">
-                                      {competitor?.name || "Unknown"}
-                                    </p>
-                                    <p className="text-xs text-slate-500">Completed</p>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* Browser View */}
-              <div className="lg:col-span-2">
-                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-                  <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1.5">
-                        <div className="w-3 h-3 rounded-full bg-red-400" />
-                        <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                        <div className="w-3 h-3 rounded-full bg-green-400" />
-                      </div>
-                      <p className="text-xs text-slate-500 ml-2">
-                        {selectedAgentId ?
-                          state.competitors.find(c => c.id === selectedAgentId)?.name || "Browser View" :
-                          "Select an agent to view"
-                        }
-                      </p>
-                    </div>
-                    {selectedAgentId && state.scrapingResults[selectedAgentId]?.streamingUrl && (
-                      <a
-                        href={state.scrapingResults[selectedAgentId].streamingUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"
-                      >
-                        Open in new tab
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-
-                  <div className="aspect-video bg-slate-100 relative">
-                    {selectedAgentId && state.scrapingResults[selectedAgentId]?.streamingUrl ? (
-                      <iframe
-                        src={state.scrapingResults[selectedAgentId].streamingUrl}
-                        className="absolute inset-0 w-full h-full border-0"
-                        title="Browser automation view"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
-                        <Globe className="w-12 h-12 text-slate-300 mb-4" />
-                        <p className="text-sm text-slate-500">
-                          {!selectedAgentId
-                            ? "Select an agent from the list to view its browser session"
-                            : state.scrapingResults[selectedAgentId]?.status === "scraping" || state.scrapingResults[selectedAgentId]?.status === "generating-url"
-                            ? "Waiting for browser session to start..."
-                            : "No browser session available for this agent"
-                          }
-                        </p>
-                        {selectedAgentId && state.scrapingResults[selectedAgentId]?.streamingUrl && (
-                          <a
-                            href={state.scrapingResults[selectedAgentId].streamingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-3 text-xs text-slate-500 hover:text-slate-700 underline"
-                          >
-                            Try opening in new tab instead
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Agent details */}
-                  {selectedAgentId && state.scrapingResults[selectedAgentId] && (
-                    <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500">
-                          Status: <span className="font-medium text-slate-700 capitalize">{state.scrapingResults[selectedAgentId].status}</span>
-                        </span>
-                        {state.scrapingResults[selectedAgentId].steps && (
-                          <span className="text-slate-500 truncate max-w-[60%]">
-                            {state.scrapingResults[selectedAgentId].steps[state.scrapingResults[selectedAgentId].steps.length - 1]}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
       case "comparison": {
         // Filter out excluded companies
         const visibleData = sortedData.filter(c => !excludedFromChart.has(c.id));
@@ -785,7 +612,7 @@ export default function DashboardPage() {
           });
         };
 
-        return (
+        return withAddPanel(
           <div className="space-y-8">
             {/* Scatterplot */}
             <div className="bg-white border border-slate-200 rounded-lg">
@@ -1021,7 +848,7 @@ export default function DashboardPage() {
       }
 
       case "insights":
-        return (
+        return withAddPanel(
           <div className="space-y-6">
             {/* Generate Insights CTA */}
             {!analysis && competitorData.length > 0 && (
@@ -1162,7 +989,7 @@ export default function DashboardPage() {
         );
 
       default:
-        return null;
+        return withAddPanel(null);
     }
   };
 
@@ -1170,7 +997,7 @@ export default function DashboardPage() {
     <>
       <DashboardLayout
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         onAddClick={() => setShowAddInput(!showAddInput)}
         onRefreshClick={handleRefreshAll}
         onSettingsClick={() => setSettingsPanelOpen(true)}

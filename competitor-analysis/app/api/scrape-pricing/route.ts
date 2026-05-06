@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import type { DetailLevel, PricingTier, CompetitorPricing } from '@/types';
+import { TinyFish } from '@tiny-fish/sdk';
 
 interface Competitor {
   id: string;
@@ -264,7 +265,7 @@ export async function POST(request: NextRequest) {
   });
 }
 
-// Transform Mino response to new schema
+// Transform Tinyfish Agent response to new schema
 function transformToNewSchema(
   rawData: Record<string, unknown>,
   competitorName: string,
@@ -350,107 +351,74 @@ async function scrapePricingPage(
     const goal = SCRAPING_GOALS[detailLevel];
     console.log(`[Scrape] Using ${detailLevel} detail level for ${competitor.name}`);
 
-    const minoResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
-      method: 'POST',
-      headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: competitor.url,
-        goal,
-        browser_profile: 'lite',
-      }),
-    });
-
-    if (!minoResponse.ok) {
-      throw new Error(`Mino API returned ${minoResponse.status}`);
-    }
-
-    const reader = minoResponse.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
     let finalResult: { company: string; url: string; data: CompetitorPricing; scrapeDuration: number } | null = null;
     let streamingUrl: string | undefined;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    const client = new TinyFish({ apiKey });
+    const stream = await client.agent.stream({
+      url: competitor.url,
+      goal,
+      browser_profile: 'lite',
+    });
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+    for await (const rawEvent of stream) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const event: any = rawEvent;
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const event = JSON.parse(line.slice(6));
-
-            // Capture streaming URL and send update
-            if (event.streamingUrl && !streamingUrl) {
-              streamingUrl = event.streamingUrl;
-              console.log(`[Scrape] ${competitor.name} got streamingUrl:`, streamingUrl);
-              await sendEvent({
-                type: 'competitor_streaming',
-                competitor: competitor.name,
-                id: competitor.id,
-                streamingUrl,
-                timestamp: Date.now(),
-              });
-            }
-
-            // Forward step updates
-            if (event.type === 'STEP' || event.purpose || event.action) {
-              const stepMessage = event.purpose || event.action || event.message || 'Processing...';
-              await sendEvent({
-                type: 'competitor_step',
-                competitor: competitor.name,
-                id: competitor.id,
-                step: stepMessage,
-                timestamp: Date.now(),
-              });
-            }
-
-            // Handle completion
-            if (event.type === 'COMPLETE' && event.status === 'COMPLETED') {
-              // Transform to new schema
-              const transformedData = transformToNewSchema(
-                event.resultJson || {},
-                competitor.name,
-                competitor.url
-              );
-
-              finalResult = {
-                company: competitor.name,
-                url: competitor.url,
-                data: transformedData,
-                scrapeDuration: Date.now() - startTime,
-              };
-
-              await sendEvent({
-                type: 'competitor_complete',
-                competitor: competitor.name,
-                id: competitor.id,
-                data: transformedData,
-                scrapeDuration: Date.now() - startTime,
-                timestamp: Date.now(),
-              });
-              break;
-            }
-
-            // Handle errors
-            if (event.type === 'ERROR' || event.status === 'FAILED') {
-              throw new Error(event.message || 'Extraction failed');
-            }
-          } catch (parseError) {
-            if (!(parseError instanceof SyntaxError)) throw parseError;
-          }
-        }
+      // Capture streaming URL and send update
+      if (event.streamingUrl && !streamingUrl) {
+        streamingUrl = event.streamingUrl;
+        console.log(`[Scrape] ${competitor.name} got streamingUrl:`, streamingUrl);
+        await sendEvent({
+          type: 'competitor_streaming',
+          competitor: competitor.name,
+          id: competitor.id,
+          streamingUrl,
+          timestamp: Date.now(),
+        });
       }
 
-      if (finalResult) break;
+      // Forward step updates (keep old heuristics)
+      if (event.type === 'STEP' || event.purpose || event.action) {
+        const stepMessage = event.purpose || event.action || event.message || 'Processing...';
+        await sendEvent({
+          type: 'competitor_step',
+          competitor: competitor.name,
+          id: competitor.id,
+          step: stepMessage,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Handle completion
+      if (event.type === 'COMPLETE' && event.status === 'COMPLETED') {
+        const rawResult = event.resultJson ?? event.result ?? {};
+
+        // Transform to new schema
+        const transformedData = transformToNewSchema(rawResult, competitor.name, competitor.url);
+
+        finalResult = {
+          company: competitor.name,
+          url: competitor.url,
+          data: transformedData,
+          scrapeDuration: Date.now() - startTime,
+        };
+
+        await sendEvent({
+          type: 'competitor_complete',
+          competitor: competitor.name,
+          id: competitor.id,
+          data: transformedData,
+          scrapeDuration: Date.now() - startTime,
+          timestamp: Date.now(),
+        });
+        break;
+      }
+
+      // Handle errors
+      if (event.type === 'ERROR' || event.status === 'FAILED') {
+        throw new Error(event.message || 'Extraction failed');
+      }
     }
 
     return finalResult;

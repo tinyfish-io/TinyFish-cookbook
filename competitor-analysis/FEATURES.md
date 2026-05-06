@@ -2,7 +2,7 @@
 
 ## Overview
 
-A full-featured competitive pricing intelligence tool that helps product and sales teams track competitor pricing across 10-15 competitors. Built with Next.js 16, React 19, and powered by the Mino API for intelligent web scraping.
+A full-featured competitive pricing intelligence tool that helps product and sales teams track competitor pricing across 10-15 competitors. Built with Next.js 16, React 19, and powered by Tinyfish Agent for intelligent web scraping.
 
 ---
 
@@ -31,7 +31,7 @@ Each step has a visual progress indicator showing completion status.
 
 **Design:**
 - Clean card-based form
-- Mino brand colors (cream background, orange accents)
+- Tinyfish Agent brand colors (cream background, orange accents)
 - Responsive layout
 
 ---
@@ -66,7 +66,7 @@ Each step has a visual progress indicator showing completion status.
 
 **Per-Competitor Card Shows:**
 - Company name with favicon placeholder
-- Live browser preview iframe (via Mino `streamingUrl`)
+- Live browser preview iframe (via Tinyfish Agent `streamingUrl`)
 - Status indicator:
   - Pending (waiting)
   - Generating URL (finding pricing page)
@@ -207,7 +207,7 @@ When clicking a competitor row, shows:
 - iOS zoom prevention (16px input fonts)
 
 ### Design System
-- **Mino Brand Colors:**
+- **Tinyfish Agent Brand Colors:**
   - Background: `#F4F3F2` (warm cream)
   - Primary: `#D76228` (burnt orange)
   - Secondary: `#165762` (deep teal)
@@ -220,6 +220,9 @@ When clicking a competitor row, shows:
 - Streaming responses (no blocking)
 - Lazy rendering of large lists
 
+### Tinyfish Agent integration
+- **`@tiny-fish/sdk`**: `TinyFish` client + `client.agent.stream()` in `app/api/scrape-pricing/route.ts` (no separate HTTP client module; scraping logic lives in the API route)
+
 ---
 
 ## API Routes
@@ -227,7 +230,7 @@ When clicking a competitor row, shows:
 | Route | Method | Purpose |
 |-------|--------|---------|
 | `/api/generate-urls` | POST | AI generates pricing page URLs from company names |
-| `/api/scrape-pricing` | POST | Parallel Mino scraping with SSE streaming |
+| `/api/scrape-pricing` | POST | Parallel Tinyfish Agent scraping with SSE streaming |
 | `/api/analyze-pricing` | POST | AI analysis of extracted pricing data |
 
 ---
@@ -242,9 +245,9 @@ When clicking a competitor row, shows:
   /dashboard/page.tsx          # Step 4: Intelligence dashboard
   /api
     /generate-urls/route.ts    # AI URL generation
-    /scrape-pricing/route.ts   # Mino scraping
+    /scrape-pricing/route.ts   # Tinyfish Agent scraping
     /analyze-pricing/route.ts  # AI analysis
-  /globals.css                 # Mino brand styles
+  /globals.css                 # Tinyfish Agent brand styles
   /layout.tsx                  # App wrapper with PricingProvider
 
 /components
@@ -260,7 +263,7 @@ When clicking a competitor row, shows:
 /lib
   /pricing-context.tsx         # React Context for state
   /ai-client.ts               # OpenRouter wrapper
-  /utils.ts                   # Utility functions
+  /utils.ts                   # `cn()` and shared UI helpers
 
 /types
   /index.ts                   # TypeScript interfaces
@@ -271,7 +274,7 @@ When clicking a competitor row, shows:
 ## Environment Variables
 
 ```bash
-TINYFISH_API_KEY=           # Mino API key for scraping
+TINYFISH_API_KEY=           # Tinyfish API key for scraping
 OPENROUTER_API_KEY=     # OpenRouter API key for AI
 ```
 
@@ -313,7 +316,7 @@ OPENROUTER_API_KEY=     # OpenRouter API key for AI
 npm install
 
 # Set environment variables
-cp .env.example .env.local
+cp .env.local.example .env.local
 # Add TINYFISH_API_KEY and OPENROUTER_API_KEY
 
 # Run development server
@@ -324,4 +327,4 @@ npm run dev
 
 ---
 
-*Built for the Mino API Bounty Program*
+*Built for the Tinyfish Agent API Bounty Program*

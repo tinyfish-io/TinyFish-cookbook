@@ -50,10 +50,10 @@
 :root {
   --radius: 0.625rem;
 
-  /* Mino Brand Colors */
-  --mino-bg: #F4F3F2;
-  --mino-orange: #D76228;
-  --mino-teal: #165762;
+  /* Tinyfish Agent Brand Colors */
+  --tinyfish-agent-bg: #F4F3F2;
+  --tinyfish-agent-orange: #D76228;
+  --tinyfish-agent-teal: #165762;
 
   --background: #F4F3F2;
   --foreground: #1a1a1a;

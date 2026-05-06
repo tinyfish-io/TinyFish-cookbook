@@ -2,29 +2,40 @@
 
 **Real-time semiconductor supply chain intelligence for automated risk assessment and lifecycle monitoring.**
 
-### **Mission Critical Supply Chain Visibility**
-SiliconSignal is a high-precision monitoring platform designed to detect logistics risks, lead-time shifts, and lifecycle transitions in real-time. By leveraging the TinyFish web agent, it extracts live signals directly from foundry bulletins and primary distributor channels.
+### Mission Critical Supply Chain Visibility
+
+SiliconSignal maps a part number to major distributor search URLs, runs the **TinyFish web agent** through the official **`@tiny-fish/sdk`** (streaming API), and aggregates structured signals (price, availability, lead time, lifecycle) into a single risk-oriented report with traceable evidence links.
 
 ---
 
-##  System Interface
-![alt text](image.png)
+## System Interface
+
+![SiliconSignal UI](image.png)
 
 ---
 
 ## 1. Technical Framework
 
-The system operates as a distributed data collector, mapping part-level signatures to identified web sources.
+The app is a **Next.js** application: the UI calls `POST /api/scan`, which orchestrates **parallel** TinyFish runs per distributor URL, then normalizes results and compares against local history.
 
-### **Data Acquisition Strategy**
+### Data Acquisition Strategy
+
 | Stage | Technical Operation | Purpose |
 | :--- | :--- | :--- |
-| **Source Mapping** | Heuristic identification of relevant foundry/distributor URLs. | Minimize scan latency and maximize signal relevance. |
-| **Web Tracking** | Execution of headless browser instances for multi-step navigation. | Bypassing static caches to reach live inventory and status pages. |
-| **Signal Extraction** | DOM-level parsing of unstructured lead times, stock levels, and MOQ. | Converting fragmented web data into structured technical metrics. |
-| **Logic Assessment** | Rule-based comparison against historical snapshots. | Detecting factual deviations (e.g., NRND status change). |
+| **Source mapping** | Deterministic distributor search URLs from the part number. | Fast, repeatable targets for the agent. |
+| **Web automation** | `TinyFish agent.stream({ url, goal, browser_profile, proxy_config })` via `@tiny-fish/sdk`. | Live pages, not static caches; progress via SSE-style events. |
+| **Signal extraction** | Parse `COMPLETE` events into structured fields; normalize strings and numbers. | Stable JSON-like fields for the UI and risk logic. |
+| **Logic assessment** | Rule-based merge + history comparison (`data/history.json` or `/tmp`). | Detect lifecycle shifts and lead-time spikes. |
 
-### **Output Data Schema**
+### TinyFish integration (post-migration)
+
+- **Package**: `@tiny-fish/sdk`
+- **Runtime**: `TINYFISH_API_KEY` in environment (required for real scans)
+- **Mode**: **Streaming** (`agent.stream`) so telemetry logs can show `STREAMING_URL`, `PROGRESS`, and `COMPLETE` per source
+- **Concurrency**: One stream per distributor; `Promise.all` across sources; per-source timeout
+
+### Output Data Schema (illustrative)
+
 ```json
 {
   "tracking_metrics": {
@@ -49,17 +60,20 @@ The system operates as a distributed data collector, mapping part-level signatur
 
 ## 2. Integration & Usage
 
-### **API Implementation**
-SiliconSignal exposes a robust REST API for integration into procurement and PLM workflows.
+### API
 
-#### **cURL Example**
+SiliconSignal exposes `POST /api/scan` for the UI and for integrations.
+
+#### cURL
+
 ```bash
 curl -X POST "http://localhost:3000/api/scan" \
   -H "Content-Type: application/json" \
   -d '{"part_number": "STM32F407"}'
 ```
 
-#### **TypeScript Implementation**
+#### TypeScript (client)
+
 ```typescript
 const fetchRiskProfile = async (part: string) => {
   const res = await fetch("/api/scan", {
@@ -75,25 +89,26 @@ const fetchRiskProfile = async (part: string) => {
 
 ## 3. System Architecture
 
-### **Data Flow Pipeline**
+### Data Flow Pipeline
+
 ```mermaid
 graph TD
     User([User]) -->|Inputs Part #| DP[Dashboard / PlatformView]
-    
+
     subgraph "Core Backend"
         API[API: /api/scan]
         Store[(Historical Snapshot Store)]
         Engine[Technical Assessment Engine]
     end
 
-    subgraph "Tracking Layer (TinyFish)"
-        Crawler[Automated Crawler]
-        DOM[DOM Extraction Engine]
+    subgraph "Tracking Layer (TinyFish SDK)"
+        Crawler[agent.stream per URL]
+        DOM[Structured fields from COMPLETE events]
         Sources((Live Web Sources))
     end
 
     DP -->|Request| API
-    API -->|Deploy| Crawler
+    API -->|Parallel streams| Crawler
     Crawler -->|Navigate| Sources
     Sources -->|Telemetry| DOM
     DOM -->|Parsed Data| Engine
@@ -102,102 +117,131 @@ graph TD
     API -->|Result| DP
 ```
 
-### **Monitoring Workflow**
+### Monitoring Workflow
+
 ```mermaid
 sequenceDiagram
     participant U as Client UI
     participant S as Scan Orchestrator
-    participant M as TinyFish Web Agent
+    participant M as TinyFish SDK agent.stream
     participant E as Assessment Engine
 
     U->>S: Track Part Request
-    S->>M: Action: Scan Distribution Channels
-    M-->>M: Navigate & Parse Stock/Price
-    M->>S: Raw Scrape Response
-    S->>M: Action: Scan Foundry Lifecycle
-    M-->>M: Navigate bulletins & Alert Logs
-    M->>S: Raw Lifecycle Data
-    S->>E: Process Signals & History
+    S->>M: Parallel goals per distributor URL
+    M-->>M: PROGRESS / COMPLETE events
+    M->>S: Structured fields per source
+    S->>E: Merge signals & history
     E->>U: Final Technical Report
 ```
 
-### **Parallel Execution Architecture**
+### Parallel Execution
+
 ```mermaid
 graph LR
-    API[Scan API Orchestrator] -->|Parallel Fetch| DK(DigiKey)
-    API -->|Parallel Fetch| MS(Mouser)
-    API -->|Parallel Fetch| FN(Farnell / Newark)
-    API -->|Parallel Fetch| AR(Arrow)
-    
-    DK -->|TinyFish run-sse| Merge[Stream Aggregation]
-    MS -->|TinyFish run-sse| Merge
-    FN -->|TinyFish run-sse| Merge
-    AR -->|TinyFish run-sse| Merge
-    
+    API[Scan API] -->|agent.stream| DK(DigiKey)
+    API -->|agent.stream| MS(Mouser)
+    API -->|agent.stream| FN(Farnell / Newark)
+    API -->|agent.stream| AR(Arrow)
+
+    DK -->|TinyFish stream events| Merge[Merge & score]
+    MS -->|TinyFish stream events| Merge
+    FN -->|TinyFish stream events| Merge
+    AR -->|TinyFish stream events| Merge
+
     Merge -->|Confidence Scoring| Final[Final Risk Report]
 ```
 
-### **SSE Event Stream Lifecycle**
+### Stream Event Lifecycle (SDK)
+
 ```mermaid
 stateDiagram-v2
     direction LR
-    [*] --> Request_Initiated: POST /run-sse
-    Request_Initiated --> STARTED: Event Stream Connected
-    STARTED --> PROGRESS: Agent executing (e.g. Navigation)
-    PROGRESS --> PROGRESS: Further actions (e.g. DOM Parse)
-    PROGRESS --> COMPLETE: Task Finished
-    COMPLETE --> JSON_Extraction: Parse resultJson
-    JSON_Extraction --> [*]
+    [*] --> STARTED: Stream opened
+    STARTED --> STREAMING_URL: Live browser URL (optional)
+    STREAMING_URL --> PROGRESS: Agent steps
+    PROGRESS --> PROGRESS: Further actions
+    PROGRESS --> COMPLETE: Final structured payload
+    COMPLETE --> [*]
 ```
 
 ---
 
-##  Key Capabilities
-*   **Live Web Verification**: Real-time checking of foundry and distributor pages for direct status signals.
-*   **Logbook Transparency**: Dedicated terminal logs showing exact tracking steps and identification success.
-*   **Logistics History**: Persistence layer to track changes in lead times and status over months.
-*   **Industrial Aesthetic**: Premium dark-mode interface designed for professional engineering environments.
+## Key Capabilities
+
+- **Live web verification**: Distributor pages queried through TinyFish automation.
+- **Logbook transparency**: `agent_logs` reflect stream progress and per-source outcomes.
+- **Logistics history**: File-backed snapshots for trend and change detection.
+- **Industrial UI**: Dark-mode dashboard and platform views.
 
 ---
 
-##  Engineering Standards
-*   **Concurrency**: All outbound requests use timeouts, retries, and capped parallelism.
-*   **Input Validation**: Part numbers are normalized and validated before scan execution.
-*   **Caching**: Recent scans are cached with TTL to reduce repeated work.
-*   **Signal Priority**: Explicit signals override inferred heuristics.
-*   **Readability**: Shared helpers and clear log messages for maintainability.
+## Engineering Standards
+
+- **Concurrency**: Parallel per-source streams with per-source timeouts and an overall scan budget.
+- **Input validation**: Part numbers validated before any TinyFish call.
+- **Caching**: Optional response cache exists in code (`CACHE_TTL_MS`); default is **0** (cache off).
+- **Signal priority**: Explicit normalized values preferred over inferred text.
+- **Dependencies**: `@tiny-fish/sdk` — no direct `fetch` to TinyFish HTTP endpoints in application code.
 
 ---
 
-##  Scan results and user feedback
+## Scan Results and User Feedback
 
-*   **Sample parts:** The scan form includes one-click sample parts (e.g. NE555, ATmega328P, STM32F103C8T6) that typically return lifecycle and availability from distributor scans.
-*   **No N/A in main fields:** When a scan finds at least one source, lifecycle shows parsed value or “Active”; availability, price, and lead time show parsed values or “—” when not found.
-*   **Traceability Evidence:** Use the Ref links under each result to open distributor pages for price and lead time when those fields show “—”.
-*   **Manufacturer:** Filling the optional manufacturer field (e.g. Texas Instruments, Microchip) can improve parsing. The “lacks manufacturer information” message only appears when no distributor sources were found.
+- **Sample parts:** The scan form includes sample parts (e.g. NE555, ATmega328P, STM32F103C8T6) that often return lifecycle and availability from distributor scans.
+- **Main fields:** When at least one source responds, lifecycle shows a parsed value or “Active”; availability, price, and lead time show parsed values or fallbacks as implemented in `/api/scan`.
+- **Traceability:** Use Ref links under each result to open distributor pages.
+- **Manufacturer:** Optional; helps context in the UI; absence matters most when no sources were found.
 
 ---
 
-##  Getting Started
+## Getting Started
 
-### **Environment Setup**
-Create a `.env.local` in the `frontend` directory:
+### Prerequisites
+
+- Node.js compatible with Next.js 16 (see `package.json`).
+- A **TinyFish API key** from [TinyFish](https://agent.tinyfish.ai) (stored locally, never committed).
+
+### Environment
+
+Create `.env.local` in the **silicon-signal** project directory:
+
 ```env
 TINYFISH_API_KEY=your_key_here
 ```
-The TinyFish tracker runs without API keys, but adding `TINYFISH_API_KEY` enables enhanced telemetry logging.
 
-### **Running Locally**
+Without `TINYFISH_API_KEY`, distributor scans do not run successfully (sources will appear blocked).
+
+See `.env.example` for the variable name.
+
+### Run Locally
+
+From the repository root (adjust path if your clone layout differs):
+
 ```bash
-cd frontend
+cd silicon-signal
 npm install
 npm run dev
 ```
-If port `3000` is already in use, stop the existing process or run with a different port.
-PowerShell example:
+
+If port `3000` is in use, stop the other process or choose another port.
+
+**PowerShell:**
+
 ```powershell
 $env:PORT=3000; npm run dev
 ```
 
+### Scripts
+
+| Command | Description |
+| :--- | :--- |
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run lint` | ESLint |
+
 ---
 
+## Package
+
+- **npm name**: `silicon-signal` (see `package.json`)

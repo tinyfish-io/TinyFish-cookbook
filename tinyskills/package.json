@@ -1,7 +1,8 @@
 {
-  "name": "015-skillforge",
+  "name": "tinyskills",
   "version": "0.1.0",
   "private": true,
+  "description": "TinySkills — generate SKILL.md guides using TinyFish Search & Fetch plus LLM synthesis",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.13",
+    "@tiny-fish/sdk": "^0.0.7",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-scroll-area": "^1.2.9",
     "@radix-ui/react-slot": "^1.2.4",

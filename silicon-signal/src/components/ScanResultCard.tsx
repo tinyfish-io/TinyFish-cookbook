@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { ScanResult } from '../types';
 import { RiskBadge } from './RiskBadge';
-import { ExternalLink, AlertTriangle, Calendar, CheckCircle, Activity, DollarSign, Globe } from 'lucide-react';
+import { ExternalLink, AlertTriangle, CheckCircle, Activity, Globe } from 'lucide-react';
 
 export function ScanResultCard({ result }: { result: ScanResult }) {
     const isSparseData = (result.manufacturer === 'Unknown' || !result.manufacturer) && (!result.sources || result.sources.length === 0);
@@ -16,7 +16,10 @@ export function ScanResultCard({ result }: { result: ScanResult }) {
         ? new Date(result.scanned_at).toLocaleString()
         : result.timestamp;
 
-    const durationSec = result.scan_duration_ms != null ? (result.scan_duration_ms / 1000).toFixed(1) : null;
+    const durationSec =
+        result.scan_duration_ms !== null && result.scan_duration_ms !== undefined
+            ? (result.scan_duration_ms / 1000).toFixed(1)
+            : null;
 
     return (
         <div className="glass-card rounded-xl p-6 md:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full relative overflow-hidden group" role="article" aria-label={`Scan result for ${result.part_number}`}>
@@ -40,7 +43,7 @@ export function ScanResultCard({ result }: { result: ScanResult }) {
                         <span className="px-2 py-1 rounded-full border border-slate-700/40 bg-slate-900/40 text-[10px] text-slate-300 uppercase tracking-wider">
                             Scanned {scannedLabel}
                         </span>
-                        {durationSec != null && (
+                        {durationSec !== null && (
                             <span className="px-2 py-1 rounded-full border border-slate-700/40 bg-slate-900/40 text-[10px] text-slate-300 uppercase tracking-wider" aria-label={`Scan took ${durationSec} seconds`}>
                                 Scan took {durationSec}s
                             </span>

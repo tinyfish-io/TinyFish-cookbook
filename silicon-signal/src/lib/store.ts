@@ -8,7 +8,7 @@ function ensureDirectory(filePath: string) {
     if (!fs.existsSync(dir)) {
         try {
             fs.mkdirSync(dir, { recursive: true });
-        } catch (e) {
+        } catch {
             return false;
         }
     }
@@ -27,11 +27,11 @@ export interface HistoricalSnapshot {
 export function saveSnapshot(partNumber: string, snapshot: HistoricalSnapshot) {
     const attemptSave = (file: string) => {
         ensureDirectory(file);
-        let data: any = {};
+        let data: Record<string, { snapshots?: HistoricalSnapshot[] }> = {};
         if (fs.existsSync(file)) {
             try {
-                data = JSON.parse(fs.readFileSync(file, 'utf-8'));
-            } catch (e) {
+                data = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, { snapshots?: HistoricalSnapshot[] }>;
+            } catch {
                 data = {};
             }
         }
@@ -64,7 +64,7 @@ export function saveSnapshot(partNumber: string, snapshot: HistoricalSnapshot) {
 
     try {
         attemptSave(currentHistoryFile);
-    } catch (e) {
+    } catch {
         // If write fails (e.g. EROFS), fallback to /tmp
         const tmpFile = path.join('/tmp', 'history.json');
         if (currentHistoryFile !== tmpFile) {
@@ -83,9 +83,9 @@ export function getHistory(partNumber: string): HistoricalSnapshot[] {
     for (const file of files) {
         if (fs.existsSync(file)) {
             try {
-                const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+                const data = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, { snapshots?: HistoricalSnapshot[] }>;
                 return data[partNumber]?.snapshots || [];
-            } catch (e) {
+            } catch {
                 continue;
             }
         }

@@ -1,7 +1,8 @@
 {
-  "name": "frontend",
+  "name": "silicon-signal",
   "version": "0.1.0",
   "private": true,
+  "description": "SiliconSignal — semiconductor supply-chain scan UI with TinyFish agent (@tiny-fish/sdk)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,6 +10,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tiny-fish/sdk": "^0.0.7",
     "clsx": "^2.1.1",
     "framer-motion": "^12.27.1",
     "lucide-react": "^0.562.0",

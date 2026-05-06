@@ -93,8 +93,8 @@ Drop the server URL into Claude Code, Cursor, Codex, ChatGPT desktop, or any MCP
 ```bash
 npm install -g @tiny-fish/cli
 tinyfish auth login
-tinyfish search "web automation tools"
-tinyfish fetch https://example.com
+tinyfish search query "web automation tools"
+tinyfish fetch content get https://example.com
 ```
 
 The CLI writes results to the filesystem instead of piping them through your model's context window — tokens stay low, output stays structured.

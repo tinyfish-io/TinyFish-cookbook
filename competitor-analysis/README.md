@@ -1,10 +1,29 @@
-# TinyFish - Competitive Pricing Intelligence Dashboard
+# Competitive pricing intelligence (TinyFish cookbook)
 
-**Live Demo:** https://competitor-priceanalysis.vercel.app/
+**Package:** `competitor-analysis` (see `package.json`)
 
-A comprehensive competitive pricing intelligence platform that helps product and sales teams track competitor pricing across 10-15 competitors simultaneously. Uses the **Source → Extract → Present** pipeline pattern with AI-powered URL generation, parallel Mino browser agents for scraping, and intelligent analysis to provide strategic market insights.
+**Live demo:** https://competitor-priceanalysis.vercel.app/
 
-**Status**: ✅ Working
+A competitive pricing intelligence app for tracking many competitors at once. It follows **Source → Extract → Present**: OpenRouter helps discover pricing URLs, **Tinyfish Agent** (via `@tiny-fish/sdk`) scrapes and extracts structured JSON from pricing pages in parallel, and OpenRouter analyzes the results for the dashboard.
+
+**Status:** Working
+
+---
+
+## Stack
+
+| Piece | Role |
+|-------|------|
+| Next.js 16 (App Router) | UI and API routes |
+| `@tiny-fish/sdk` | Tinyfish Agent streaming runs (`client.agent.stream`) in `/api/scrape-pricing` |
+| OpenRouter | URL hints, pricing analysis (`/api/generate-urls`, `/api/analyze-pricing`) |
+| React 19, Tailwind, shadcn/ui | Frontend |
+
+---
+
+## How Tinyfish Agent is wired
+
+Scraping is implemented in `app/api/scrape-pricing/route.ts`: for each competitor URL it calls `new TinyFish({ apiKey }).agent.stream({ url, goal, browser_profile: 'lite' })`, forwards step and `streamingUrl` events to the browser over SSE, and on `COMPLETE` maps `resultJson` into the app’s `CompetitorPricing` schema. Environment variable: `TINYFISH_API_KEY`.
 
 ---
 
@@ -14,11 +33,7 @@ A comprehensive competitive pricing intelligence platform that helps product and
 
 ---
 
-## How Mino API is Used
-
-The Mino API powers browser automation for this use case. See the code snippet below for implementation details.
-
-### Code Snippet
+## Quick start
 
 ```bash
 npm install
@@ -27,6 +42,8 @@ export OPENROUTER_API_KEY=your_key
 npm run dev
 ```
 
+Or use a `.env.local` file (see `.env.local.example`).
+
 ---
 
 ## How to Run
@@ -34,7 +51,7 @@ npm run dev
 ### Prerequisites
 
 - Node.js 18+
-- Mino API key (get from [mino.ai](https://mino.ai))
+- Tinyfish API key (set `TINYFISH_API_KEY`)
 
 ### Setup
 
@@ -119,7 +136,7 @@ sequenceDiagram
     participant API2 as /api/scrape-pricing
     participant API3 as /api/analyze-pricing
     participant AI as OpenRouter AI
-    participant M as Mino Agents
+    participant M as Tinyfish Agent Runs
     U->>FE: Enter baseline pricing
     FE->>Ctx: Store baseline
     U->>FE: Add 10-15 competitors

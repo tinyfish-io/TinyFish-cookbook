@@ -1,6 +1,6 @@
 ---
 name: job-market-intel
-description: description: Get a live job market snapshot for any role and tech stack by deploying parallel TinyFish agents across LinkedIn, Indeed, and Glassdoor. Use when a developer wants real salary data, in-demand skills, top hiring companies, and remote ratios from actual job postings published this week — not survey averages or historical data. Triggers on phrases like "what is the market paying for", "salary range for", "is my salary competitive", "what should I ask for", "what skills do I need for", "who is hiring for", "how in-demand is", "before I negotiate", "job market for", "what does a [role] make", or any request to research compensation or demand for a specific role and tech stack before a job search or negotiation.
+description: Get a live job market snapshot for any role and tech stack by deploying parallel TinyFish agents across LinkedIn, Indeed, and Glassdoor. Use when a developer wants real salary data, in-demand skills, top hiring companies, and remote ratios from actual job postings published this week — not survey averages or historical data. Triggers on phrases like "what is the market paying for", "salary range for", "is my salary competitive", "what should I ask for", "what skills do I need for", "who is hiring for", "how in-demand is", "before I negotiate", "job market for", "what does a [role] make", or any request to research compensation or demand for a specific role and tech stack before a job search or negotiation.
 ---
 
 # Job Market Intel — Live Salary & Demand Data Before You Negotiate

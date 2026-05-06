@@ -128,7 +128,7 @@ export type ScrapeEvent =
   | SourceErrorEvent
   | ScrapeCompleteEvent;
 
-// localStorage keys
+/** localStorage keys (historical `skillforge_*` prefix retained for backward compatibility) */
 export const STORAGE_KEYS = {
   SKILLS: "skillforge_skills",
   HISTORY: "skillforge_history",

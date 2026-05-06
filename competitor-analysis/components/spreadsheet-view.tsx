@@ -23,6 +23,7 @@ interface SpreadsheetViewProps {
   onRefreshCompetitor?: (competitorId: string) => void;
   isRefreshing?: Record<string, boolean>;
   onCompanyClick?: (competitorId: string) => void;
+  pendingCount?: number;
 }
 
 // Inline editor component
@@ -143,6 +144,7 @@ export function SpreadsheetView({
   // onVerifyTier,
   onRefreshCompetitor,
   isRefreshing = {},
+  pendingCount = 0,
 }: SpreadsheetViewProps) {
   const router = useRouter();
   const [expandedCompetitors, setExpandedCompetitors] = useState<Record<string, boolean>>({});
@@ -244,8 +246,20 @@ export function SpreadsheetView({
     URL.revokeObjectURL(url);
   };
 
-  // Empty state
   if (rows.length === 0) {
+    if (pendingCount > 0) {
+      return (
+        <div className="text-center py-16 space-y-4">
+          <Loader2 className="w-8 h-8 text-slate-400 animate-spin mx-auto" />
+          <div>
+            <p className="text-sm font-medium text-slate-700">
+              Scraping {pendingCount} competitor{pendingCount !== 1 ? "s" : ""}...
+            </p>
+            <p className="text-sm text-slate-400 mt-1">Results will appear here as agents finish</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="text-center py-16">
         <p className="text-slate-400">No pricing data yet. Add competitors to get started.</p>

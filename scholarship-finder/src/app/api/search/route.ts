@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { TinyFish, EventType, RunStatus } from "@tiny-fish/sdk";
 
 export const runtime = "nodejs";
@@ -36,26 +36,23 @@ export async function POST(req: NextRequest) {
           region ? `in ${region}` : "",
         ].filter(Boolean).join(" ");
 
-        // STEP 1 — Groq discovers scholarship URLs
+        // STEP 1 — Gemini discovers scholarship URLs
         send({ type: "STEP", step: 1, message: "Finding scholarship websites..." });
 
-        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         let scholarshipUrls: ScholarshipUrl[] = [];
         try {
-          const completion = await groq.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
-            messages: [
-              { role: "system", content: "You are a scholarship research assistant. Return only valid JSON arrays, no markdown fences." },
-              { role: "user", content: `Find 5-8 official scholarship provider websites for ${scholarshipType} scholarships ${locationContext}.
+          const prompt = `You are a scholarship research assistant. Return only valid JSON arrays, no markdown fences.
+
+Find 5-8 official scholarship provider websites for ${scholarshipType} scholarships ${locationContext}.
 Return ONLY a JSON array:
 [{"name":"Site Name","url":"https://...","description":"Brief description"}]
-Include university financial aid pages, major foundations (Fulbright, Gates, Rhodes), government programs, and aggregators. Use real URLs.` },
-            ],
-            temperature: 0.5,
-          });
+Include university financial aid pages, major foundations (Fulbright, Gates, Rhodes), government programs, and aggregators. Use real URLs.`;
 
-          const content = completion.choices[0]?.message?.content || "";
+          const result = await model.generateContent(prompt);
+          const content = result.response.text() || "";
           const jsonMatch = content.match(/\[[\s\S]*\]/);
           if (jsonMatch) scholarshipUrls = JSON.parse(jsonMatch[0]);
         } catch {
@@ -122,13 +119,12 @@ Return ONLY valid JSON, no extra text:
                         (s) => s.name && s.name !== "Not specified" && s.name !== ""
                       )
                     : [];
-                  // Accumulate and send immediately so frontend shows them
                   allScholarships.push(...found);
                   send({ type: "AGENT_COMPLETE", agentId, siteName: site.name, scholarships: found });
                 } else {
                   send({ type: "AGENT_ERROR", agentId, siteName: site.name, error: event.error?.message || "Agent failed" });
                 }
-                return; // always exit after COMPLETE
+                return;
               }
             }
           } catch (err) {
@@ -138,7 +134,6 @@ Return ONLY valid JSON, no extra text:
 
         await Promise.all(agentPromises);
 
-        // Send final summary with everything collected
         send({
           type: "ALL_COMPLETE",
           scholarships: allScholarships,

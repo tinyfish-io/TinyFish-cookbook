@@ -1,6 +1,6 @@
 # Scholarship Finder
 
-A Next.js app that finds real scholarships in real time. Enter a scholarship type, university, and region — Groq discovers relevant sources, then parallel TinyFish browser agents scrape each one and stream results back as they arrive.
+A Next.js app that finds real scholarships in real time. Enter a scholarship type, university, and region — Gemini discovers relevant sources, then parallel TinyFish browser agents scrape each one and stream results back as they arrive.
 
 ## Demo
 
@@ -11,7 +11,7 @@ Each agent card shows a live browser preview as it scrapes. Results appear as ea
 ```
 User submits search
        ↓
-/api/search — Groq (llama-3.3-70b) discovers 5-8 relevant scholarship URLs
+/api/search — Gemini (gemini-2.0-flash) discovers 5-8 relevant scholarship URLs
        ↓
 Parallel TinyFish browser agents scrape each URL simultaneously
        ↓
@@ -24,7 +24,7 @@ Results stream back to the UI as each agent completes
 src/
 ├── app/
 │   ├── api/
-│   │   └── search/route.ts     ← single route: Groq discovery + parallel agent scraping
+│   │   └── search/route.ts     ← single route: Gemini discovery + parallel agent scraping
 │   └── page.tsx
 ├── components/
 │   ├── SearchForm.tsx           ← search inputs
@@ -44,11 +44,16 @@ src/
 ## Code Snippet
 
 ```typescript
-// /api/search — Groq discovers URLs, then TinyFish agents scrape in parallel
-const completion = await groq.chat.completions.create({
-  model: "llama-3.3-70b-versatile",
-  messages: [{ role: "user", content: `Find scholarship URLs for ${scholarshipType}...` }],
-});
+// /api/search — Gemini discovers URLs, then TinyFish agents scrape in parallel
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { TinyFish, EventType, RunStatus } from "@tiny-fish/sdk";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const result = await model.generateContent(prompt);
+const urls = JSON.parse(result.response.text());
+
+const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
 
 await Promise.all(
   scholarshipUrls.map(async (site, index) => {
@@ -56,7 +61,7 @@ await Promise.all(
     for await (const event of agentStream) {
       if (event.type === EventType.COMPLETE) {
         send({ type: "AGENT_COMPLETE", scholarships: event.result?.scholarships });
-        return; // always exit after COMPLETE
+        return;
       }
     }
   })
@@ -88,4 +93,4 @@ await Promise.all(
 | Variable | Description |
 |----------|-------------|
 | `TINYFISH_API_KEY` | Browser agents that scrape scholarship pages. Get yours at [agent.tinyfish.ai/api-keys](https://agent.tinyfish.ai/api-keys) |
-| `GROQ_API_KEY` | LLM-powered URL discovery via llama-3.3-70b. Get yours at [console.groq.com/keys](https://console.groq.com/keys) |
+| `GEMINI_API_KEY` | LLM-powered URL discovery via gemini-2.0-flash. Get yours at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |

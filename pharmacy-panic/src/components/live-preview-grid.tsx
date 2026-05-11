@@ -92,6 +92,7 @@ export function LivePreviewGrid({ previews }: LivePreviewGridProps) {
               className={`w-full border-0 bg-zinc-50 ${expanded ? 'h-44' : 'h-72'}`}
               title={`TinyFish agent: ${getHostname(siteUrl)}`}
               loading="eager"
+              sandbox="allow-scripts allow-same-origin"
             />
           </div>
         ))}

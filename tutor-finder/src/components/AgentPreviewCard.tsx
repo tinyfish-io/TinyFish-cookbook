@@ -1,3 +1,4 @@
+"use client";
 import { Monitor, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AgentStatus } from '@/types/tutor';

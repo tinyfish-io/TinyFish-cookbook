@@ -31,57 +31,6 @@ export function formatRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-// Mino SSE Event utilities
-export interface MinoEvent {
-  type: string;
-  status?: string;
-  message?: string;
-  resultJson?: unknown;
-  streamingUrl?: string;
-  step?: string;
-  purpose?: string;
-  action?: string;
-  timestamp?: number;
-}
-
-export function parseSSELine(line: string): MinoEvent | null {
-  if (!line.startsWith("data: ")) {
-    return null;
-  }
-
-  try {
-    const data = JSON.parse(line.slice(6));
-    return data as MinoEvent;
-  } catch (error) {
-    console.error("Failed to parse SSE line:", error);
-    return null;
-  }
-}
-
-export function isCompleteEvent(event: MinoEvent): boolean {
-  return event.type === "COMPLETE" && event.status === "COMPLETED";
-}
-
-export function isErrorEvent(event: MinoEvent): boolean {
-  return event.type === "ERROR" || event.status === "FAILED";
-}
-
-export function formatStepMessage(event: MinoEvent): string {
-  if (event.purpose) {
-    return event.purpose;
-  }
-  if (event.action) {
-    return event.action;
-  }
-  if (event.step) {
-    return event.step;
-  }
-  if (event.message) {
-    return event.message;
-  }
-  return "Processing...";
-}
-
 // URL validation
 export function isValidUrl(string: string): boolean {
   try {

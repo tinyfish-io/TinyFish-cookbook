@@ -1,11 +1,14 @@
-import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { ExamType, Tutor, AgentStatus, SearchState } from '@/types/tutor';
+"use client";
+
+import { useState, useCallback } from "react";
+import type { ExamType, Tutor, AgentStatus, SearchState } from "@/types/tutor";
+
+const genId = () => Math.random().toString(36).substring(2, 15);
 
 export function useTutorSearch() {
   const [state, setState] = useState<SearchState>({
     exam: null,
-    location: '',
+    location: "",
     isSearching: false,
     isDiscovering: false,
     agents: [],
@@ -13,213 +16,159 @@ export function useTutorSearch() {
     selectedTutorIds: new Set(),
   });
 
-  const setExam = (exam: ExamType | null) => {
-    setState((prev) => ({ ...prev, exam }));
-  };
+  const setExam = (exam: ExamType | null) => setState((prev) => ({ ...prev, exam }));
 
   const toggleTutorSelection = (tutorId: string) => {
     setState((prev) => {
-      const newSelected = new Set(prev.selectedTutorIds);
-      if (newSelected.has(tutorId)) {
-        newSelected.delete(tutorId);
-      } else {
-        newSelected.add(tutorId);
-      }
-      return { ...prev, selectedTutorIds: newSelected };
+      const next = new Set(prev.selectedTutorIds);
+      next.has(tutorId) ? next.delete(tutorId) : next.add(tutorId);
+      return { ...prev, selectedTutorIds: next };
     });
   };
 
-  const resetSearch = () => {
-    setState({
-      exam: null,
-      location: '',
-      isSearching: false,
-      isDiscovering: false,
-      agents: [],
-      tutors: [],
-      selectedTutorIds: new Set(),
-    });
-  };
+  const resetSearch = () =>
+    setState({ exam: null, location: "", isSearching: false, isDiscovering: false, agents: [], tutors: [], selectedTutorIds: new Set() });
 
   const startSearch = useCallback(async (exam: ExamType, location: string) => {
-    setState((prev) => ({
-      ...prev,
-      location,
-      isSearching: true,
-      isDiscovering: true,
-      agents: [],
-      tutors: [],
-      selectedTutorIds: new Set(),
-    }));
+    setState((prev) => ({ ...prev, location, isSearching: true, isDiscovering: true, agents: [], tutors: [], selectedTutorIds: new Set() }));
 
     try {
-      // Step 1: Discover websites using Gemini
-      console.log('Discovering websites for', exam, 'in', location);
-      const { data: discoverData, error: discoverError } = await supabase.functions.invoke(
-        'discover-tutor-websites',
-        { body: { exam, location } }
-      );
+      // Step 1 — Groq discovers websites
+      const discoverRes = await fetch("/api/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exam, location }),
+      });
+      const { websites } = await discoverRes.json();
 
-      if (discoverError) {
-        console.error('Discover error:', discoverError);
-        throw discoverError;
-      }
-
-      const websites: { name: string; url: string }[] = discoverData?.websites || [];
-      console.log('Discovered websites:', websites);
-
-      if (websites.length === 0) {
-        setState((prev) => ({
-          ...prev,
-          isSearching: false,
-          isDiscovering: false,
-        }));
+      if (!websites?.length) {
+        setState((prev) => ({ ...prev, isSearching: false, isDiscovering: false }));
         return;
       }
 
       // Initialize agents
-      const initialAgents: AgentStatus[] = websites.map((site, index) => ({
-        id: `agent-${index}`,
-        websiteName: site.name,
-        websiteUrl: site.url,
-        streamingUrl: null,
-        status: 'searching',
-        message: 'Starting search...',
-        tutors: [],
-      }));
+      const initialAgents: AgentStatus[] = websites.map(
+        (site: { name: string; url: string }, index: number) => ({
+          id: `agent-${index}`,
+          websiteName: site.name,
+          websiteUrl: site.url,
+          streamingUrl: null,
+          status: "searching" as const,
+          message: "Starting search...",
+          tutors: [],
+        })
+      );
 
-      setState((prev) => ({
-        ...prev,
-        isDiscovering: false,
-        agents: initialAgents,
-      }));
+      setState((prev) => ({ ...prev, isDiscovering: false, agents: initialAgents }));
 
-      // Step 2: Launch Mino agents in parallel using SSE
-      const agentPromises = websites.map(async (site, index) => {
-        const agentId = `agent-${index}`;
+      // Step 2 — parallel TinyFish agents
+      const agentPromises = websites.map(
+        async (site: { name: string; url: string }, index: number) => {
+          const agentId = `agent-${index}`;
+          try {
+            const response = await fetch("/api/scrape", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ websiteUrl: site.url, websiteName: site.name, exam, agentId }),
+            });
 
-        try {
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-tutors-mino`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-              },
-              body: JSON.stringify({
-                websiteUrl: site.url,
-                websiteName: site.name,
-                exam,
-              }),
-            }
-          );
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error("No reader");
 
-          const reader = response.body?.getReader();
-          if (!reader) throw new Error('No reader');
+            const decoder = new TextDecoder();
+            let buffer = "";
 
-          const decoder = new TextDecoder();
-          let buffer = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop() || "";
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const jsonStr = line.slice(6).trim();
+                if (jsonStr === "[DONE]") continue;
+                try {
+                  const data = JSON.parse(jsonStr);
 
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-              const jsonStr = line.slice(6).trim();
-              if (jsonStr === '[DONE]') continue;
+                  if (data.type === "STREAMING_URL" && data.streamingUrl) {
+                    setState((prev) => ({
+                      ...prev,
+                      agents: prev.agents.map((a) =>
+                        a.id === agentId ? { ...a, streamingUrl: data.streamingUrl, message: "Browsing..." } : a
+                      ),
+                    }));
+                  }
 
-              try {
-                const data = JSON.parse(jsonStr);
+                  if (data.type === "PROGRESS" && data.message) {
+                    setState((prev) => ({
+                      ...prev,
+                      agents: prev.agents.map((a) =>
+                        a.id === agentId ? { ...a, message: data.message } : a
+                      ),
+                    }));
+                  }
 
-                // Update agent status
-                setState((prev) => ({
-                  ...prev,
-                  agents: prev.agents.map((a) =>
-                    a.id === agentId
-                      ? {
-                          ...a,
-                          streamingUrl: data.streamingUrl || a.streamingUrl,
-                          status: data.type === 'COMPLETE' ? 'complete' : 'searching',
-                          message: data.message || a.message,
-                        }
-                      : a
-                  ),
-                }));
+                  if (data.type === "COMPLETE" && data.resultJson?.tutors) {
+                    const newTutors: Tutor[] = data.resultJson.tutors
+                      .filter((t: Record<string, unknown>) => t.tutorName && t.tutorName !== "Unknown")
+                      .map((t: Record<string, unknown>, i: number) => ({
+                        id: `${agentId}-tutor-${i}-${genId()}`,
+                        tutorName: t.tutorName as string || "Unknown",
+                        examsTaught: (t.examsTaught as string[]) || [],
+                        subjects: (t.subjects as string[]) || [],
+                        teachingMode: (t.teachingMode as string) || null,
+                        location: (t.location as string) || null,
+                        experience: (t.experience as string) || null,
+                        qualifications: (t.qualifications as string) || null,
+                        pricing: (t.pricing as string) || null,
+                        pastResults: (t.pastResults as string) || null,
+                        contactMethod: (t.contactMethod as string) || null,
+                        profileLink: (t.profileLink as string) || null,
+                        sourceWebsite: (t.sourceWebsite as string) || site.name,
+                      }));
 
-                // Add tutors when complete
-                if (data.type === 'COMPLETE' && data.resultJson?.tutors) {
-                  const newTutors: Tutor[] = data.resultJson.tutors.map(
-                    (t: any, i: number) => ({
-                      id: `${agentId}-tutor-${i}`,
-                      tutorName: t.tutorName || 'Unknown',
-                      examsTaught: t.examsTaught || [],
-                      subjects: t.subjects || [],
-                      teachingMode: t.teachingMode || null,
-                      location: t.location || null,
-                      experience: t.experience || null,
-                      qualifications: t.qualifications || null,
-                      pricing: t.pricing || null,
-                      pastResults: t.pastResults || null,
-                      contactMethod: t.contactMethod || null,
-                      profileLink: t.profileLink || null,
-                      sourceWebsite: t.sourceWebsite || site.name,
-                    })
-                  );
+                    setState((prev) => ({
+                      ...prev,
+                      tutors: [...prev.tutors, ...newTutors],
+                      agents: prev.agents.map((a) =>
+                        a.id === agentId ? { ...a, tutors: newTutors, status: "complete", message: `Found ${newTutors.length} tutors` } : a
+                      ),
+                    }));
+                  }
 
-                  setState((prev) => ({
-                    ...prev,
-                    tutors: [...prev.tutors, ...newTutors],
-                    agents: prev.agents.map((a) =>
-                      a.id === agentId ? { ...a, tutors: newTutors, status: 'complete' } : a
-                    ),
-                  }));
-                }
-              } catch (e) {
-                // Ignore parse errors for incomplete JSON
+                  if (data.type === "ERROR") {
+                    setState((prev) => ({
+                      ...prev,
+                      agents: prev.agents.map((a) =>
+                        a.id === agentId ? { ...a, status: "error", message: "Search failed" } : a
+                      ),
+                    }));
+                  }
+                } catch { /* ignore parse errors */ }
               }
             }
+          } catch (error) {
+            setState((prev) => ({
+              ...prev,
+              agents: prev.agents.map((a) =>
+                a.id === agentId ? { ...a, status: "error", message: "Search failed" } : a
+              ),
+            }));
           }
-        } catch (error) {
-          console.error(`Agent ${agentId} error:`, error);
-          setState((prev) => ({
-            ...prev,
-            agents: prev.agents.map((a) =>
-              a.id === agentId
-                ? { ...a, status: 'error', message: 'Search failed' }
-                : a
-            ),
-          }));
         }
-      });
+      );
 
       await Promise.allSettled(agentPromises);
-
       setState((prev) => ({ ...prev, isSearching: false }));
-    } catch (error) {
-      console.error('Search error:', error);
-      setState((prev) => ({
-        ...prev,
-        isSearching: false,
-        isDiscovering: false,
-      }));
+    } catch {
+      setState((prev) => ({ ...prev, isSearching: false, isDiscovering: false }));
     }
   }, []);
 
-  return {
-    state,
-    setExam,
-    startSearch,
-    toggleTutorSelection,
-    resetSearch,
-  };
+  return { state, setExam, startSearch, toggleTutorSelection, resetSearch };
 }

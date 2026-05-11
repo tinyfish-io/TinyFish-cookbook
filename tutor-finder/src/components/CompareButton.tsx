@@ -1,6 +1,5 @@
-import { Scale } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/use-toast';
+"use client";
+import { Scale } from "lucide-react";
 
 interface CompareButtonProps {
   selectedCount: number;
@@ -10,11 +9,7 @@ interface CompareButtonProps {
 export function CompareButton({ selectedCount, onCompare }: CompareButtonProps) {
   const handleClick = () => {
     if (selectedCount < 2) {
-      toast({
-        title: 'Select tutors to compare',
-        description: 'Please select at least 2 tutors to compare.',
-        variant: 'destructive',
-      });
+      alert("Please select at least 2 tutors to compare.");
       return;
     }
     onCompare();
@@ -22,14 +17,13 @@ export function CompareButton({ selectedCount, onCompare }: CompareButtonProps) 
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
-      <Button
-        size="lg"
+      <button
         onClick={handleClick}
-        className="h-14 px-8 text-base shadow-2xl gap-3 bg-primary hover:bg-primary/90"
+        className="h-14 px-8 text-base shadow-2xl flex items-center gap-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium transition-colors"
       >
         <Scale className="w-5 h-5" />
-        Compare {selectedCount > 0 ? `(${selectedCount} selected)` : ''}
-      </Button>
+        Compare {selectedCount > 0 ? `(${selectedCount} selected)` : ""}
+      </button>
     </div>
   );
 }

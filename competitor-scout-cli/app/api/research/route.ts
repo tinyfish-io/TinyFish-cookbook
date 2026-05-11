@@ -1,11 +1,35 @@
 import { NextRequest } from "next/server";
-import type { Competitor, ResearchEvent } from "@/lib/types";
+import type {
+  Competitor,
+  CompetitorEvidenceAssessment,
+  ResearchEvent,
+  ResearchPipelineRun,
+} from "@/lib/types";
 import {
   planResearchGoals,
   summarizeCompetitorResult,
   generateComparisonReport,
+  assessAndSummarizeFromFetchedPages,
 } from "@/lib/openai-client";
-import { submitRun, waitForCompletion } from "@/lib/tinyfish";
+import { fetchContents, searchWeb, submitRun, waitForCompletion } from "@/lib/tinyfish";
+
+function isSearchFetchResult(
+  raw: unknown
+): raw is {
+  method: "search_fetch";
+  query: string;
+  pages: unknown;
+  assessment: CompetitorEvidenceAssessment;
+  sources: unknown[];
+} {
+  return (
+    typeof raw === "object" &&
+    raw !== null &&
+    (raw as { method?: string }).method === "search_fetch" &&
+    typeof (raw as { assessment?: { summary_markdown?: string } }).assessment
+      ?.summary_markdown === "string"
+  );
+}
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -109,7 +133,7 @@ export async function POST(request: NextRequest) {
           data: goals,
         });
 
-        // Step 2: Submit Tinyfish runs for all competitors (concurrently)
+        // Step 2: Search + Fetch per competitor (concurrently). Fall back to Agent if insufficient.
         const runRequests = goals.map(async (goal, index) => {
           const goalName =
             typeof goal?.competitor_name === "string" ? goal.competitor_name : "";
@@ -150,45 +174,146 @@ export async function POST(request: NextRequest) {
           send({
             type: "submitting",
             competitor: competitor.name,
-            message: `Dispatching agent to ${competitor.name}...`,
-            data: { url: runUrl, goal: goalWithSources },
+            message: `Searching ${competitor.name} for relevant pages...`,
+            data: { url: runUrl },
           });
 
           try {
-            const runId = await submitRun(runUrl, goalWithSources);
+            const baseHost = new URL(runUrl).hostname.replace(/^www\./, "");
+            const searchQuery = `site:${baseHost} ${question}`;
+            const search = await searchWeb({ query: searchQuery });
+            const candidateUrls = search.results
+              .map((r) => r.url)
+              .filter((u) => {
+                try {
+                  const h = new URL(u).hostname.replace(/^www\./, "");
+                  return h === baseHost || h.endsWith(`.${baseHost}`);
+                } catch {
+                  return false;
+                }
+              })
+              .slice(0, 6);
+
+            if (candidateUrls.length === 0) {
+              send({
+                type: "polling",
+                competitor: competitor.name,
+                message: `No on-domain search results. Falling back to agent run...`,
+              });
+              const runId = await submitRun(runUrl, goalWithSources);
+              return {
+                competitor,
+                goal: goalWithSources,
+                runId,
+                competitorIndex: competitorIndex === -1 ? index : competitorIndex,
+                mode: "agent" as const,
+              };
+            }
+
             send({
-              type: "submitting",
+              type: "polling",
               competitor: competitor.name,
-              message: `Agent dispatched for ${competitor.name} (run: ${runId.slice(0, 8)}...)`,
+              message: `Fetching ${candidateUrls.length} pages for ${competitor.name}...`,
+              data: { urls: candidateUrls },
             });
+
+            const fetched = await fetchContents({
+              urls: candidateUrls.slice(0, 10),
+              format: "markdown",
+              links: false,
+            });
+
+            const pages = fetched.results
+              .map((p) => ({
+                url: p.final_url || p.url,
+                title: (p.title ?? undefined) as string | undefined,
+                text: typeof p.text === "string" ? p.text : JSON.stringify(p.text ?? ""),
+              }))
+              .filter((p) => p.text && p.text.trim().length > 0)
+              .slice(0, 6);
+
+            send({
+              type: "summarizing",
+              competitor: competitor.name,
+              message: `Assessing whether fetched evidence is sufficient for ${competitor.name}...`,
+            });
+
+            const assessment = await assessAndSummarizeFromFetchedPages({
+              competitorName: competitor.name,
+              competitorUrl: runUrl,
+              question,
+              searchQuery,
+              fetchedPages: pages,
+            });
+
+            if (assessment.sufficient) {
+              send({
+                type: "result",
+                competitor: competitor.name,
+                message: `Collected sufficient evidence for ${competitor.name} via Search+Fetch`,
+                data: { method: "search_fetch", assessment, fetchErrors: fetched.errors },
+              });
+              return {
+                competitor,
+                goal: goalWithSources,
+                runId: `search_fetch:${competitor.id}`,
+                competitorIndex: competitorIndex === -1 ? index : competitorIndex,
+                mode: "search_fetch" as const,
+                searchQuery,
+                pages,
+                assessment,
+                fetchErrors: fetched.errors,
+              };
+            }
+
+            send({
+              type: "polling",
+              competitor: competitor.name,
+              message: `Evidence insufficient (${assessment.confidence}). Falling back to agent run...`,
+              data: { reason: assessment.reason },
+            });
+
+            const runId = await submitRun(runUrl, goalWithSources);
             return {
               competitor,
               goal: goalWithSources,
               runId,
               competitorIndex: competitorIndex === -1 ? index : competitorIndex,
+              mode: "agent" as const,
+              searchQuery,
+              pages,
+              assessment,
+              fetchErrors: fetched.errors,
             };
           } catch (err) {
             send({
               type: "error",
               competitor: competitor.name,
-              message: `Failed to dispatch agent for ${competitor.name}: ${err instanceof Error ? err.message : "Unknown error"}`,
+              message: `Search/Fetch failed for ${competitor.name}: ${err instanceof Error ? err.message : "Unknown error"}. Falling back to agent run...`,
             });
-            return null;
+            try {
+              const runId = await submitRun(runUrl, goalWithSources);
+              return {
+                competitor,
+                goal: goalWithSources,
+                runId,
+                competitorIndex: competitorIndex === -1 ? index : competitorIndex,
+                mode: "agent" as const,
+              };
+            } catch (e2) {
+              send({
+                type: "error",
+                competitor: competitor.name,
+                message: `Agent fallback also failed for ${competitor.name}: ${e2 instanceof Error ? e2.message : "Unknown error"}`,
+              });
+              return null;
+            }
           }
         });
 
-        const runs = (await Promise.all(runRequests)).filter(
-          (
-            run
-          ): run is {
-            competitor: Competitor;
-            goal: string;
-            runId: string;
-            competitorIndex: number;
-          } => Boolean(run)
-        );
+        const runs = (await Promise.all(runRequests)).filter(Boolean) as ResearchPipelineRun[];
 
-        // Step 3: Poll for results (concurrently)
+        // Step 3: Poll for agent results where needed (concurrently)
         const completedResults: {
           name: string;
           summary: string;
@@ -206,6 +331,23 @@ export async function POST(request: NextRequest) {
             });
 
             try {
+              if (run.mode === "search_fetch") {
+                const assessment = run.assessment;
+                return {
+                  run,
+                  result: {
+                    status: "COMPLETED",
+                    result: {
+                      method: "search_fetch" as const,
+                      query: run.searchQuery,
+                      pages: run.pages,
+                      assessment,
+                      sources: assessment.sources ?? [],
+                    },
+                  },
+                };
+              }
+
               const result = await waitForCompletion(run.runId, (status) => {
                 if (seenStatuses.has(status)) return;
                 seenStatuses.add(status);
@@ -260,11 +402,13 @@ export async function POST(request: NextRequest) {
               (item.result as { result?: unknown }).result
             ) {
               const rawResult = (item.result as { result?: unknown }).result;
-              const summary = await summarizeCompetitorResult(
-                item.run.competitor.name,
-                question,
-                rawResult
-              );
+              const summary = isSearchFetchResult(rawResult)
+                ? rawResult.assessment.summary_markdown
+                : await summarizeCompetitorResult(
+                    item.run.competitor.name,
+                    question,
+                    rawResult
+                  );
               return {
                 competitor: item.run.competitor,
                 competitorIndex: item.run.competitorIndex,

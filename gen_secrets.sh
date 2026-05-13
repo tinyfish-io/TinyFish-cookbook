@@ -6,16 +6,26 @@
 #
 # gen_secrets.sh
 #
-# Generates a .env file by resolving secret references in a env.config file.
+# Generates a .env file by resolving secret references in an env.config file.
 #
 # env.config format:
-#   aws_profile=<profile>       # consumed by this script, not written to dest
-#   KEY=@aws_secret_name        # fetched via ih-secrets at run time
-#   KEY=@aws_secret_name:key    # fetched and extracted from JSON response
-#   KEY=~hex:32                 # locally generated via openssl rand -hex <n>
-#   KEY=~base64:32              # locally generated via openssl rand -base64 <n>
-#   KEY=value                   # written verbatim
-#   # comment / blank lines     # written verbatim
+#   aws_profile=<profile>              # ih-secrets profile, not written
+#   aws_profile=1p                     # beta: fetch @ references from Dev Secrets
+#   INTERNAL_TOOLS_API_URL=<url>       # written verbatim; not used for fetches
+#   KEY=@aws_secret_name               # fetched via ih-secrets at run time
+#   KEY=@aws_secret_name:key           # fetched and extracted from JSON response
+#   KEY=~hex:32                        # locally generated via openssl rand -hex <n>
+#   KEY=~base64:32                     # locally generated via openssl rand -base64 <n>
+#   KEY=value                          # written verbatim
+#   # comment / blank lines            # written verbatim
+#
+# In aws_profile=1p mode, secret fetches call the Internal Tools backend
+# directly using a short-lived AWS STS presigned URL. That auth uses the active
+# AWS credential chain; set AWS_PROFILE or GEN_SECRETS_STS_AWS_PROFILE if your
+# default AWS credentials are not the TinyFish SSO session you want.
+#
+# Default backend URL is https://api.internal-tools.production.tinyfish.io.
+# For local backend testing, override with GEN_SECRETS_API_URL or DEV_SECRETS_API_URL.
 #
 # Default behavior (fill mode): if the dest file already exists, keys that
 # already have a non-empty value are kept as-is. Only absent or empty keys
@@ -31,6 +41,7 @@ CONFIG="env.config"
 DEST=".env.local"
 FORCE=0
 REGEN=0
+DEFAULT_BACKEND_URL="https://api.internal-tools.production.tinyfish.io"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -56,17 +67,50 @@ if [[ ! -f "$CONFIG" ]]; then
 fi
 
 # First pass: extract aws_profile
-AWS_PROFILE=""
+CONFIG_AWS_PROFILE=""
 while IFS= read -r line || [[ -n "$line" ]]; do
-  if [[ "$line" =~ ^aws_profile=(.+)$ ]]; then
-    AWS_PROFILE="${BASH_REMATCH[1]}"
-    break
-  fi
+  case "$line" in
+    aws_profile=*)
+      CONFIG_AWS_PROFILE="${line#aws_profile=}"
+      ;;
+  esac
 done < "$CONFIG"
 
-if [[ -z "$AWS_PROFILE" ]]; then
+if [[ -z "$CONFIG_AWS_PROFILE" ]]; then
   echo "ERROR: 'aws_profile' not set in $CONFIG" >&2
   exit 1
+fi
+
+USE_DEV_SECRETS=0
+if [[ "$CONFIG_AWS_PROFILE" == "1p" ]]; then
+  USE_DEV_SECRETS=1
+fi
+
+validate_backend_url() {
+  python3 - "$1" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+url = sys.argv[1]
+parsed = urlparse(url)
+if not parsed.scheme or not parsed.netloc:
+    print("ERROR: Dev Secrets backend URL must be an absolute URL", file=sys.stderr)
+    sys.exit(1)
+is_local_http = parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+if parsed.scheme == "http" and not is_local_http:
+    print("ERROR: Dev Secrets backend URL must use https unless it points at localhost", file=sys.stderr)
+    sys.exit(1)
+if parsed.scheme not in {"http", "https"}:
+    print("ERROR: Dev Secrets backend URL must use http or https", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+BACKEND_URL=""
+if [[ "$USE_DEV_SECRETS" -eq 1 ]]; then
+  BACKEND_URL="${GEN_SECRETS_API_URL:-${DEV_SECRETS_API_URL:-$DEFAULT_BACKEND_URL}}"
+  BACKEND_URL="${BACKEND_URL%/}"
+  validate_backend_url "$BACKEND_URL"
 fi
 
 # In fill mode, check if dest exists to decide whether we're filling or generating fresh
@@ -106,6 +150,138 @@ _key_processed() {
   return 1
 }
 
+urlencode() {
+  python3 - "$1" <<'PY'
+import sys
+from urllib.parse import quote
+
+print(quote(sys.argv[1], safe=""))
+PY
+}
+
+print_aws_sso_hint() {
+  if [[ -n "${GEN_SECRETS_STS_AWS_PROFILE:-}" ]]; then
+    echo "Run \`aws sso login --profile $GEN_SECRETS_STS_AWS_PROFILE\` and try again." >&2
+  else
+    echo "Run \`aws sso login\` and try again. If you use a non-default profile, set GEN_SECRETS_STS_AWS_PROFILE=<profile>." >&2
+  fi
+}
+
+ensure_sts_auth_token() {
+  local now
+  if [[ -n "${STS_AUTH_TOKEN:-}" && "${STS_AUTH_TOKEN_CREATED_AT:-}" =~ ^[0-9]+$ ]]; then
+    now=$(date +%s)
+    if (( now - STS_AUTH_TOKEN_CREATED_AT < 55 )); then
+      return
+    fi
+  fi
+
+  local credentials_json
+  if [[ -n "${GEN_SECRETS_STS_AWS_PROFILE:-}" ]]; then
+    credentials_json=$(aws configure export-credentials --profile "$GEN_SECRETS_STS_AWS_PROFILE" --format process 2>/dev/null) || {
+      echo "ERROR: Could not export AWS credentials for Dev Secrets auth." >&2
+      print_aws_sso_hint
+      exit 1
+    }
+  elif ! credentials_json=$(aws configure export-credentials --format process 2>/dev/null); then
+    echo "ERROR: Could not export AWS credentials for Dev Secrets auth." >&2
+    print_aws_sso_hint
+    exit 1
+  fi
+
+  if ! STS_AUTH_TOKEN=$(AWS_CREDENTIALS_JSON="$credentials_json" python3 - <<'PY'
+import base64
+import datetime as dt
+import hashlib
+import hmac
+import json
+import os
+import sys
+from urllib.parse import quote
+
+try:
+    creds = json.loads(os.environ["AWS_CREDENTIALS_JSON"])
+    access_key = creds["AccessKeyId"]
+    secret_key = creds["SecretAccessKey"]
+    session_token = creds.get("SessionToken")
+except Exception as exc:
+    print(f"ERROR: Could not parse exported AWS credentials: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+region = "us-east-1"
+service = "sts"
+host = "sts.amazonaws.com"
+now = dt.datetime.now(dt.timezone.utc)
+amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+date_stamp = now.strftime("%Y%m%d")
+scope = f"{date_stamp}/{region}/{service}/aws4_request"
+
+params = {
+    "Action": "GetCallerIdentity",
+    "Version": "2011-06-15",
+    "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+    "X-Amz-Credential": f"{access_key}/{scope}",
+    "X-Amz-Date": amz_date,
+    "X-Amz-Expires": "60",
+    "X-Amz-SignedHeaders": "host",
+}
+if session_token:
+    params["X-Amz-Security-Token"] = session_token
+
+def q(value: str) -> str:
+    return quote(str(value), safe="-_.~")
+
+canonical_query = "&".join(f"{q(k)}={q(v)}" for k, v in sorted(params.items()))
+payload_hash = hashlib.sha256(b"").hexdigest()
+canonical_request = f"GET\n/\n{canonical_query}\nhost:{host}\n\nhost\n{payload_hash}"
+string_to_sign = "\n".join(
+    [
+        "AWS4-HMAC-SHA256",
+        amz_date,
+        scope,
+        hashlib.sha256(canonical_request.encode()).hexdigest(),
+    ]
+)
+
+def sign(key: bytes, msg: str) -> bytes:
+    return hmac.new(key, msg.encode(), hashlib.sha256).digest()
+
+signing_key = sign(sign(sign(sign(("AWS4" + secret_key).encode(), date_stamp), region), service), "aws4_request")
+signature = hmac.new(signing_key, string_to_sign.encode(), hashlib.sha256).hexdigest()
+presigned_url = f"https://{host}/?{canonical_query}&X-Amz-Signature={signature}"
+print(base64.b64encode(presigned_url.encode()).decode())
+PY
+); then
+    exit 1
+  fi
+  STS_AUTH_TOKEN_CREATED_AT=$(date +%s)
+}
+
+fetch_dev_secret() {
+  local secret="$1"
+  local encoded_secret
+  encoded_secret=$(urlencode "$secret")
+  ensure_sts_auth_token
+  curl -fsS \
+    --connect-timeout "${GEN_SECRETS_CONNECT_TIMEOUT_SECONDS:-5}" \
+    --max-time "${GEN_SECRETS_FETCH_TIMEOUT_SECONDS:-30}" \
+    -H "Authorization: AWS-STS $STS_AUTH_TOKEN" \
+    "$BACKEND_URL/secrets/credential/$encoded_secret"
+}
+
+fetch_secret() {
+  local secret="$1"
+  if [[ "$USE_DEV_SECRETS" -eq 1 ]]; then
+    fetch_dev_secret "$secret"
+  else
+    ih-secrets --aws-profile "$CONFIG_AWS_PROFILE" get "$secret"
+  fi
+}
+
+if [[ "$USE_DEV_SECRETS" -eq 1 ]]; then
+  ensure_sts_auth_token
+fi
+
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
 
@@ -117,9 +293,17 @@ FAILED_KEYS=()
 PROCESSED_KEYS=()
 
 if [[ "$FILL" -eq 1 ]]; then
-  echo "Filling $DEST from $CONFIG (profile: $AWS_PROFILE) ..."
+  if [[ "$USE_DEV_SECRETS" -eq 1 ]]; then
+    echo "Filling $DEST from $CONFIG (profile: $CONFIG_AWS_PROFILE, backend: $BACKEND_URL) ..."
+  else
+    echo "Filling $DEST from $CONFIG (profile: $CONFIG_AWS_PROFILE) ..."
+  fi
 else
-  echo "Generating $DEST from $CONFIG (profile: $AWS_PROFILE) ..."
+  if [[ "$USE_DEV_SECRETS" -eq 1 ]]; then
+    echo "Generating $DEST from $CONFIG (profile: $CONFIG_AWS_PROFILE, backend: $BACKEND_URL) ..."
+  else
+    echo "Generating $DEST from $CONFIG (profile: $CONFIG_AWS_PROFILE) ..."
+  fi
 fi
 echo ""
 
@@ -154,7 +338,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     secret="${BASH_REMATCH[2]}"
     json_key="${BASH_REMATCH[4]}"
     printf "  [FETCH]   %-45s ... " "$key"
-    if raw=$(ih-secrets --aws-profile "$AWS_PROFILE" get "$secret" 2>&1); then
+    if raw=$(fetch_secret "$secret" 2>&1); then
       if [[ -n "$json_key" ]]; then
         if ! value=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])" "$raw" "$json_key" 2>&1); then
           printf '%s=\n' "$key" >> "$TMPFILE"
@@ -172,6 +356,11 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     else
       printf '%s=\n' "$key" >> "$TMPFILE"
       echo "FAILED"
+      if [[ -n "$raw" ]]; then
+        while IFS= read -r err_line || [[ -n "$err_line" ]]; do
+          [[ -n "$err_line" ]] && printf '    %s\n' "$err_line"
+        done <<< "$raw"
+      fi
       FAILED=$((FAILED + 1))
       FAILED_KEYS+=("$key ($secret)")
     fi
@@ -233,6 +422,10 @@ if [[ "$FAILED" -gt 0 ]]; then
   for k in "${FAILED_KEYS[@]}"; do
     echo "  - $k"
   done
-  echo "Check your access to AWS profile '$AWS_PROFILE'."
+  if [[ "$USE_DEV_SECRETS" -eq 1 ]]; then
+    echo "Check your Dev Secrets backend access at '$BACKEND_URL'."
+  else
+    echo "Check your ih-secrets access for profile '$CONFIG_AWS_PROFILE'."
+  fi
   exit 1
 fi

@@ -16,6 +16,39 @@ Use this skill when the user asks Hermes to:
 
 Do not use this skill for ordinary one-off answers unless the user explicitly wants a saved skill.
 
+## Pre-flight Check (REQUIRED)
+
+Before making any TinyFish call, determine which mode to use.
+
+**1. Check for CLI:**
+```bash
+which tinyfish && tinyfish --version || echo "TINYFISH_CLI_NOT_FOUND"
+```
+
+**2. If CLI is found, check auth:**
+```bash
+tinyfish auth status
+```
+
+If authenticated, use **CLI mode** for all searches and fetches below.
+
+**3. If CLI is not found, check for API key:**
+```bash
+test -n "$TINYFISH_API_KEY" && echo "API_KEY_AVAILABLE" || echo "TINYFISH_API_KEY is not set"
+```
+
+If the API key is available, use **API mode** for all searches and fetches below.
+
+**4. If neither CLI nor API key is available**, stop and tell the user:
+> Install the TinyFish CLI: `npm install -g @tiny-fish/cli`
+> Then authenticate: `tinyfish auth login`
+>
+> Or set `TINYFISH_API_KEY` in your environment. Get a key at: https://agent.tinyfish.ai/api-keys
+
+Do NOT proceed until one mode is confirmed.
+
+---
+
 ## Core Workflow
 
 1. Acknowledge the learning request.
@@ -24,7 +57,7 @@ Do not use this skill for ordinary one-off answers unless the user explicitly wa
    - Preserve constraints such as "check official docs," "cover all endpoints," "focus on errors," or "make it production-ready."
 
 2. Search with TinyFish.
-   - Use `curl` or Python with `urllib.request` against TinyFish Search.
+   - Use the CLI or API (whichever passed pre-flight).
    - Run multiple targeted searches.
    - Prefer official docs and authoritative examples first.
    - Do not invent URLs.
@@ -51,25 +84,44 @@ Do not use this skill for ordinary one-off answers unless the user explicitly wa
    - Verify with `skill_view` or `skills list`.
    - Tell the user only the skill name and that it can be used going forward.
 
-## TinyFish Bash Defaults
-
-Assume `TINYFISH_API_KEY` is available in the environment.
-
-Before using TinyFish, check:
-
-```bash
-test -n "$TINYFISH_API_KEY" || echo "TINYFISH_API_KEY is not set"
-```
-
-If it is missing, ask the user to configure it.
-
-Use Python for URL encoding and JSON extraction when shell quoting would be fragile.
+---
 
 ## Search Pattern
 
 Use TinyFish Search when you need ranked web results, snippets, and URLs.
 
-Basic search:
+### CLI mode
+
+```bash
+tinyfish search query "{topic} official documentation" --pretty
+```
+
+Run multiple searches:
+
+```bash
+tinyfish search query "{topic} official documentation"
+tinyfish search query "{topic} API reference"
+tinyfish search query "{topic} quickstart examples"
+tinyfish search query "site:github.com {topic} examples issues"
+tinyfish search query "{topic} common errors best practices"
+```
+
+For API skills, add:
+
+```bash
+tinyfish search query "{topic} authentication"
+tinyfish search query "{topic} SDK reference"
+tinyfish search query "{topic} rate limits errors"
+```
+
+For framework skills, add:
+
+```bash
+tinyfish search query "{topic} production best practices"
+tinyfish search query "{topic} testing debugging deployment"
+```
+
+### API mode (fallback)
 
 ```bash
 python3 - <<'PY'
@@ -97,31 +149,9 @@ for r in data.get("results", [])[:10]:
 PY
 ```
 
-Run searches like:
+Run the same query variations listed in CLI mode above, substituting the `query` variable each time.
 
-```text
-{topic} official documentation
-{topic} API reference
-{topic} quickstart examples
-site:github.com {topic} examples issues
-{topic} common errors best practices
-```
-
-For API skills, add:
-
-```text
-{topic} authentication
-{topic} SDK reference
-{topic} CLI reference
-{topic} rate limits errors
-```
-
-For framework skills, add:
-
-```text
-{topic} production best practices
-{topic} testing debugging deployment
-```
+---
 
 ## Search Analysis Loop
 
@@ -142,6 +172,8 @@ Example update:
 I found the official docs and examples. I'm checking for pitfalls and validation guidance before writing the skill.
 ```
 
+---
+
 ## Source Selection Rules
 
 Prefer sources in this order:
@@ -161,9 +193,30 @@ Reject:
 
 Default to 3-8 fetched URLs total.
 
+---
+
 ## Fetch Pattern
 
 Use TinyFish Fetch when you already know the URLs and need clean extracted content.
+
+### CLI mode
+
+```bash
+tinyfish fetch content get --format markdown "https://example.com/docs" "https://example.com/quickstart"
+```
+
+- Accepts multiple URLs in a single call — they are fetched in parallel server-side.
+- `--format markdown` (default) returns clean readable text.
+- Add `--links` to include extracted links from each page.
+
+```bash
+tinyfish fetch content get --format markdown --links \
+  "https://example.com/docs" \
+  "https://example.com/quickstart" \
+  "https://example.com/api-reference"
+```
+
+### API mode (fallback)
 
 Fetch up to 10 URLs per request:
 
@@ -212,6 +265,8 @@ PY
 ```
 
 Fetch returns per-URL errors in `errors[]`. Do not fail the whole run because one source failed.
+
+---
 
 ## Writing The Generated Skill
 
@@ -304,7 +359,7 @@ Do not expose raw JSON, terminal logs, or full source text in chat.
 
 Before finalizing, confirm:
 
-- `TINYFISH_API_KEY` was available.
+- Pre-flight check passed (CLI or API key available).
 - Search results included at least one authoritative source.
 - Fetched content was actually used.
 - Frontmatter has `name` and `description`.

@@ -1,15 +1,16 @@
 ---
 name: kb-builder
 description: >
-  Build an Obsidian-compatible knowledge base from public web sources using the TinyFish CLI.
+  Build an Obsidian-compatible knowledge base from public web sources using TinyFish Search/Fetch,
+  either through the TinyFish CLI or the public API key.
   Use this skill when a user wants a builder-grade markdown knowledge base on a technical topic,
   asks for a structured research vault, or wants a topic compiled from live public sources into
   interlinked markdown files. Supports two input modes: topic only, or topic plus starter URLs.
   Supports both first-build and update workflows. Always generates index.md, sources.md, audit.md,
   and manifest.json. Creates additional files only when the evidence supports them. The output must
-  synthesize the topic into a usable mental model, not just summarize pages. Uses explicit
-  tinyfish agent run commands and public web sources only. Optional `--trace` mode saves raw
-  TinyFish outputs under `_trace/` for debugging.
+  synthesize the topic into a usable mental model, not just summarize pages. Uses TinyFish
+  Search/Fetch first, through CLI or API mode, with Agent only as a documented fallback.
+  Optional `--trace` mode saves raw TinyFish outputs under `_trace/` for debugging.
 ---
 
 # KB Builder
@@ -37,37 +38,78 @@ If the output only says what each source said, the skill has failed.
 
 ## Pre-flight check
 
-Run both checks before any TinyFish call:
+Run these checks before any TinyFish call:
 
 ```bash
-which tinyfish && tinyfish --version || echo "TINYFISH_CLI_NOT_INSTALLED"
-tinyfish auth status
+if command -v tinyfish >/dev/null 2>&1; then
+  tinyfish --version
+  tinyfish search query --help >/dev/null 2>&1 && echo "TINYFISH_CLI_SEARCH_OK" || echo "TINYFISH_CLI_SEARCH_MISSING"
+  tinyfish fetch content get --help >/dev/null 2>&1 && echo "TINYFISH_CLI_FETCH_OK" || echo "TINYFISH_CLI_FETCH_MISSING"
+  tinyfish auth status
+else
+  echo "TINYFISH_CLI_NOT_INSTALLED"
+fi
+[ -n "$TINYFISH_API_KEY" ] && echo "TINYFISH_API_KEY_SET" || echo "TINYFISH_API_KEY_MISSING"
 ```
 
-If TinyFish is not installed, stop and tell the user:
+If TinyFish is not installed and the selected mode needs CLI, stop and tell the user:
 
 ```bash
-npm install -g @tiny-fish/cli
+npm install -g @tiny-fish/cli@latest
 ```
 
-If TinyFish is not authenticated, stop and tell the user:
+If TinyFish CLI exists but Search/Fetch commands are missing, update it:
+
+```bash
+npm install -g @tiny-fish/cli@latest
+```
+
+Determine `SOURCE_MODE`:
+
+- If the user explicitly says CLI, use `SOURCE_MODE=cli`.
+- If the user explicitly says API, REST API, or API key, use `SOURCE_MODE=api`.
+- Otherwise use `SOURCE_MODE=auto`.
+
+Mode rules:
+
+- `SOURCE_MODE=cli`: require `tinyfish search query`, `tinyfish fetch content get`, and `tinyfish auth status` to pass.
+- `SOURCE_MODE=api`: require `TINYFISH_API_KEY` in the environment. Never print it.
+- `SOURCE_MODE=auto`: prefer CLI Search/Fetch when CLI commands and auth work; otherwise use API if `TINYFISH_API_KEY` is set.
+
+If the selected mode is unavailable, stop and tell the user the exact missing setup.
+
+If CLI mode is selected but TinyFish is not authenticated, stop and tell the user:
 
 ```bash
 tinyfish auth login
 ```
 
-Do not continue until both checks pass.
+If API mode is selected but `TINYFISH_API_KEY` is missing, stop and ask the user to load or export it. Do not inspect real env files.
+
+If the user explicitly authorizes using an existing project env file, load it execution-only inside the command that needs auth. Never open, print, echo, diff, log, or summarize the env file or key.
+
+Execution-only pattern:
+
+```bash
+set -a
+source "/path/to/approved/project/.env.local"
+set +a
+curl -sS --fail --get "https://api.search.tinyfish.ai" \
+  --data-urlencode "query={DISCOVERY_QUERY}" \
+  -H "X-API-Key: $TINYFISH_API_KEY" \
+  > /tmp/kb_search_{SAFE_NAME}.json
+```
 
 ## Scope
 
 - **Allowed:** public web pages, public GitHub repos, public papers, public docs, public datasets, public blog posts
 - **Not allowed:** private sources, local private files, authenticated dashboards, chat logs, email, Slack, or anything the user cannot access publicly
-- **Primitive:** use explicit `tinyfish agent run` commands
+- **Primitive:** use explicit `tinyfish search query`, `tinyfish fetch content get`, or TinyFish Search/Fetch REST API calls; use `tinyfish agent run` only as fallback
 - **Output shape:** always `index.md`, `sources.md`, `audit.md`, and `manifest.json`; everything else is dynamic
 
 ## Input modes
 
-You support two modes:
+You support these modes:
 
 1. **Topic only**
    - Example: `Build me a knowledge base on web agent frameworks`
@@ -77,6 +119,9 @@ You support two modes:
    - Example: `Update my knowledge base on Kolmogorov-Arnold Networks with these new URLs: ...`
 4. **Trace mode**
    - Example: `Build me a knowledge base on browser agents --trace`
+5. **Source mode**
+   - Example: `Build me a knowledge base on browser agents using CLI`
+   - Example: `Build me a knowledge base on browser agents using the API key`
 
 If the topic is missing, ask for it before proceeding.
 
@@ -91,6 +136,8 @@ If the user includes `--trace`, `trace`, `debug`, or explicitly asks for raw out
 - enable trace mode
 - save raw TinyFish outputs under `_trace/`
 - keep `_trace/` out of the main page navigation unless the user asks for it
+
+If the user specifies CLI or API mode, obey that even if the other mode is also available. If they do not specify, auto-pick the first available mode using the pre-flight rules.
 
 ## Output directory
 
@@ -239,18 +286,28 @@ Trace mode exception:
 
 ## Operating model
 
-Use a **two-pass workflow**:
+Use a **Search/Fetch-first workflow**:
 
-1. **Discovery pass**
-   - find high-value URLs
-2. **Reading pass**
-   - extract structured information from the selected URLs
+1. **Search discovery pass**
+   - use TinyFish Search through CLI or API to find high-value public URLs
+2. **Fetch reading pass**
+   - use TinyFish Fetch through CLI or API to extract clean page content
+3. **Agent fallback pass**
+   - use `tinyfish agent run` only for pages Search/Fetch cannot handle, such as blocked, dynamic, or JavaScript-heavy pages
 
-Use **one TinyFish run per URL**.
+Search is for URL discovery. Fetch is for evidence extraction. Agent is for recovery, not default collection.
 
-Do not ask one TinyFish agent to cover multiple independent sites in a single command.
+For Fetch, keep results attributable to individual URLs. CLI/API may fetch multiple URLs in one command when safe, but the KB must still log and audit each URL separately.
 
-Run independent URLs in parallel where possible using background jobs and `wait`.
+For Agent fallback, use one TinyFish Agent run per URL. Do not ask one Agent to cover multiple independent sites in a single command.
+
+Run independent CLI/API/Agent calls in parallel where possible using background jobs and `wait`.
+
+Critical separation:
+- the Search discovery pass can discover candidate URLs
+- the reading pass is not discovery
+- the reading pass must extract from exactly one target page and return one structured result for that page
+- never ask a reading-pass prompt to navigate to other pages, discover more URLs, or summarize multiple sources
 
 ## Step 0 — Decide build mode
 
@@ -261,6 +318,8 @@ Determine whether this run is:
 
 Also determine:
 
+- `SOURCE_MODE` = `cli`, `api`, or `auto`
+- `ACTIVE_SOURCE` = `cli` or `api` after pre-flight resolution
 - `TRACE` = `true` or `false`
 
 Use `update` mode when:
@@ -284,6 +343,8 @@ Write down:
 - `TOPIC_SLUG`
 - `STARTER_URLS` if provided
 - `MODE` = `build` or `update`
+- `SOURCE_MODE` = `cli`, `api`, or `auto`
+- `ACTIVE_SOURCE` = `cli` or `api` after pre-flight resolution
 - `TRACE` = `true` or `false`
 
 Keep the topic human-readable in the markdown output.
@@ -297,47 +358,45 @@ If a starter URL is a direct arXiv paper page such as `/abs/...`, `/pdf/...`, or
 - treat it as a **reading target**
 - do not send it through the discovery-search workflow first
 
-Then expand with a small set of public discovery URLs relevant to the topic. Choose from these patterns when relevant:
+Then build a small set of TinyFish Search queries relevant to the topic. Choose from these patterns when relevant:
 
+- General trusted-source search:
+  ```text
+  {TOPIC}
+  ```
+- Official docs / primary source search:
+  ```text
+  {TOPIC} official docs OR official site OR benchmark
+  ```
 - GitHub repo search:
   ```text
-  https://github.com/search?q={TOPIC}&type=repositories
+  site:github.com {TOPIC}
   ```
-- arXiv search:
+- arXiv / papers search:
   ```text
-  https://arxiv.org/search/?query={TOPIC}&searchtype=all
+  site:arxiv.org {TOPIC}
   ```
-- Hugging Face models search:
+- Hugging Face search:
   ```text
-  https://huggingface.co/models?search={TOPIC}
-  ```
-- Hugging Face datasets search:
-  ```text
-  https://huggingface.co/datasets?search={TOPIC}
-  ```
-- General web discovery:
-  ```text
-  https://duckduckgo.com/?q={TOPIC}
+  site:huggingface.co {TOPIC}
   ```
 
-Only include discovery URLs that are likely to produce useful public results.
+Only include discovery queries that are likely to produce useful public results.
 
-Aim for 4-8 discovery URLs in the first pass, not 20.
+Aim for 4-8 discovery queries in the first pass, not 20.
 
 Always reserve **one extra discovery slot** for a trusted-source scout that is not limited to the template list above.
 
 Trusted-source scout rule:
-- run one extra discovery agent against a general search page for the topic
-- use a public search engine results page that TinyFish can access reliably in the current environment
+- run one extra broad TinyFish Search query for trusted primary sources
 - do not hardcode or prefer a specific search engine unless the user explicitly asks for one
 - the scout's job is to find **trusted primary sources outside the template list**, not to repeat GitHub/arXiv/Hugging Face results you already have
 - trusted sources include official product docs, official company or lab pages, standards bodies, top conference project pages, official benchmark sites, and strong primary-source blog posts from recognized builders or research groups
 - do not promote SEO sludge, low-signal affiliate lists, or derivative summaries unless they are the only path to a stronger primary source
 
 Important:
-- arXiv search pages are valid discovery URLs when papers matter for the topic
-- they are often slower than GitHub or DuckDuckGo discovery pages
-- do **not** drop arXiv just because it is the slowest source in the batch
+- arXiv and paper searches are valid discovery queries when papers matter for the topic
+- do **not** drop papers just because they are slower or less readable than docs/blogs
 
 When selecting discovery and reading targets, prefer sources that improve understanding, not just coverage:
 
@@ -348,102 +407,81 @@ When selecting discovery and reading targets, prefer sources that improve unders
 
 Do not spend most of your budget on redundant summaries of the same idea.
 
-## Step 3 — Run the discovery pass
+## Step 3 — Run the Search discovery pass
 
-For each discovery URL, run TinyFish with a concrete extraction goal.
+For each discovery query, run TinyFish Search through the selected source.
 
-Command template:
-
-```bash
-tinyfish agent run --sync --url "{DISCOVERY_URL}" \
-  "You are helping build a markdown knowledge base on '{TOPIC}'.
-   Read this page and identify up to 5 high-value public URLs worth following.
-   Prefer official docs, canonical GitHub repos, papers, datasets, benchmarks, and
-   high-signal tutorials or explainers.
-   Return JSON:
-   {
-     \"candidates\": [
-       {
-         \"title\": \"\",
-         \"url\": \"\",
-         \"sourceType\": \"docs|repo|paper|dataset|article|benchmark|person|other\",
-         \"whyItMatters\": \"\"
-       }
-     ]
-   }
-   Rules:
-   - public URLs only
-   - max 5 candidates
-   - do not guess URLs
-   - if nothing useful is found, return an empty array" \
-  > /tmp/kb_discovery_{SAFE_NAME}.json &
-```
-
-Trusted-source scout template:
+CLI template:
 
 ```bash
-tinyfish agent run --sync --url "{GENERAL_SEARCH_URL}" \
-  "You are helping build a markdown knowledge base on '{TOPIC}'.
-   Search this results page for up to 5 trusted high-value sources that are
-   NOT already represented by the template discovery URLs.
-   Prefer official docs, official company or lab pages, standards bodies,
-   official benchmark sites, top conference project pages, and strong primary
-   source explainers from recognized builders or research groups.
-   Return JSON:
-   {
-     \"candidates\": [
-       {
-         \"title\": \"\",
-         \"url\": \"\",
-         \"sourceType\": \"docs|repo|paper|dataset|article|benchmark|person|other\",
-         \"whyItMatters\": \"\",
-         \"whyTrusted\": \"\"
-       }
-     ]
-   }
-   Rules:
-   - public URLs only
-   - max 5 candidates
-   - do not guess URLs
-   - avoid low-signal SEO listicles unless they point to a stronger primary source
-   - if the template list already covers the best sources, return an empty array" \
-  > /tmp/kb_discovery_trusted_{SAFE_NAME}.json &
+tinyfish search query "{DISCOVERY_QUERY}" \
+  > /tmp/kb_search_{SAFE_NAME}.json &
 ```
+
+API template:
+
+```bash
+curl -sS --fail --get "https://api.search.tinyfish.ai" \
+  --data-urlencode "query={DISCOVERY_QUERY}" \
+  -H "X-API-Key: $TINYFISH_API_KEY" \
+  > /tmp/kb_search_{SAFE_NAME}.json &
+```
+
+Trusted-source scout templates:
+
+```bash
+tinyfish search query "{TOPIC} official docs benchmark primary source" \
+  > /tmp/kb_search_trusted_{SAFE_NAME}.json &
+```
+
+```bash
+curl -sS --fail --get "https://api.search.tinyfish.ai" \
+  --data-urlencode "query={TOPIC} official docs benchmark primary source" \
+  -H "X-API-Key: $TINYFISH_API_KEY" \
+  > /tmp/kb_search_trusted_{SAFE_NAME}.json &
+```
+
+Search-result handling:
+- keep public URLs only
+- dedupe by canonical URL where possible
+- prefer official docs, canonical repos, papers, datasets, benchmarks, and strong explainers
+- do not treat Search snippets as evidence for KB claims
+- use Search only to choose reading targets
 
 Important runtime behavior:
 - when you redirect TinyFish output to a file with `> /tmp/...json`, that file may stay `0` bytes until the run exits
-- a zero-byte discovery file does **not** mean the run is stuck
-- arXiv search pages often finish later than GitHub or DuckDuckGo pages in the same batch
-- if the rest of the batch finishes first, keep waiting for arXiv before declaring failure
+- a zero-byte search file does **not** mean the run is stuck
+- paper and broad trusted-source searches can finish later than simpler searches
+- if the rest of the batch finishes first, keep waiting for slower searches before declaring failure
 
 Timeout rule:
-- allow up to **10 minutes** for a single discovery run before marking it `partial` or `blocked`
-- for arXiv discovery specifically, assume 1-3 minutes is normal and keep waiting
+- allow up to **10 minutes** for a single Search run before marking it `partial` or `blocked`
+- for paper searches specifically, assume 1-3 minutes is normal and keep waiting
 - only intervene early if the process is clearly gone or has already produced a terminal TinyFish error
 
-After launching all discovery runs:
+After launching all Search runs:
 
 ```bash
 wait
 ```
 
 Interpretation rule:
-- `wait` finishing slowly because one arXiv process is still running is expected behavior
-- do not kill the arXiv run just because the other files finished first
-- only treat the batch as stalled if an individual discovery run exceeds the 10-minute timeout above
+- `wait` finishing slowly because one broad or paper-oriented search is still running is expected behavior
+- do not kill slower searches just because the other files finished first
+- only treat the batch as stalled if an individual Search run exceeds the 10-minute timeout above
 
-If `TRACE=true`, copy or save the raw discovery outputs into `_trace/` with readable names such as:
+If `TRACE=true`, copy or save the raw Search outputs into `_trace/` with readable names such as:
 
-- `_trace/discovery-github.json`
-- `_trace/discovery-arxiv.json`
-- `_trace/discovery-ddg.json`
-- `_trace/discovery-trusted-scout.json`
+- `_trace/search-general.json`
+- `_trace/search-github.json`
+- `_trace/search-arxiv.json`
+- `_trace/search-trusted-scout.json`
 
-Then read all discovery outputs, merge them, deduplicate by URL, and choose the best 6-12 URLs for the reading pass.
+Then read all Search outputs, merge them, deduplicate by URL, and choose the best 6-12 URLs for the Fetch reading pass.
 
 Trusted-source promotion rule:
 - if the trusted-source scout finds credible primary sources not already covered by the template list, promote the best 1-5 of them into the reading pass
-- run one TinyFish reading pass per promoted source, in parallel with the rest of the batch
+- run one TinyFish Fetch reading pass per promoted source, in parallel with the rest of the batch
 - if the scout only finds weaker or duplicative sources, keep them out of the reading pass and record them as low-value or skipped in `sources.md` only if you actually opened them
 
 Selection priority:
@@ -457,60 +495,91 @@ Selection priority:
 
 By default, do **not** spend your budget on social posts, Reddit threads, or generic chatter unless the user explicitly asks for them.
 
-## Step 4 — Run the reading pass
+## Step 4 — Run the Fetch reading pass
 
-Run one TinyFish agent per chosen URL.
+Run TinyFish Fetch for chosen URLs through the selected source.
 
-Command template:
+Reading-pass rules:
+- one URL in, one structured result out
+- do not use Fetch output as cross-page discovery unless links are explicitly returned and worth logging
+- if Fetch returns useful links, record them under `importantLinks`, but keep claims scoped to the fetched page
+- if Fetch is blocked, empty, unreadable, or missing critical page content, mark it as `partial` or `blocked` and consider Agent fallback
+
+CLI template:
 
 ```bash
-tinyfish agent run --sync --url "{TARGET_URL}" \
-  "You are extracting evidence for a markdown knowledge base on '{TOPIC}'.
-   Read this source carefully and return structured JSON.
-   Extract:
-   - title
-   - canonicalUrl
-   - sourceType
-   - shortSummary
-   - keyFindings: up to 7 bullets
-   - whyItMatters
-   - foundationality: foundational|important|derivative|unclear
-   - approachOrSchool: the main approach, camp, or framing this source represents
-   - whatThisChanges: one line on how this source changes the reader's understanding
-   - importantEntities: people, projects, libraries, datasets, papers, companies
-   - importantLinks: up to 5 URLs mentioned or linked from the page
-   - suggestedPages: page names this should contribute to, e.g. [\"repos\", \"papers\", \"docs\", \"articles\", \"benchmarks\"]
-   - evidenceQuality: high|medium|low
-   - limitations: things this page did not answer
-   If this is a GitHub repository:
-   - inspect the README
-   - inspect up to 3 important files or folders if they are clearly relevant
-   - include key files or folders under keyFindings
-   If this is a paper:
-   - extract the title, abstract-level contribution, and 3-5 implementation-relevant points
-   If this is documentation:
-   - extract concepts, APIs, workflows, and caveats
-   If this is a dataset or model page:
-   - extract task, modality, schema if visible, and usage constraints
-   Also extract:
-   - what this source says that is actually important
-   - what this source does NOT resolve
-   Return JSON only.
-   Do not invent facts. If something is missing, say it is missing." \
-  > /tmp/kb_read_{SAFE_NAME}.json &
+tinyfish fetch content get --format json --links "{TARGET_URL}" \
+  > /tmp/kb_fetch_{SAFE_NAME}.json &
 ```
 
-After launching all reading runs:
+API template:
+
+```bash
+curl -sS --fail "https://api.fetch.tinyfish.ai" \
+  -H "X-API-Key: $TINYFISH_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data "{\"urls\":[\"{TARGET_URL}\"],\"format\":\"markdown\",\"links\":true,\"image_links\":false}" \
+  > /tmp/kb_fetch_{SAFE_NAME}.json &
+```
+
+After launching all Fetch runs:
 
 ```bash
 wait
 ```
 
-If `TRACE=true`, save the raw reading outputs into `_trace/` as well, for example:
+If `TRACE=true`, save the raw Fetch outputs into `_trace/` as well, for example:
 
-- `_trace/read-paper.json`
-- `_trace/read-repo-main.json`
-- `_trace/read-docs.json`
+- `_trace/fetch-paper.json`
+- `_trace/fetch-repo-main.json`
+- `_trace/fetch-docs.json`
+
+Convert each Fetch result into one internal structured record with:
+
+```json
+{
+  "title": "",
+  "canonicalUrl": "",
+  "sourceType": "",
+  "shortSummary": "",
+  "keyFindings": [""],
+  "whyItMatters": "",
+  "foundationality": "foundational|important|derivative|unclear",
+  "approachOrSchool": "",
+  "whatThisChanges": "",
+  "importantEntities": [""],
+  "importantLinks": [""],
+  "suggestedPages": ["papers|repos|docs|articles|datasets|benchmarks|people|glossary|timeline|landscape|reading-order|disagreements|what-matters"],
+  "evidenceQuality": "high|medium|low",
+  "limitations": [""]
+}
+```
+
+Do not invent facts. If something is missing from fetched content, say it is missing.
+
+## Step 4b — Agent fallback only when needed
+
+Use Agent fallback only when Search/Fetch cannot prove enough:
+
+- Fetch returns blocked, empty, login-only, JavaScript shell, or unrelated content
+- the page is dynamic and the public content is visible only after browser rendering
+- a starter URL is important and Fetch cannot read it
+- the user explicitly asks to use Agent/browser behavior
+
+Agent fallback template:
+
+```bash
+tinyfish agent run --sync --url "{TARGET_URL}" \
+  "You are extracting evidence for a markdown knowledge base on '{TOPIC}'.
+   Read only this page and return JSON only.
+   Return title, canonicalUrl, sourceType, shortSummary, keyFindings, whyItMatters,
+   foundationality, approachOrSchool, whatThisChanges, importantEntities,
+   importantLinks, suggestedPages, evidenceQuality, and limitations.
+   Do not browse to other pages. Do not invent facts." \
+  > /tmp/kb_agent_{SAFE_NAME}.json &
+```
+
+If `TRACE=true`, save raw Agent fallback outputs under `_trace/agent-{SAFE_NAME}.json`.
 
 Do not summarize `_trace/` into the main KB pages. It exists for inspection, debugging, and trust when needed.
 
@@ -729,15 +798,16 @@ Always follow these rules:
 ## Parallelism rule
 
 Good:
-- one TinyFish run per URL
+- Search/Fetch first
+- one Agent run per fallback URL
 - many URLs in parallel
-- letting slow arXiv discovery runs finish when they are still within the 10-minute timeout
-- one extra trusted-source scout in parallel with the template discovery runs
+- letting slow paper or trusted-source searches finish when they are still within the 10-minute timeout
+- one extra trusted-source scout in parallel with the template Search runs
 
 Bad:
-- one TinyFish run told to visit GitHub, arXiv, and Hugging Face all in a single goal
+- one Agent run told to visit GitHub, arXiv, and Hugging Face all in a single goal
 - treating a zero-byte redirected output file as proof that TinyFish is stuck
-- killing arXiv discovery after 60-120 seconds just because faster sources finished first
+- killing paper/trusted-source Search after 60-120 seconds just because faster sources finished first
 - blindly trusting the template list and missing a stronger official source found by the scout
 
 ## Edge cases
@@ -769,6 +839,7 @@ At the end, report:
 - files created
 - number of URLs visited
 - mode: build or update
+- source: CLI or API
 - trace: on or off
 - any important gaps or blocked sources
 
@@ -778,6 +849,7 @@ Use a concise summary like:
 KB Builder complete for {TOPIC}
 Output: kb-{topic-slug}/
 Mode: {MODE}
+Source: {ACTIVE_SOURCE}
 Trace: {TRACE}
 Files: index.md, sources.md, ...
 URLs visited: 11

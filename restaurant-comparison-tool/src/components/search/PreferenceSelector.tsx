@@ -1,3 +1,5 @@
+'use client';
+
 import { cn } from '@/lib/utils';
 import type { DietaryPreference } from '@/types';
 import { ALL_PREFERENCES, PREFERENCE_INFO } from '@/lib/allergens';

@@ -1,3 +1,5 @@
+'use client';
+
 import { cn } from '@/lib/utils';
 import type { Allergen } from '@/types';
 import { ALL_ALLERGENS, ALLERGEN_INFO } from '@/lib/allergens';

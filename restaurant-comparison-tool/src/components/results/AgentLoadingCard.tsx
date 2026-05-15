@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, BookOpen, UtensilsCrossed, Brain, Loader2, Monitor, Maximize2 } from 'lucide-react';

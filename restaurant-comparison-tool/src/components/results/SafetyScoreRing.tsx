@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { getScoreLabel } from '@/lib/score-calculator';
 

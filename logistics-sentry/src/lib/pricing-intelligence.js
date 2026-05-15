@@ -1,13 +1,18 @@
 "use server";
 
-const TINYFISH_API_URL = "https://tinyfish.ai/v1/automation/run-sse";
-const TINYFISH_API_KEY = process.env.TINYFISH_API_KEY;
+import { TinyFish, EventType, RunStatus } from "@tiny-fish/sdk";
+
+let _client;
+function getClient() {
+    if (!_client) _client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
+    return _client;
+}
 
 export async function runPricingAnalysis(competitorUrl, options = {}) {
-  if (!TINYFISH_API_KEY) throw new Error("Missing TINYFISH_API_KEY environment variable");
-  if (!competitorUrl) throw new Error("Missing competitorUrl");
+    if (!process.env.TINYFISH_API_KEY) throw new Error("Missing TINYFISH_API_KEY environment variable");
+    if (!competitorUrl) throw new Error("Missing competitorUrl");
 
-  const goal = `
+    const goal = `
 ### MISSION: COMPETITIVE PRICING INTELLIGENCE (Target: ${competitorUrl})
 
 You are a senior Strategic Pricing Analyst. Your mission is to extract the exact pricing and packaging model for the specified competitor.
@@ -61,28 +66,39 @@ You are a senior Strategic Pricing Analyst. Your mission is to extract the exact
 }
 `;
 
-  try {
-    const response = await fetch(TINYFISH_API_URL, {
-      method: "POST",
-      headers: {
-        "X-API-Key": TINYFISH_API_KEY,
-        "Content-Type": "application/json",
-      },
-      signal: options.signal,
-      body: JSON.stringify({
-        url: competitorUrl,
-        goal: goal,
-        browser_profile: "stealth"
-      }),
+    const encoder = new TextEncoder();
+
+    // Return a ReadableStream compatible with the existing pricing/run/route.js
+    // SSE parser — it reads raw "data: ..." lines and looks for final_result.
+    return new ReadableStream({
+        async start(controller) {
+            const sendEvent = (data) => {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+            };
+
+            try {
+                const stream = await getClient().agent.stream(
+                    { url: competitorUrl, goal, browser_profile: "stealth" },
+                    { signal: options.signal }
+                );
+
+                for await (const event of stream) {
+                    sendEvent(event);
+
+                    if (event.type === EventType.COMPLETE) {
+                        if (event.status === RunStatus.COMPLETED) {
+                            // TypeScript SDK: event.result (not event.result_json)
+                            sendEvent({ final_result: event.result ?? null });
+                        }
+                        break; // always break after COMPLETE
+                    }
+                }
+            } catch (error) {
+                console.error(`Agent execution failed for ${competitorUrl}:`, error);
+                sendEvent({ type: "error", message: error.message });
+            } finally {
+                controller.close();
+            }
+        },
     });
-
-    if (!response.ok) {
-      throw new Error(`TinyFish API error for ${competitorUrl}: ${response.statusText}`);
-    }
-
-    return response.body;
-  } catch (error) {
-    console.error(`Agent execution failed for ${competitorUrl}:`, error);
-    throw error;
-  }
 }

@@ -6,7 +6,6 @@ export function evaluateRisk(agentOutput) {
 
     // Combine agent output with business logic rules
     if (agentOutput.confidence_score < 40) return "ESCALATE";
-    if (agentOutput.recommended_action === "ESCALATE") return "ESCALATE"; // Explicit strict check
     if (agentOutput.recommended_action === "ESCALATE") return "ESCALATE";
     if (agentOutput.recommended_action === "PAUSE") return "PAUSE";
 

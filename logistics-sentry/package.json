@@ -1,5 +1,5 @@
 {
-  "name": "inventory-risk-agent",
+  "name": "logistics-sentry",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tiny-fish/sdk": "latest",
     "clsx": "^2.1.1",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.378.0",

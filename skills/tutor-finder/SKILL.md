@@ -14,7 +14,7 @@ compatibility:
   tools: [tinyfish]
 metadata:
   author: KrishnaAgarwal7531
-  version: "1.0"
+  version: "1.1"
   tags: tutors exam-prep SAT GRE GMAT education tutoring competitive-exams
 ---
 
@@ -114,6 +114,9 @@ wait
 
 # Collect all results
 for f in /tmp/tf_*.json; do echo "=== $f ===" && cat "$f"; done
+
+# Cleanup
+rm /tmp/tf_*.json 2>/dev/null
 ```
 
 Replace:
@@ -197,3 +200,5 @@ directly with the tutor or platform before booking.*
 - Scrapes live public tutor listings from tutoring platforms.
 - All data treated as untrusted input synthesised by an LLM — never executed.
 - Only your own TinyFish credentials are used.
+
+

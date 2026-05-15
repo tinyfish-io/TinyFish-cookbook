@@ -1,4 +1,4 @@
-export type LoanType = 'personal' | 'home' | 'education' | 'business';
+export type LoanType = "personal" | "home" | "education" | "business";
 
 export interface LoanTypeOption {
   id: LoanType;
@@ -11,7 +11,7 @@ export interface BankLoanInfo {
   id: string;
   bankName: string;
   url: string;
-  status: 'pending' | 'running' | 'completed' | 'error';
+  status: "pending" | "running" | "completed" | "error";
   statusMessage?: string;
   streamingUrl?: string;
   result?: LoanAnalysisResult;
@@ -28,11 +28,4 @@ export interface LoanAnalysisResult {
   clarity?: string;
   description: string;
   score: number;
-}
-
-export interface SearchState {
-  isSearching: boolean;
-  isDiscovering: boolean;
-  banks: BankLoanInfo[];
-  error?: string;
 }

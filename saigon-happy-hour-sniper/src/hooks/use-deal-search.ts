@@ -112,7 +112,6 @@ export function useDealSearch(): {
               } else if (event.type === 'VENUE_RESULT') {
                 const venue = normalizeVenue(event.venue);
                 if (!venue) continue;
-                venue.source = 'live';
                 setState((prev) => ({
                   ...prev,
                   venues: [...prev.venues, venue],

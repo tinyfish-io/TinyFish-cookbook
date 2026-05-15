@@ -38,11 +38,11 @@ async function runAgentForSite(
           // Fire result immediately via callback — don't wait for for-await
           if (event.result) {
             resultFound = true;
-            enqueue({ type: "VENUE_RESULT", siteUrl: url, venue: event.result, source: "live" });
+            enqueue({ type: "VENUE_RESULT", siteUrl: url, venue: event.result });
           } else if (event.status === "COMPLETED") {
             // Completed but result is null — still mark streaming done
             resultFound = true;
-            enqueue({ type: "VENUE_RESULT", siteUrl: url, venue: { venue_name: url, deals: [] }, source: "live" });
+            enqueue({ type: "VENUE_RESULT", siteUrl: url, venue: { venue_name: url, deals: [] } });
           }
           enqueue({ type: "STREAMING_DONE", siteUrl: url });
         },
@@ -56,7 +56,7 @@ async function runAgentForSite(
         console.log("[TINYFISH] for-await COMPLETE, status:", event.status);
         const result = event.result ?? { venue_name: url, deals: [] };
         resultFound = true;
-        enqueue({ type: "VENUE_RESULT", siteUrl: url, venue: result, source: "live" });
+        enqueue({ type: "VENUE_RESULT", siteUrl: url, venue: result });
         enqueue({ type: "STREAMING_DONE", siteUrl: url });
       }
     }

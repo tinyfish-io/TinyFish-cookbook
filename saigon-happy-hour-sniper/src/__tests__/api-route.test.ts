@@ -135,9 +135,6 @@ describe("POST /api/search", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(mockTinyFishCtor).toHaveBeenCalledWith(
-      expect.objectContaining({ timeout: 780_000 }),
-    );
     expect(mockAgentStream).toHaveBeenCalledWith(
       expect.objectContaining({
         url: expect.any(String),
@@ -153,6 +150,5 @@ describe("POST /api/search", () => {
     expect(body).toContain("STREAMING_URL");
     expect(body).toContain("streamingUrl");
     expect(body).toContain("SEARCH_COMPLETE");
-    expect(body).toContain('"cached":0');
   });
 });

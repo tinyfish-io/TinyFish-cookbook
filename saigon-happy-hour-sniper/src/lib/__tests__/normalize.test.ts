@@ -267,13 +267,17 @@ describe('normalizeVenue', () => {
     expect(result!.deals).toHaveLength(1);
   });
 
-  it('returns null when venue name is missing', () => {
+  it('falls back to website when venue name is missing', () => {
     const raw = { ...validRawVenue, name: undefined };
-    expect(normalizeVenue(raw)).toBeNull();
+    const result = normalizeVenue(raw);
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe('https://saigonbrew.com');
   });
 
-  it('returns null when venue name is empty string', () => {
+  it('falls back to website when venue name is empty string', () => {
     const raw = { ...validRawVenue, name: '' };
-    expect(normalizeVenue(raw)).toBeNull();
+    const result = normalizeVenue(raw);
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe('https://saigonbrew.com');
   });
 });

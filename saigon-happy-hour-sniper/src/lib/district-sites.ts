@@ -50,4 +50,3 @@ Return as JSON:
 
 If no promotions are found on the website, return with an empty deals array.`;
 
-export const REQUEST_TIMEOUT_MS = 780_000;

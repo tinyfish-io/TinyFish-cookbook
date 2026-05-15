@@ -448,6 +448,12 @@ Search-result handling:
 - do not treat Search snippets as evidence for KB claims
 - use Search only to choose reading targets
 
+Search usefulness gate:
+- Search is useful when it returns credible, public, topic-relevant URLs that can become reading targets.
+- Search is not useful when results are empty, mostly irrelevant, duplicate-heavy, generic SEO pages, social chatter, snippet-only evidence, or weak sources that do not improve understanding.
+- If all Search queries produce no useful reading targets, run one capped Agent `search_recovery` pass before giving up.
+- For broad topics, aim for at least 3 credible reading targets before moving on. For narrow topics or starter-URL runs, fewer can be enough if the sources are strong.
+
 Important runtime behavior:
 - when you redirect TinyFish output to a file with `> /tmp/...json`, that file may stay `0` bytes until the run exits
 - a zero-byte search file does **not** mean the run is stuck
@@ -505,6 +511,12 @@ Reading-pass rules:
 - if Fetch returns useful links, record them under `importantLinks`, but keep claims scoped to the fetched page
 - if Fetch is blocked, empty, unreadable, or missing critical page content, mark it as `partial` or `blocked` and consider Agent fallback
 
+Fetch usefulness gate:
+- Fetch is useful when it returns readable, topic-relevant content with enough substance to support at least 2 concrete findings, entities, caveats, or implementation details.
+- Fetch is not useful when it returns empty text, a login wall, a bot-block page, a JavaScript shell, unrelated content, only navigation/sidebar text, only Search-snippet-level evidence, or content too thin to support meaningful claims.
+- If Fetch output is not useful for a high-priority URL, run Agent fallback for that URL.
+- Do not use Agent fallback for low-value sources. Drop weak sources instead of burning Agent steps on them.
+
 CLI template:
 
 ```bash
@@ -559,12 +571,29 @@ Do not invent facts. If something is missing from fetched content, say it is mis
 
 ## Step 4b — Agent fallback only when needed
 
-Use Agent fallback only when Search/Fetch cannot prove enough:
+Use Agent fallback only when Search/Fetch cannot produce useful information:
 
+- Search returns no credible reading targets across the selected queries
 - Fetch returns blocked, empty, login-only, JavaScript shell, or unrelated content
+- Fetch returns technically readable text but not enough topic-relevant substance for concrete findings
 - the page is dynamic and the public content is visible only after browser rendering
 - a starter URL is important and Fetch cannot read it
 - the user explicitly asks to use Agent/browser behavior
+
+Agent search-recovery template:
+
+```bash
+tinyfish agent run --sync --url "{SEARCH_RECOVERY_URL}" \
+  "You are helping build a markdown knowledge base on '{TOPIC}'.
+   Find up to 5 credible public reading targets from this page.
+   Prefer official docs, primary sources, canonical repos, papers, datasets, benchmarks,
+   and strong builder explainers. Avoid SEO sludge and social chatter.
+   Return JSON only with candidates: title, url, sourceType, whyItMatters, whyTrusted.
+   Do not guess URLs." \
+  > /tmp/kb_agent_search_recovery_{SAFE_NAME}.json &
+```
+
+Use at most one broad `search_recovery` Agent run by default. If that fails, record the gap instead of repeatedly spending Agent runs.
 
 Agent fallback template:
 

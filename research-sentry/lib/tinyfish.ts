@@ -1,107 +1,100 @@
-// TinyFish Web Agent Client
-// Endpoint: https://agent.tinyfish.ai/v1/automation/run-sse
+// TinyFish Web Agent Client — using @tiny-fish/sdk
+import { TinyFish, EventType, RunStatus } from '@tiny-fish/sdk';
+
+export class TinyFishError extends Error {
+    constructor(
+        message: string,
+        public readonly code: 'MISSING_API_KEY' | 'RUN_FAILED' | 'TIMEOUT' | 'STREAM_ERROR' | 'NO_RESULT'
+    ) {
+        super(message);
+        this.name = 'TinyFishError';
+    }
+}
 
 export async function runTinyFishAutomation(
     url: string,
     goal: string,
     stealth = false,
     options?: { timeoutMs?: number }
-): Promise<any> {
+): Promise<unknown> {
     const apiKey = process.env.TINYFISH_API_KEY;
 
     if (!apiKey) {
-        console.error('[TinyFish] TINYFISH_API_KEY not set in environment');
-        return null;
+        throw new TinyFishError('TINYFISH_API_KEY is not set in environment', 'MISSING_API_KEY');
     }
 
-    console.log(`[TinyFish] Starting automation...`);
-    console.log(`[TinyFish] URL: ${url}`);
+    console.log(`[TinyFish] Starting automation for: ${url}`);
     console.log(`[TinyFish] Goal: ${goal.substring(0, 80)}...`);
 
     const controller = new AbortController();
     const timeoutMs = options?.timeoutMs;
-    const timeout = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    const timeout = timeoutMs
+        ? setTimeout(() => controller.abort(), timeoutMs)
+        : null;
 
     try {
-        const res = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
-            method: 'POST',
-            headers: {
-                'X-API-Key': apiKey,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        const client = new TinyFish({ apiKey });
+        let result: unknown = null;
+        let runFailed = false;
+        let failureMessage = 'Agent run failed';
+
+        const stream = await client.agent.stream(
+            {
                 url,
                 goal,
-                browser_profile: stealth ? 'stealth' : 'lite'
-            }),
-            signal: controller.signal,
-        });
-
-        if (!res.ok) {
-            const errorText = await res.text();
-            console.error(`[TinyFish] HTTP Error ${res.status}: ${errorText}`);
-            return null;
-        }
-
-        if (!res.body) {
-            console.error('[TinyFish] No response body');
-            return null;
-        }
-
-        // Parse SSE stream
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let result: any = null;
-        let lastEvent = '';
-
-        console.log('[TinyFish] Reading SSE stream...');
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const eventData = JSON.parse(line.slice(6));
-                        lastEvent = eventData.status || eventData.type || 'unknown';
-
-                        console.log(`[TinyFish] Event: ${lastEvent}`);
-
-                        if (eventData.status === 'COMPLETED' || eventData.type === 'COMPLETE' || eventData.type === 'complete') {
-                            result = eventData.result_json || eventData.resultJson || eventData.result || eventData.data;
-                            console.log('[TinyFish] Automation complete!');
-                        }
-
-                        if (eventData.status === 'FAILED' || eventData.type === 'ERROR' || eventData.type === 'error') {
-                            console.error('[TinyFish] Error event:', eventData.message || eventData);
-                            return null;
-                        }
-                    } catch (parseErr) {
-                        // Non-JSON event, skip
+                browser_profile: stealth ? 'stealth' : 'lite',
+            },
+            {
+                onComplete: (event) => {
+                    if (event.status === RunStatus.COMPLETED) {
+                        result = event.result ?? null;
+                        console.log('[TinyFish] Automation complete!');
+                    } else if (event.status === RunStatus.FAILED) {
+                        runFailed = true;
+                        failureMessage = event.error?.message ?? 'Agent run failed';
+                        console.error('[TinyFish] Run failed:', failureMessage);
                     }
+                },
+            }
+        );
+
+        // Drain the stream so the onComplete callback fires
+        for await (const event of stream) {
+            console.log(`[TinyFish] Event: ${event.type}`);
+            if (event.type === EventType.COMPLETE && !result && !runFailed) {
+                if (event.status === RunStatus.COMPLETED) {
+                    result = event.result ?? null;
+                    console.log('[TinyFish] Automation complete (fallback)!');
+                } else if (event.status === RunStatus.FAILED) {
+                    runFailed = true;
+                    failureMessage = event.error?.message ?? 'Agent run failed';
                 }
             }
         }
 
-        if (result) {
-            console.log(`[TinyFish] Success! Got result:`, typeof result === 'object' ?
-                (Array.isArray(result) ? `Array with ${result.length} items` : 'Object') : typeof result);
-            return result;
-        } else {
-            console.log(`[TinyFish] Stream ended without COMPLETED status. Last event: ${lastEvent}`);
-            return null;
+        if (runFailed) {
+            throw new TinyFishError(failureMessage, 'RUN_FAILED');
         }
 
-    } catch (error: any) {
-        const msg = error?.name === 'AbortError' ? 'Request timed out' : error?.message;
-        console.error(`[TinyFish] Error:`, msg);
-        return null;
+        if (!result) {
+            throw new TinyFishError('Stream ended without a COMPLETED result', 'NO_RESULT');
+        }
+
+        console.log(`[TinyFish] Success! Got result:`, typeof result === 'object'
+            ? (Array.isArray(result) ? `Array with ${(result as unknown[]).length} items` : 'Object')
+            : typeof result);
+
+        return result;
+
+    } catch (error: unknown) {
+        if (error instanceof TinyFishError) throw error;
+
+        if ((error as { name?: string })?.name === 'AbortError') {
+            throw new TinyFishError(`Request timed out after ${timeoutMs}ms`, 'TIMEOUT');
+        }
+
+        const msg = (error as { message?: string })?.message ?? 'Unknown error';
+        throw new TinyFishError(`Stream error: ${msg}`, 'STREAM_ERROR');
     } finally {
         if (timeout) clearTimeout(timeout);
     }

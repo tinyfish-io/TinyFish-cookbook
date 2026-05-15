@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateConversationResponse } from '@/lib/conversation';
+import { continueConversation, Message } from '@/lib/conversation';
 
 export const maxDuration = 60;
 
@@ -11,9 +11,16 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid history format' }, { status: 400 });
         }
 
-        const response = await generateConversationResponse(history, context);
+        // Build messages array — prepend context as system message if provided
+        const messages: Message[] = [];
+        if (context) {
+            messages.push({ role: 'system', content: `Research context: ${JSON.stringify(context)}` });
+        }
+        messages.push(...(history as Message[]));
 
-        return NextResponse.json(response);
+        const response = await continueConversation(messages);
+
+        return NextResponse.json({ response });
     } catch (error) {
         console.error('Conversation API Error:', error);
         return NextResponse.json({ error: 'Failed to generate response' }, { status: 500 });

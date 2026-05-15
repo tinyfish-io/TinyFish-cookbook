@@ -103,7 +103,7 @@ export default function PaperComparison({ papers, onClose }: PaperComparisonProp
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {comparison.points.map((point, i) => (
+                                        {comparison.points.map((point: { metric: string; papers: Record<string, string>; insight: string }, i: number) => (
                                             <tr key={i} className="hover:bg-slate-800/30 transition-colors">
                                                 <td className="p-4 border-b border-slate-800 text-slate-300 font-medium">
                                                     {point.metric}

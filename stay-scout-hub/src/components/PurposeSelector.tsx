@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { TripPurpose, TRIP_PURPOSES } from '@/types/hotel';
 import { cn } from '@/lib/utils';

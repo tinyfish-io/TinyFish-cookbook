@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Monitor, X, Maximize2, Minimize2 } from 'lucide-react';

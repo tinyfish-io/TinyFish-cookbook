@@ -1,18 +1,20 @@
-import { useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import { Header } from '@/components/tender/Header';
-import { SectorSelector } from '@/components/tender/SectorSelector';
-import { LinkConfigPage } from '@/components/tender/LinkConfigPage';
-import { AgentPreviewGrid } from '@/components/tender/AgentPreviewGrid';
-import { TenderResultsList } from '@/components/tender/TenderResultsList';
-import { CompareButton } from '@/components/tender/CompareButton';
-import { CompareModal } from '@/components/tender/CompareModal';
-import { useTenderSearch } from '@/hooks/useTenderSearch';
-import { Sector } from '@/types/tender';
+"use client";
 
-type ViewState = 'selector' | 'config' | 'search';
+import { useState } from "react";
+import { AnimatePresence } from "framer-motion";
+import { Header } from "@/components/tender/Header";
+import { SectorSelector } from "@/components/tender/SectorSelector";
+import { LinkConfigPage } from "@/components/tender/LinkConfigPage";
+import { AgentPreviewGrid } from "@/components/tender/AgentPreviewGrid";
+import { TenderResultsList } from "@/components/tender/TenderResultsList";
+import { CompareButton } from "@/components/tender/CompareButton";
+import { CompareModal } from "@/components/tender/CompareModal";
+import { useTenderSearch } from "@/hooks/useTenderSearch";
+import type { Sector } from "@/types/tender";
 
-const Index = () => {
+type ViewState = "selector" | "config" | "search";
+
+export default function Home() {
   const {
     isSearching,
     selectedSector,
@@ -21,45 +23,36 @@ const Index = () => {
     selectedTenders,
     startSearch,
     toggleTenderSelection,
-    clearSelection,
     resetSearch,
   } = useTenderSearch();
 
-  const [view, setView] = useState<ViewState>('selector');
+  const [view, setView] = useState<ViewState>("selector");
   const [pendingSector, setPendingSector] = useState<Sector | null>(null);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
 
-  const selectedTendersList = tenders.filter(t => selectedTenders.has(t.id));
+  const selectedTendersList = tenders.filter((t) => selectedTenders.has(t.id));
 
   const handleSectorSelect = (sector: Sector) => {
     setPendingSector(sector);
-    setView('config');
+    setView("config");
   };
 
   const handleBackToSelector = () => {
     setPendingSector(null);
-    setView('selector');
+    setView("selector");
   };
 
   const handleStartSearchWithLinks = (links: string[]) => {
     if (pendingSector) {
       startSearch(pendingSector, links);
-      setView('search');
+      setView("search");
     }
   };
 
   const handleReset = () => {
     resetSearch();
     setPendingSector(null);
-    setView('selector');
-  };
-
-  const handleCompare = () => {
-    setIsCompareOpen(true);
-  };
-
-  const handleCloseCompare = () => {
-    setIsCompareOpen(false);
+    setView("selector");
   };
 
   return (
@@ -68,15 +61,15 @@ const Index = () => {
 
       <main className="py-8">
         <AnimatePresence mode="wait">
-          {view === 'selector' && (
-            <SectorSelector 
+          {view === "selector" && (
+            <SectorSelector
               key="selector"
-              onSelectSector={handleSectorSelect} 
+              onSelectSector={handleSectorSelect}
               disabled={isSearching}
             />
           )}
 
-          {view === 'config' && pendingSector && (
+          {view === "config" && pendingSector && (
             <LinkConfigPage
               key="config"
               sector={pendingSector}
@@ -85,9 +78,8 @@ const Index = () => {
             />
           )}
 
-          {view === 'search' && selectedSector && (
+          {view === "search" && selectedSector && (
             <div key="results" className="space-y-8">
-              {/* Back Button */}
               <div className="max-w-7xl mx-auto px-4">
                 <button
                   onClick={handleReset}
@@ -97,13 +89,8 @@ const Index = () => {
                 </button>
               </div>
 
-              {/* Agent Preview Grid */}
-              <AgentPreviewGrid 
-                agents={agents} 
-                sector={selectedSector} 
-              />
+              <AgentPreviewGrid agents={agents} sector={selectedSector} />
 
-              {/* Results List */}
               <TenderResultsList
                 tenders={tenders}
                 selectedTenders={selectedTenders}
@@ -111,7 +98,6 @@ const Index = () => {
                 isSearching={isSearching}
               />
 
-              {/* Empty state when no results yet */}
               {!isSearching && tenders.length === 0 && (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground">
@@ -124,22 +110,18 @@ const Index = () => {
         </AnimatePresence>
       </main>
 
-      {/* Compare Button - only show when we have results */}
       {tenders.length > 0 && (
         <CompareButton
           selectedCount={selectedTenders.size}
-          onCompare={handleCompare}
+          onCompare={() => setIsCompareOpen(true)}
         />
       )}
 
-      {/* Compare Modal */}
       <CompareModal
         isOpen={isCompareOpen}
-        onClose={handleCloseCompare}
+        onClose={() => setIsCompareOpen(false)}
         tenders={selectedTendersList}
       />
     </div>
   );
-};
-
-export default Index;
+}

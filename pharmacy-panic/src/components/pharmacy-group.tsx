@@ -1,7 +1,6 @@
 import type { PharmacyResult } from '@/lib/types';
 import { ProductCard } from './product-card';
 import { PharmacyBadge } from './pharmacy-badge';
-import { Zap } from 'lucide-react';
 
 const PHARMACY_DISPLAY_NAMES: Record<string, string> = {
   longchau:   'Long Châu',
@@ -17,7 +16,7 @@ interface PharmacyGroupProps {
 }
 
 export function PharmacyGroup({ result, pharmacyKey }: PharmacyGroupProps) {
-  const { products, error, source } = result;
+  const { products, error } = result;
   const displayName = PHARMACY_DISPLAY_NAMES[pharmacyKey.toLowerCase()] ?? result.pharmacy;
   const productCount = products.length;
 
@@ -29,18 +28,10 @@ export function PharmacyGroup({ result, pharmacyKey }: PharmacyGroupProps) {
           <span className="text-sm text-zinc-500">
             {productCount} {productCount === 1 ? 'product' : 'products'}
           </span>
-          {source === 'cache' && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
-              <Zap className="w-3 h-3" />
-              Cached
-            </span>
-          )}
-          {source === 'live' && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-600 border border-orange-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse inline-block" />
-              Live
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-600 border border-orange-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse inline-block" />
+            Live
+          </span>
         </div>
       </div>
 

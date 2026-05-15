@@ -1,152 +1,156 @@
-# Open-Box Deals Aggregator
+# Openbox Deals
+**Live Demo:** _add URL after deploy_
 
-Real-time open-box and refurbished deal aggregator with live browser streaming. Scrapes 8 major retailers simultaneously using TinyFish Agent API.
-## Demo
-![Open-Box Deals Demo]
-https://github.com/user-attachments/assets/57def077-74e7-416b-967c-ed72e1dc0da0
+**Real-time open-box and refurbished product finder — parallel TinyFish agents scrape 8 retailers simultaneously and stream results as each one finishes.**
 
+Enter a product name and optional max price. Eight browser agents fire at once — Amazon Warehouse, Best Buy Outlet, Newegg, BackMarket, Swappa, Walmart Renewed, Target Clearance, and Micro Center — each extracting structured product listings and streaming them back as they complete.
 
-
-
-
-## 🎯 What It Does
-
-- Searches 8 retailers in parallel for open-box/refurbished deals
-- Shows live browser streams as agents scrape each site
-- Calculates savings and sorts by best deals
-- Retro warehouse receipt themed UI
-
-## 🏪 Supported Retailers
-
-| Site | Deal Type |
-|------|-----------|
-| Amazon Warehouse | Renewed/Used |
-| Best Buy Outlet | Open-Box |
-| BackMarket | Refurbished |
-| Swappa | Used Devices |
-| Walmart Renewed | Refurbished |
-| Newegg Open Box | Open-Box |
-| Target Clearance | Clearance |
-| Micro Center | Open-Box |
-
-## 🚀 Quick Start
-
-### 1. Clone and Install
-
-```bash
-cd examples/openbox-deals
-pip install -r requirements.txt
-```
-
-### 2. Set Environment Variable
-
-```bash
-export MINO_API_KEY=sk-mino-your-key
-```
-
-### 3. Run
-
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-Open http://localhost:8000
-
-## 🔧 How It Works
-
-### Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│           User Interface (Vanilla JS)           │
-└─────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────┐
-│          FastAPI Backend (SSE Streaming)        │
-└─────────────────────────────────────────────────┘
-         │       │       │       │       │
-         ▼       ▼       ▼       ▼       ▼
-┌─────────────────────────────────────────────────┐
-│         TinyFish Agent API (8 parallel)         │
-│  • Stealth browser profiles                     │
-│  • Live streaming URLs                          │
-│  • Structured JSON extraction                   │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    Browser (Client)                         │
+│                                                             │
+│  public/index.html — vanilla JS frontend                    │
+│  Search form → SSE listener → results grid                  │
+│  (results appear as each retailer agent finishes)           │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ GET /api/search/live?q=&max_price=
+                           │ (SSE — results stream as agents finish)
+┌──────────────────────────▼──────────────────────────────────┐
+│                   Next.js API Routes                        │
+│                                                             │
+│  /api/search/live                                           │
+│    │                                                        │
+│    ├─ validateQuery() — XSS sanitize, length check          │
+│    ├─ 5s SSE heartbeats to keep connection alive            │
+│    │                                                        │
+│    └─ TinyFish SDK ──► Promise.allSettled (x8 parallel)     │
+│         client.agent.stream({ url, goal,                    │
+│           browser_profile, proxy_config })                  │
+│         │                                                   │
+│         ├── Agent → Amazon Warehouse      (stealth + proxy) │
+│         ├── Agent → Best Buy Outlet       (stealth)         │
+│         ├── Agent → Newegg Open Box                         │
+│         ├── Agent → BackMarket                              │
+│         ├── Agent → Swappa                (stealth)         │
+│         ├── Agent → Walmart Renewed       (stealth)         │
+│         ├── Agent → Target Clearance                        │
+│         └── Agent → Micro Center                            │
+│                                                             │
+│  /api/sites — returns site list for frontend                │
+└─────────────────────────────────────────────────────────────┘
+
+Static frontend: page.tsx redirects to public/index.html.
+Next.js handles API routes only — no React component tree.
 ```
 
-### API Usage
+### TinyFish SDK event flow
 
-```python
-MINO_API_URL = "https://agent.tinyfish.ai/v1/automation/run-sse"
+```
+client.agent.stream({ url, goal, browser_profile, proxy_config }, {
+  onStreamingUrl: (event) => send session_start + iframe URL to client,
+  onComplete:     (event) => RunStatus.COMPLETED → extractProducts(event.result)
+                             → filterByPrice() → session_result → SSE
+})
 
-payload = {
-    "url": "https://www.bestbuy.com/site/searchpage.jsp?st=iphone&qp=condition_facet%3DCondition~Open-Box",
-    "goal": "Extract the first 5 Open-Box 'iphone' products. Return ONLY a JSON array: [{name, original_price, sale_price, condition, product_url}].",
-    "browser_profile": "stealth"
+// for-await drains the stream; break after COMPLETE
+for await (const event of stream) {
+  if (event.type === EventType.COMPLETE) break;
 }
-
-async with session.post(MINO_API_URL, json=payload, headers=headers) as response:
-    async for chunk in response.content.iter_any():
-        # SSE events: streaming_url, status updates, result_json
-        pass
 ```
 
-### SSE Event Flow
+## Adding a New Retailer
 
-```
-data: {"streaming_url":"https://tf-xxx.lax1-tinyfish.unikraft.app/stream/0"}
-data: {"type":"STATUS","message":"Navigating to Best Buy..."}
-data: {"type":"STATUS","message":"Extracting Open-Box products..."}
-data: {"type":"COMPLETE","result_json":[{"name":"iPhone 16","sale_price":"$604.99",...}]}
+Adding a site is a two-line change in `src/lib/sites.ts`:
+
+```typescript
+mynewsite: {
+  name: 'My New Site',
+  searchUrl: 'https://mynewsite.com/search?q={query}',
+  goal: "Extract the first 5 open-box '{query}' products. Return ONLY a JSON array: [{name, original_price, sale_price, condition, product_url}].",
+  browserProfile: 'stealth',   // optional
+  proxyConfig: { enabled: true, country_code: 'US' },  // optional
+},
 ```
 
-## 📁 Project Structure
+`{query}` is replaced with the URL-encoded search term at runtime. `country_code` is typed as `ProxyCountryCode` from `@tiny-fish/sdk` — supported values: `US`, `GB`, `CA`, `DE`, `FR`, `JP`, `AU`.
+
+## SSE Event Types
+
+| Event | Description |
+|---|---|
+| `search_start` | Search kicked off, lists all site keys |
+| `session_status` | Initial `connecting` status per site |
+| `session_start` | Agent live — includes `streaming_url` iframe |
+| `session_result` | Products extracted — includes `products[]` array |
+| `session_error` | Agent failed or returned no results |
+| `heartbeat` | Sent every 5s to keep connection alive |
+| `complete` | All agents done — includes total elapsed time |
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- TinyFish API key
+
+### Environment Variables
+
+```bash
+cp .env.example .env.local
+```
+
+Then fill in:
+
+```env
+# TinyFish (required) — https://tinyfish.ai
+TINYFISH_API_KEY=your-tinyfish-api-key
+```
+
+### Install & Run
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+## Project Structure
 
 ```
 openbox-deals/
-├── app/
-│   ├── __init__.py
-│   └── main.py          # FastAPI backend with SSE streaming
-├── static/
-│   └── index.html       # Warehouse receipt themed UI
-├── requirements.txt
-├── railway.toml         # Railway deployment config
-└── .env.example
+├── public/
+│   └── index.html               # Vanilla JS frontend (search form + SSE client)
+├── src/
+│   ├── app/
+│   │   ├── page.tsx             # Redirects to /index.html
+│   │   └── api/
+│   │       ├── search/live/     # GET — SSE stream, parallel TinyFish agents
+│   │       └── sites/           # GET — returns list of supported retailers
+│   └── lib/
+│       ├── sites.ts             # Retailer configs (add new sites here)
+│       └── helpers.ts           # extractProducts, filterByPrice, sanitizeProduct
+├── .env.example
+└── package.json
 ```
 
-## 🚢 Deploy to Railway
+## Constraint Checklist
 
-1. Push to GitHub
-2. Connect repo to Railway
-3. Add environment variable: `MINO_API_KEY`
-4. Deploy!
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Cache layer used? | NO (all results fetched live) |
+| Scraping parallel? | YES (`Promise.allSettled` across 8 retailers) |
+| Live browser preview? | YES (`onStreamingUrl` → iframe URL in SSE) |
+| Input sanitized? | YES (XSS scrub + length check in `validateQuery`) |
+| Adding a new retailer? | YES — two lines in `sites.ts` |
+| Bot-protected sites? | YES (stealth profile + proxy for Amazon, Swappa, Walmart) |
 
-## 🔑 Key Features
+## Tech Stack
 
-| Feature | Implementation |
-|---------|----------------|
-| **Parallel Scraping** | 8 concurrent TinyFish agents |
-| **Live Browser Preview** | Embedded iframe streams |
-| **Query-Aware Goals** | Dynamic `{query}` injection |
-| **Rate Limiting** | 9 req/min per IP |
-| **Price Normalization** | Consistent `$XX.XX` format |
-| **Savings Calculator** | Auto-calculates % off |
-
-## 📊 Sample Results
-
-Search: "sony headphones" (Max: $300)
-
-| Product | Site | Was | Now | Savings |
-|---------|------|-----|-----|---------|
-| Sony WH-CH520 | BackMarket | $96 | $33 | 66% OFF |
-| Sony ULT WEAR 900N | Amazon | $229 | $106 | 54% OFF |
-| Sony WH-1000XM5 | Amazon | $298 | $190 | 36% OFF |
-
-## 🔗 Links
-
-- **Live Demo**: https://openbox-deals-production.up.railway.app
-
-## 📄 License
-
-MIT
+- **Framework:** Next.js 15 (App Router), TypeScript
+- **Frontend:** Vanilla JS (`public/index.html`) — no React component tree
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`)
+- **Deployment:** Vercel

@@ -53,7 +53,7 @@ This tool transforms competitive pricing research from manual spreadsheet work i
 - Live browser automation monitoring via embedded iframe
 - **Active Agents list**: Shows currently running scraping jobs with pulsing status indicator
 - **Recent Agents**: Quick access to recently completed sessions
-- **Browser View**: Embedded iframe showing Mino's live browser session
+- **Browser View**: Embedded iframe showing Tinyfish Agent's live browser session
 - Status bar with current scraping step
 - Option to open browser session in new tab
 
@@ -102,8 +102,8 @@ This tool transforms competitive pricing research from manual spreadsheet work i
 
 ## Scraping Engine
 
-### Mino Integration
-- Real-time web scraping via Mino AI API
+### Tinyfish Agent Integration
+- Real-time web scraping via Tinyfish Agent API
 - Server-Sent Events (SSE) for streaming progress updates
 - Browser streaming URL for live session viewing
 
@@ -120,7 +120,7 @@ This tool transforms competitive pricing research from manual spreadsheet work i
   - Source notes with calculation methodology
 
 ### Data Transformation
-- Raw Mino responses transformed to standardized schema
+- Raw Tinyfish Agent responses transformed to standardized schema
 - Automatic field mapping for legacy data compatibility
 - Default confidence level assignment for scraped data
 
@@ -166,10 +166,10 @@ This tool transforms competitive pricing research from manual spreadsheet work i
 
 ## Technical Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **UI**: React with Tailwind CSS
 - **Components**: shadcn/ui
 - **Charts**: Recharts (ScatterChart)
 - **State**: React Context + useReducer
-- **Scraping**: Mino AI API
+- **Scraping**: Tinyfish Agent via `@tiny-fish/sdk` (`client.agent.stream` in `/api/scrape-pricing`)
 - **Streaming**: Server-Sent Events (SSE)

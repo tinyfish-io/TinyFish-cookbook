@@ -24,7 +24,7 @@ export interface SummerSchool {
 export interface AgentStatus {
   id: string;
   url: string;
-  status: 'pending' | 'running' | 'completed' | 'error';
+  status: "pending" | "running" | "completed" | "error";
   message: string;
   streamingUrl?: string;
   result?: SummerSchool;

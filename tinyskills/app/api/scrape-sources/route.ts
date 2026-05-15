@@ -1,15 +1,34 @@
-import {
-  runMinoAutomation,
-  buildScrapeGoal,
-  parseScrapedContent,
-} from "@/lib/mino-client";
+import { getTinyFishClient } from "@/lib/tinyfish-client";
 import { countWords } from "@/lib/utils";
-import type { IdentifiedSource, ScrapeProgress, Settings } from "@/types";
+import type { IdentifiedSource, ScrapeProgress } from "@/types";
+
+const FETCH_BATCH_SIZE = 10;
+
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+function markdownFromFetchPage(result: {
+  title?: string | null;
+  description?: string | null;
+  text?: string | null;
+}): string {
+  const parts: string[] = [];
+  if (result.title) parts.push(`# ${result.title}\n`);
+  if (result.description) parts.push(`${result.description}\n\n`);
+  if (result.text) parts.push(result.text);
+  return parts.join("").trim();
+}
 
 export async function POST(request: Request) {
   const encoder = new TextEncoder();
 
-  // Create a TransformStream for SSE
   const stream = new TransformStream();
   const writer = stream.writable.getWriter();
   let isClosed = false;
@@ -33,13 +52,11 @@ export async function POST(request: Request) {
     }
   };
 
-  // Start processing in the background
   (async () => {
     try {
-      const { sources, topic, settings } = (await request.json()) as {
+      const { sources, topic } = (await request.json()) as {
         sources: IdentifiedSource[];
         topic: string;
-        settings?: Partial<Settings>;
       };
 
       if (!sources || !Array.isArray(sources) || sources.length === 0) {
@@ -50,12 +67,14 @@ export async function POST(request: Request) {
 
       const apiKey = process.env.TINYFISH_API_KEY;
       if (!apiKey) {
-        await sendEvent({ type: "error", error: "Mino API key not configured" });
+        await sendEvent({
+          type: "error",
+          error: "TinyFish API key not configured",
+        });
         await closeWriter();
         return;
       }
 
-      // Initialize progress tracking
       const progressMap = new Map<string, ScrapeProgress>();
       for (const source of sources) {
         progressMap.set(source.url, {
@@ -65,133 +84,180 @@ export async function POST(request: Request) {
         });
       }
 
-      // Send initial state
       await sendEvent({
         type: "scrape_start",
         sourceCount: sources.length,
         timestamp: Date.now(),
       });
 
-      // Scrape all sources in parallel
-      const scrapePromises = sources.map(async (source) => {
-        const progress = progressMap.get(source.url)!;
+      const client = await getTinyFishClient(apiKey);
 
-        // Update status to scraping
-        progress.status = "scraping";
-        await sendEvent({
-          type: "source_start",
-          sourceUrl: source.url,
-          sourceType: source.type,
-          sourceTitle: source.title,
-          timestamp: Date.now(),
-        });
+      const batches: IdentifiedSource[][] = [];
+      for (let i = 0; i < sources.length; i += FETCH_BATCH_SIZE) {
+        batches.push(sources.slice(i, i + FETCH_BATCH_SIZE));
+      }
 
-        try {
-          const goal = buildScrapeGoal(source.type, topic);
+      await Promise.all(
+        batches.map(async (batch) => {
+          for (const source of batch) {
+            const progress = progressMap.get(source.url)!;
+            progress.status = "scraping";
+            await sendEvent({
+              type: "source_start",
+              sourceUrl: source.url,
+              sourceType: source.type,
+              sourceTitle: source.title,
+              timestamp: Date.now(),
+            });
+          }
 
-          const result = await runMinoAutomation(
-            {
-              url: source.url,
-              goal,
-              browser_profile: settings?.browserProfile || "lite",
-              ...(settings?.enableProxy && {
-                proxy_config: {
-                  enabled: true,
-                  country_code: (settings.proxyCountry || "US") as
-                    | "US"
-                    | "GB"
-                    | "CA"
-                    | "DE"
-                    | "FR"
-                    | "JP"
-                    | "AU",
-                },
-              }),
-            },
-            apiKey,
-            {
-              onStep: async (message) => {
-                progress.steps.push(message);
-                await sendEvent({
-                  type: "source_step",
-                  sourceUrl: source.url,
-                  detail: message,
-                  stepCount: progress.steps.length,
-                  timestamp: Date.now(),
-                });
-              },
-              onStreamingUrl: async (url) => {
-                progress.streamingUrl = url;
-                await sendEvent({
-                  type: "source_streaming",
-                  sourceUrl: source.url,
-                  streamingUrl: url,
-                  timestamp: Date.now(),
-                });
-              },
+          let fetchRes;
+          try {
+            fetchRes = await client.fetch.getContents({
+              urls: batch.map((s) => s.url),
+              format: "markdown",
+            });
+          } catch (err) {
+            const msg =
+              err instanceof Error ? err.message : "Fetch batch request failed";
+            for (const source of batch) {
+              const progress = progressMap.get(source.url)!;
+              progress.status = "error";
+              progress.error = msg;
+              await sendEvent({
+                type: "source_step",
+                sourceUrl: source.url,
+                detail: "Fetch request failed",
+                stepCount: 1,
+                timestamp: Date.now(),
+              });
+              await sendEvent({
+                type: "source_error",
+                sourceUrl: source.url,
+                error: msg,
+                timestamp: Date.now(),
+              });
             }
-          );
+            return;
+          }
 
-          if (result.success && result.result) {
-            const content = parseScrapedContent(result.result);
-            const wordCount = countWords(content);
+          const findResult = (sourceUrl: string) => {
+            const n = normalizeUrl(sourceUrl);
+            return fetchRes.results.find((r) => {
+              if (normalizeUrl(r.url) === n) return true;
+              if (r.final_url && normalizeUrl(r.final_url) === n) return true;
+              return false;
+            });
+          };
 
-            progress.status = "complete";
-            progress.content = content;
-            progress.wordCount = wordCount;
+          const findError = (sourceUrl: string) => {
+            const n = normalizeUrl(sourceUrl);
+            return fetchRes.errors.find((e) => normalizeUrl(e.url) === n);
+          };
+
+          for (const source of batch) {
+            const progress = progressMap.get(source.url)!;
 
             await sendEvent({
-              type: "source_complete",
+              type: "source_step",
               sourceUrl: source.url,
-              content,
-              wordCount,
+              detail: `Fetching and extracting content via TinyFish Fetch… (${topic.slice(0, 40)}${topic.length > 40 ? "…" : ""})`,
+              stepCount: 1,
               timestamp: Date.now(),
             });
 
-            return { source, content, success: true };
-          } else {
-            throw new Error(result.error || "Unknown scrape error");
+            const row = findResult(source.url);
+            const errRow = findError(source.url);
+
+            if (errRow) {
+              progress.status = "error";
+              progress.error = errRow.error;
+              progress.steps.push(errRow.error);
+              await sendEvent({
+                type: "source_error",
+                sourceUrl: source.url,
+                error: errRow.error,
+                timestamp: Date.now(),
+              });
+              continue;
+            }
+
+            if (row && row.format === "json" && row.text && typeof row.text === "object") {
+              const content = markdownFromFetchPage({
+                title: row.title,
+                description: row.description,
+                text: JSON.stringify(row.text, null, 2),
+              });
+              const wordCount = countWords(content);
+              progress.status = "complete";
+              progress.content = content;
+              progress.wordCount = wordCount;
+              progress.steps.push("Content extracted (TinyFish Fetch)");
+              await sendEvent({
+                type: "source_complete",
+                sourceUrl: source.url,
+                content,
+                wordCount,
+                timestamp: Date.now(),
+              });
+              continue;
+            }
+
+            if (
+              row &&
+              (row.format === "markdown" || row.format === "html") &&
+              row.text
+            ) {
+              const content = markdownFromFetchPage(row);
+              const wordCount = countWords(content);
+
+              progress.status = "complete";
+              progress.content = content;
+              progress.wordCount = wordCount;
+              progress.steps.push("Content extracted (TinyFish Fetch)");
+
+              await sendEvent({
+                type: "source_complete",
+                sourceUrl: source.url,
+                content,
+                wordCount,
+                timestamp: Date.now(),
+              });
+
+              continue;
+            }
+
+            const fallbackMsg = "No extractable content returned for this URL";
+            progress.status = "error";
+            progress.error = fallbackMsg;
+            await sendEvent({
+              type: "source_error",
+              sourceUrl: source.url,
+              error: fallbackMsg,
+              timestamp: Date.now(),
+            });
           }
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : "Unknown error";
-          progress.status = "error";
-          progress.error = errorMsg;
+        }),
+      );
 
-          await sendEvent({
-            type: "source_error",
-            sourceUrl: source.url,
-            error: errorMsg,
-            timestamp: Date.now(),
-          });
-
-          return { source, content: "", success: false, error: errorMsg };
-        }
+      const finalResults: ScrapeProgress[] = sources.map((source) => {
+        const p = progressMap.get(source.url)!;
+        return {
+          source,
+          status: p.status,
+          steps: p.steps,
+          content: p.content,
+          wordCount: p.wordCount,
+          error: p.error,
+          streamingUrl: p.streamingUrl,
+        };
       });
-
-      // Wait for all scrapes to complete
-      const results = await Promise.allSettled(scrapePromises);
-
-      // Collect final results
-      const finalResults: ScrapeProgress[] = [];
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          const { source, content, success, error } = result.value;
-          finalResults.push({
-            source,
-            status: success ? "complete" : "error",
-            steps: progressMap.get(source.url)?.steps || [],
-            content: success ? content : undefined,
-            wordCount: success ? countWords(content) : undefined,
-            error: success ? undefined : error,
-          });
-        }
-      }
 
       await sendEvent({
         type: "scrape_complete",
         results: finalResults,
-        successCount: finalResults.filter((r) => r.status === "complete").length,
+        successCount: finalResults.filter((r) => r.status === "complete")
+          .length,
         totalCount: sources.length,
         timestamp: Date.now(),
       });

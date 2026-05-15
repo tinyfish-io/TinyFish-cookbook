@@ -126,8 +126,6 @@ export function normalizePharmacyResult(raw: unknown): PharmacyResult {
     search_term: String(obj.search_term || ""),
     products: normalizedProducts,
     error: obj.error ? String(obj.error) : undefined,
-    source: obj.source === "cache" ? "cache" : "live",
-    cached_at: obj.cached_at ? String(obj.cached_at) : undefined,
   };
 }
 

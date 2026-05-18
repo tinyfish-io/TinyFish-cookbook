@@ -99,6 +99,14 @@ tinyfish fetch content get https://example.com
 
 The CLI writes results to the filesystem instead of piping them through your model's context window — tokens stay low, output stays structured.
 
+### Scripts
+
+Drop TinyFish into everyday tools with small copyable scripts.
+
+| Script | Description |
+|--------|-------------|
+| [Raycast TinyFish Search](./scripts/raycast-tinyfish-search) | Search the web from Raycast and get formatted result URLs, titles, and snippets |
+
 ### Agent Skill
 
 One-line install. Works with Claude Code, Codex, Cursor, OpenCode, Antigravity, and other coding agents. The Skill teaches your agent **when** to reach for Search vs. Fetch vs. Agent, and **how** to call them.

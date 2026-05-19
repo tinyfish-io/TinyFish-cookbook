@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, TrendingUp, TrendingDown, Star, Clock, Percent, FileText, Users, DollarSign, Eye } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Star, Clock, Percent, Users, DollarSign, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BankLoanInfo } from '@/types/loan';
 import { Button } from '@/components/ui/button';

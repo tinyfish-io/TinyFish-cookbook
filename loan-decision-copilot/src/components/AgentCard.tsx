@@ -162,7 +162,7 @@ export function AgentCard({ bank, index, isSelected, onSelect, onExpandPreview }
       {bank.status === 'error' && (
         <div className="p-5 flex items-center justify-center h-32">
           <p className="text-sm text-muted-foreground text-center">
-            Unable to analyze this bank's page
+            Unable to analyze this bank&apos;s page
           </p>
         </div>
       )}

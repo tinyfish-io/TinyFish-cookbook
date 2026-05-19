@@ -1,282 +1,214 @@
-import { analyzeBestDeal } from '@/lib/openai-client'
-import type { Retailer, ProductData, SSEEvent, TinyFishSSEEvent } from '@/types'
+import { NextRequest } from "next/server";
+import { TinyFish, EventType, RunStatus } from "@tiny-fish/sdk";
+import type { Retailer, ProductData, SSEEvent } from "@/types";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 interface SearchLegoRequest {
-  legoSetName: string
-  maxBudget: number
-  retailers: Retailer[]
+  legoSetName: string;
+  maxBudget: number;
+  retailers: Retailer[];
 }
 
-export async function POST(request: Request) {
-  const body: SearchLegoRequest = await request.json()
-  const { legoSetName, maxBudget, retailers } = body
+const sseData = (event: SSEEvent) =>
+  `data: ${JSON.stringify({ ...event, timestamp: Date.now() })}\n\n`;
 
-  if (!legoSetName || !retailers || retailers.length === 0) {
-    return Response.json(
-      { error: 'legoSetName and retailers are required' },
-      { status: 400 }
-    )
+export async function POST(req: NextRequest) {
+  const apiKey = process.env.TINYFISH_API_KEY;
+  if (!apiKey) {
+    return new Response(sseData({ type: "error", error: "Missing TINYFISH_API_KEY" }), {
+      headers: { "Content-Type": "text/event-stream" },
+    });
   }
 
-  // Create a TransformStream for SSE
-  const encoder = new TextEncoder()
-  const stream = new TransformStream()
-  const writer = stream.writable.getWriter()
+  const body: SearchLegoRequest = await req.json();
+  const { legoSetName, maxBudget, retailers } = body;
 
-  // Helper to send SSE events
-  const sendEvent = async (event: SSEEvent) => {
-    const data = `data: ${JSON.stringify({ ...event, timestamp: Date.now() })}\n\n`
-    await writer.write(encoder.encode(data))
+  if (!legoSetName || !retailers?.length) {
+    return new Response(
+      sseData({ type: "error", error: "legoSetName and retailers are required" }),
+      { headers: { "Content-Type": "text/event-stream" } }
+    );
   }
 
-  // Start processing in background
-  processRetailers(retailers, legoSetName, maxBudget, sendEvent, writer)
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: SSEEvent) => {
+        controller.enqueue(encoder.encode(sseData(event)));
+      };
 
-  return new Response(stream.readable, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive'
-    }
-  })
-}
+      const results: ProductData[] = [];
 
-async function processRetailers(
-  retailers: Retailer[],
-  legoSetName: string,
-  maxBudget: number,
-  sendEvent: (event: SSEEvent) => Promise<void>,
-  writer: WritableStreamDefaultWriter<Uint8Array>
-) {
-  const results: ProductData[] = []
-
-  try {
-    // Launch all scraping tasks in parallel
-    const scrapePromises = retailers.map(retailer =>
-      scrapeRetailer(retailer, legoSetName, sendEvent)
-        .then(data => {
-          if (data) {
-            results.push(data)
-          }
-          return data
-        })
-        .catch(async error => {
-          console.error(`Error scraping ${retailer.name}:`, error)
-          await sendEvent({
-            type: 'retailer_error',
-            retailer: retailer.name,
-            error: error.message || 'Scraping failed'
-          })
-          return null
-        })
-    )
-
-    // Wait for all scraping to complete
-    await Promise.allSettled(scrapePromises)
-
-    // Analyze results with OpenAI if we have any
-    if (results.length > 0) {
       try {
-        const bestDeal = await analyzeBestDeal(legoSetName, maxBudget, results)
-        await sendEvent({
-          type: 'analysis_complete',
-          bestDeal
-        })
-      } catch (error) {
-        console.error('Error analyzing deals:', error)
-        await sendEvent({
-          type: 'error',
-          error: 'Failed to analyze deals'
-        })
-      }
-    } else {
-      await sendEvent({
-        type: 'analysis_complete',
-        bestDeal: {
-          bestRetailer: 'None',
-          reason: 'No retailers returned results. Please try again.',
-          totalCost: 'N/A',
-          savings: 'N/A'
-        }
-      })
-    }
-  } catch (error) {
-    console.error('Error processing retailers:', error)
-    await sendEvent({
-      type: 'error',
-      error: 'Failed to process retailers'
-    })
-  } finally {
-    await writer.close()
-  }
-}
+        // Run all retailer agents in parallel
+        await Promise.allSettled(
+          retailers.map(async (retailer) => {
+            send({ type: "retailer_start", retailer: retailer.name });
 
-async function scrapeRetailer(
-  retailer: Retailer,
-  legoSetName: string,
-  sendEvent: (event: SSEEvent) => Promise<void>
-): Promise<ProductData | null> {
-  const TINYFISH_API_KEY = process.env.TINYFISH_API_KEY
+            try {
+              const client = new TinyFish({ apiKey });
 
-  if (!TINYFISH_API_KEY) {
-    throw new Error('TINYFISH_API_KEY not configured')
-  }
+              const goal = `You are searching for the LEGO set "${legoSetName}" on this retailer page.
 
-  // Send start event
-  await sendEvent({
-    type: 'retailer_start',
-    retailer: retailer.name
-  })
+TASK:
+1. Look at the current page — it may already show the product or be a search results page
+2. Find the specific LEGO set that matches "${legoSetName}"
+3. Extract the following information
 
-  const tinyfishResponse = await fetch('https://agent.tinyfish.ai/v1/automation/run-sse', {
-    method: 'POST',
-    headers: {
-      'X-API-Key': TINYFISH_API_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      url: retailer.url,
-      goal: `Search for "${legoSetName}" Lego set on this retailer website and extract product information.
-
-Your task:
-1. Look for the Lego set on this page (it may be a search results page)
-2. Find the specific product that matches "${legoSetName}"
-3. Extract the following information:
-
-Return the result as JSON with these exact fields:
+Return ONLY this JSON, no extra text:
 {
-  "inStock": true or false (whether the product is available to purchase),
-  "price": "99.99" (just the number, no currency symbol),
-  "currency": "USD" (or appropriate currency),
-  "shipping": "Free shipping" or "Shipping: $X.XX" or "Check website for shipping",
-  "productUrl": "full URL to the product page if found, otherwise the search page URL"
+  "inStock": true or false,
+  "price": "99.99" (number only, no currency symbol — use "0" if not found),
+  "currency": "USD",
+  "shipping": "Free shipping" or "Shipping: $X.XX" or "Check website",
+  "productUrl": "full URL to the product page"
 }
 
-If the product is not found on this page, return:
+If the product is not found or out of stock:
 {
   "inStock": false,
   "price": "0",
   "currency": "USD",
   "shipping": "N/A",
   "productUrl": "${retailer.url}"
-}
+}`;
 
-Important: Return ONLY the JSON object, no additional text.`,
-      browser_profile: 'lite'
-    })
-  })
+              const agentStream = await client.agent.stream({ url: retailer.url, goal });
 
-  if (!tinyfishResponse.ok) {
-    throw new Error(`TinyFish API error: ${tinyfishResponse.status}`)
-  }
+              for await (const event of agentStream) {
+                if (event.type === EventType.STREAMING_URL) {
+                  send({
+                    type: "retailer_start",
+                    retailer: retailer.name,
+                    streamingUrl: event.streaming_url,
+                  });
+                } else if (event.type === EventType.PROGRESS) {
+                  send({ type: "retailer_step", retailer: retailer.name, step: event.purpose });
+                } else if (event.type === EventType.COMPLETE) {
+                  if (event.status === RunStatus.COMPLETED) {
+                    // COMPLETED only means the browser ran without crashing
+                    // — always validate result content, not just the status
+                    const raw: unknown = event.result;
+                    let parsed: Record<string, unknown> | null = null;
 
-  const reader = tinyfishResponse.body?.getReader()
-  if (!reader) {
-    throw new Error('No response body from TinyFish')
-  }
+                    if (typeof raw === "string") {
+                      try {
+                        parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+                      } catch {
+                        parsed = null;
+                      }
+                    } else if (raw && typeof raw === "object") {
+                      parsed = raw as Record<string, unknown>;
+                    }
 
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let streamingUrl: string | undefined
-  let finalResult: ProductData | null = null
+                    const data: ProductData = {
+                      retailer: retailer.name,
+                      inStock: Boolean(parsed?.inStock),
+                      price: String(parsed?.price ?? "0"),
+                      currency: String(parsed?.currency ?? "USD"),
+                      shipping: String(parsed?.shipping ?? "N/A"),
+                      productUrl: String(parsed?.productUrl ?? retailer.url),
+                    };
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+                    if (data.inStock) {
+                      send({ type: "retailer_stock_found", retailer: retailer.name });
+                    }
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-
-        try {
-          const sseEvent: TinyFishSSEEvent = JSON.parse(line.slice(6))
-
-          // Capture streaming URL for browser preview
-          if (sseEvent.streaming_url && !streamingUrl) {
-            streamingUrl = sseEvent.streaming_url
-            await sendEvent({
-              type: 'retailer_start',
-              retailer: retailer.name,
-              streamingUrl
-            })
-          }
-
-          // Forward step events for progress updates
-          if (sseEvent.purpose) {
-            await sendEvent({
-              type: 'retailer_step',
-              retailer: retailer.name,
-              step: sseEvent.purpose
-            })
-          }
-
-          // Handle completion
-          if (sseEvent.status === 'COMPLETED') {
-            let resultData = sseEvent.result_json
-
-            // Try to parse if it's a string
-            if (typeof resultData === 'string') {
-              try {
-                resultData = JSON.parse(resultData)
-              } catch {
-                // If parsing fails, create default result
-                resultData = {
-                  retailer: retailer.name,
-                  inStock: false,
-                  price: '0',
-                  currency: 'USD',
-                  shipping: 'N/A',
-                  productUrl: retailer.url
+                    results.push(data);
+                    send({ type: "retailer_complete", retailer: retailer.name, data });
+                  } else {
+                    send({
+                      type: "retailer_error",
+                      retailer: retailer.name,
+                      error: event.error?.message || "Agent run failed",
+                    });
+                  }
+                  break;
                 }
               }
+            } catch (err) {
+              send({
+                type: "retailer_error",
+                retailer: retailer.name,
+                error: err instanceof Error ? err.message : "Scraping failed",
+              });
             }
+          })
+        );
 
-            finalResult = {
-              retailer: retailer.name,
-              inStock: resultData?.inStock ?? false,
-              price: String(resultData?.price ?? '0'),
-              currency: resultData?.currency ?? 'USD',
-              shipping: resultData?.shipping ?? 'N/A',
-              productUrl: resultData?.productUrl ?? retailer.url
-            }
-
-            // Send stock found event if in stock
-            if (finalResult.inStock) {
-              await sendEvent({
-                type: 'retailer_stock_found',
-                retailer: retailer.name
-              })
-            }
-
-            // Send completion event
-            await sendEvent({
-              type: 'retailer_complete',
-              retailer: retailer.name,
-              data: finalResult
-            })
-
-            break
-          }
-
-          // Handle errors from TinyFish
-          if (sseEvent.status === 'FAILED') {
-            throw new Error(sseEvent.error || sseEvent.message || 'Scraping failed')
-          }
-        } catch (parseError) {
-          // Ignore parse errors for individual events
-          console.warn('Failed to parse SSE event:', parseError)
+        // Analyze best deal from results
+        if (results.length > 0) {
+          const bestDeal = analyzeBestDeal(legoSetName, maxBudget, results);
+          send({ type: "analysis_complete", bestDeal });
+        } else {
+          send({
+            type: "analysis_complete",
+            bestDeal: {
+              bestRetailer: "None",
+              reason: "No retailers returned results. Please try again.",
+              totalCost: "N/A",
+              savings: "N/A",
+            },
+          });
         }
+      } catch (err) {
+        send({ type: "error", error: err instanceof Error ? err.message : "Search failed" });
+      } finally {
+        controller.close();
       }
+    },
+  });
 
-      if (finalResult) break
-    }
-  } finally {
-    reader.releaseLock()
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+// Simple in-memory deal analysis — no LLM needed for this logic
+function analyzeBestDeal(
+  legoSetName: string,
+  maxBudget: number,
+  results: ProductData[]
+) {
+  const inStock = results
+    .filter((r) => r.inStock && r.price !== "0")
+    .sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+
+  if (inStock.length === 0) {
+    return {
+      bestRetailer: "None",
+      reason: `${legoSetName} is currently out of stock at all searched retailers. Check back later or try BrickLink for second-hand listings.`,
+      totalCost: "N/A",
+      savings: "N/A",
+      alternativeOptions: [],
+    };
   }
 
-  return finalResult
+  const best = inStock[0];
+  const mostExpensive = inStock[inStock.length - 1];
+  const savings =
+    inStock.length > 1
+      ? `$${(parseFloat(mostExpensive.price) - parseFloat(best.price)).toFixed(2)} vs highest price`
+      : "N/A";
+
+  const overBudget = parseFloat(best.price) > maxBudget;
+
+  return {
+    bestRetailer: best.retailer,
+    reason: `${best.retailer} has the lowest price at $${best.price}${best.shipping !== "N/A" ? ` with ${best.shipping}` : ""}.${overBudget ? ` Note: this exceeds your budget of $${maxBudget}.` : ""}`,
+    totalCost: `$${best.price} ${best.currency}`,
+    savings,
+    alternativeOptions: inStock.slice(1, 3).map((r) => ({
+      retailer: r.retailer,
+      cost: `$${r.price} ${r.currency}`,
+      pros: [r.shipping !== "N/A" ? r.shipping : "Check website for shipping"],
+    })),
+  };
 }

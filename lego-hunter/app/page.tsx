@@ -98,7 +98,7 @@ export default function LegoFinderPage() {
     setIsGeneratingUrls(true)
 
     try {
-      const urlResponse = await fetch('/api/generate-urls', {
+      const urlResponse = await fetch('/api/discover-retailers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ legoSetName: legoSetName.trim() })
@@ -246,7 +246,7 @@ export default function LegoFinderPage() {
                 {!isSearching && (
                   <p className="text-sm text-[var(--lego-gray-400)] flex items-center gap-2">
                     <Zap className="w-4 h-4" />
-                    Searches 15 retailers in parallel
+                    Searches retailers in parallel
                   </p>
                 )}
               </div>
@@ -256,7 +256,7 @@ export default function LegoFinderPage() {
                 <div className="animate-fade-up">
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-[var(--lego-gray-500)] font-medium">
-                      {isGeneratingUrls ? 'Generating search URLs with AI...' : `Checking ${completedCount} of ${totalCount} retailers`}
+                      {isGeneratingUrls ? 'Discovering retailers...' : `Checking ${completedCount} of ${totalCount} retailers`}
                     </span>
                     {!isGeneratingUrls && (
                       <span className="text-display font-bold text-[var(--lego-black)]">{Math.round(progress)}%</span>
@@ -450,7 +450,7 @@ export default function LegoFinderPage() {
             <span className="text-display font-bold">Lego Restock Hunter</span>
           </div>
           <p className="text-sm text-white/50">
-            Powered by TinyFish AI + OpenAI. Not affiliated with LEGO Group.
+            Powered by TinyFish AI. Not affiliated with LEGO Group.
           </p>
         </div>
       </footer>

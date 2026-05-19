@@ -2,6 +2,7 @@
   "name": "lego-hunter",
   "version": "0.1.0",
   "private": true,
+  "engines": { "node": "22.x" },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,15 +10,13 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.47",
+    "@tiny-fish/sdk": "latest",
     "@types/canvas-confetti": "^1.9.0",
-    "ai": "^6.0.30",
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "zod": "^3.23.8"
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

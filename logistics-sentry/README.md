@@ -165,16 +165,10 @@ logistics-sentry/
 │   │       ├── pricing/run/route.js         # Competitive pricing agent
 │   │       └── logistics/risk-assessment/   # Port + carrier risk swarm
 │   ├── components/
-│   │   ├── RiskAssessment.js
-│   │   ├── ActivityFeed.js
-│   │   ├── LiveStream.js                    # Agent terminal
-│   │   ├── DecisionReasoning.js
-│   │   ├── InventoryInput.js
-│   │   ├── InventoryAlert.js
-│   │   ├── MetricCard.js
-│   │   ├── ActionPanel.js
 │   │   ├── AgentHeader.js
 │   │   └── TinyFishAgentAesthetics.js
+│   ├── hooks/
+│   │   └── use-toast.js
 │   └── lib/
 │       ├── tinyfish.js                      # Shared SDK wrapper (Search + Agent)
 │       ├── logistics/agent.js               # KB lookup + Search API fallback

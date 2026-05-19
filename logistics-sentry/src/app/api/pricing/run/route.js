@@ -106,7 +106,6 @@ export async function POST(req) {
                 sendEvent({ type: "info", message: `Initiating parallel analysis for ${validUrls.length} competitors...` });
 
                 const MAX_CONCURRENCY = 5;
-                const results = [];
 
                 // Helper to run a single agent
                 const runAgent = async (url) => {

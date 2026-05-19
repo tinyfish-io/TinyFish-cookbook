@@ -96,7 +96,7 @@ Then fill in:
 # TinyFish (required) — https://agent.tinyfish.ai/api-keys
 TINYFISH_API_KEY=your-tinyfish-key-here
 
-# Google OpenAI (required) — https://platform.openai.com/api-keys
+# OpenAI (required) — https://platform.openai.com/api-keys
 OPENAI_API_KEY=your-openai-api-key
 ```
 
@@ -177,6 +177,6 @@ research-sentry/
 
 - **Framework:** Next.js (App Router), TypeScript, Tailwind CSS
 - **Browser Agents:** TinyFish SDK (`client.agent.stream`)
-- **LLM: OpenAI (gpt-4o-mini) + Speech-to-text: OpenAI Whisper
+- **LLM:** OpenAI (gpt-4o-mini) + Speech-to-text: OpenAI Whisper
 - **Icons:** Lucide React
 - **Deployment:** Vercel

@@ -19,7 +19,6 @@ export default function Home() {
   const [selectedBank, setSelectedBank] = useState<BankLoanInfo | null>(null);
   const { isDiscovering, banks, error, discoverBanks, reset } = useLoanSearch();
 
-  const isSearching = isDiscovering || banks.some((b) => b.status === "running");
   const hasStarted = banks.length > 0 || isDiscovering;
   const analyzingCount = banks.filter((b) => b.status === "running").length;
   const completedCount = banks.filter((b) => b.status === "completed").length;

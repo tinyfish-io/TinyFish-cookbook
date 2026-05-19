@@ -1,31 +1,22 @@
 import OpenAI from 'openai';
-import { SearchCriteria } from './types';
 
 function getOpenAI() {
     return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 }
 
-export async function parseSearchIntent(query: string): Promise<SearchCriteria> {
-    const res = await getOpenAI().chat.completions.create({
-        model: 'gpt-4o',
+export async function parseSearchIntent(query: string): Promise<any> {
+    const response = await getOpenAI().chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
-            {
-                role: 'system',
-                content: `Parse research query into JSON: {searchKeywords, sources[], refinedAgenticGoal}.
-                - searchKeywords: Short, high-quality search terms for API search (e.g., "LLM hallucinations").
-                - refinedAgenticGoal: Detailed instructions for an AI agent (e.g., "Look for papers on X and focus on their methodology sections").
-                Allowed sources: 'arxiv', 'pubmed', 'semantic_scholar', 'google_scholar', 'ieee', 'ssrn', 'core', 'doaj'.`
-            },
-            { role: 'user', content: query }
+            { role: 'system', content: 'You are a research search intent parser. Extract structured search parameters from natural language queries and return JSON only.' },
+            { role: 'user', content: `Parse this research search query into structured parameters:\n"${query}"\n\nReturn JSON with:\n- keywords: string[]\n- authors: string[]\n- yearFrom: number | null\n- yearTo: number | null\n- topics: string[]\n- intent: "find_papers" | "compare" | "summarize" | "cite"\n\nReturn ONLY valid JSON, no markdown.` }
         ],
-        response_format: { type: 'json_object' },
+        max_tokens: 300,
     });
-    const parsed = JSON.parse(res.choices[0].message.content!);
-    return {
-        topic: parsed.searchKeywords || query,
-        keywords: [],
-        sources: parsed.sources || ['arxiv', 'semantic_scholar'],
-        maxResults: 20,
-        fullPrompt: parsed.refinedAgenticGoal || query
-    };
+    const content = response.choices[0]?.message?.content ?? '{}';
+    try {
+        return JSON.parse(content.replace(/```json\n?|```/g, '').trim());
+    } catch {
+        return { keywords: [query], authors: [], yearFrom: null, yearTo: null, topics: [], intent: 'find_papers' };
+    }
 }

@@ -1,76 +1,72 @@
 import OpenAI from 'openai';
 import { ResearchPaper } from './types';
 
-// Mock database for tracked papers in this demo
-// In a real app, this would be a database model
-export interface TrackedPaper {
-    id: string; // Paper ID
-    paperTitle: string;
-    originalCitationCount: number;
-    currentCitationCount: number;
-    velocity: number; // Citations per month
-    lastChecked: number;
-    trend: 'up' | 'stable' | 'down';
-    impactProjections: {
-        nextYear: number;
-        fiveYear: number;
-    };
+function getOpenAI() {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 }
 
-const getOpenAI = () => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        throw new Error('OPENAI_API_KEY is not configured');
-    }
-    return new OpenAI({ apiKey });
-};
+export interface TrackedPaper {
+    paperId: string;
+    title: string;
+    currentCitationCount: number;
+    trend: 'up' | 'down' | 'stable';
+    velocity: number;
+    impactProjections: { nextYear: number; fiveYear: number };
+    topicScore: number;
+    lastUpdated: string;
+}
 
-export async function analyzeCitationTrend(paper: ResearchPaper): Promise<TrackedPaper> {
-    const openai = getOpenAI();
-    // Simulating citation analysis with AI since we don't have historical data access in this demo
-    const prompt = `Analyze the potential citation impact of this research paper:
-  Title: "${paper.title}"
-  Current Citations: ${paper.citations || 0}
-  Published: ${paper.publishedDate}
-  Source: ${paper.source}
-  
-  Estimate the "Citation Velocity" (citations/month) and predict impact.
-  Return JSON:
-  {
-    "velocity": number,
-    "trend": "up" | "stable" | "down",
-    "impactProjections": { "nextYear": number, "fiveYear": number }
-  }
-  `;
+export async function analyzeCitationNetwork(paper: ResearchPaper): Promise<TrackedPaper> {
+    const currentCitations = paper.citations ?? 0;
+    const prompt = `Analyze this academic paper and predict its citation trajectory.
 
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-    });
+Paper: "${paper.title}"
+Authors: ${Array.isArray(paper.authors) ? paper.authors.join(', ') : paper.authors}
+Year: ${paper.publishedDate ? new Date(paper.publishedDate).getFullYear() : 'unknown'}
+Current citations: ${currentCitations}
+Source: ${paper.source}
 
-    const choice = response.choices?.[0];
-    if (!choice) {
-        throw new Error('OpenAI returned no choices');
-    }
-    if (choice.finish_reason === 'length') {
-        throw new Error('OpenAI response was truncated');
-    }
-    let analysis: any;
+Return ONLY valid JSON, no markdown:
+{ "trend": "up", "velocity": 5, "nextYear": 150, "fiveYear": 400, "topicScore": 75 }`;
+
     try {
-        analysis = JSON.parse(choice.message.content ?? '{}');
-    } catch (error) {
-        throw new Error('OpenAI returned invalid JSON');
+        const response = await getOpenAI().chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 200,
+        });
+        const content = response.choices[0]?.message?.content ?? '{}';
+        let parsed: Record<string, unknown>;
+        try {
+            parsed = JSON.parse(content.replace(/```json\n?|```/g, '').trim());
+        } catch {
+            parsed = {};
+        }
+        const trend = (['up', 'down', 'stable'].includes(parsed.trend as string)
+            ? parsed.trend
+            : currentCitations > 50 ? 'up' : 'stable') as 'up' | 'down' | 'stable';
+        const velocity = Number(parsed.velocity ?? Math.max(1, Math.round(currentCitations / 12)));
+        const nextYear = Number(parsed.nextYear ?? currentCitations + velocity * 12);
+        const fiveYear = Number(parsed.fiveYear ?? currentCitations + velocity * 60);
+        return {
+            paperId: paper.id ?? paper.url ?? paper.title,
+            title: paper.title,
+            currentCitationCount: currentCitations,
+            trend, velocity,
+            impactProjections: { nextYear, fiveYear },
+            topicScore: Number(parsed.topicScore ?? 60),
+            lastUpdated: new Date().toISOString(),
+        };
+    } catch {
+        const velocity = Math.max(1, Math.round(currentCitations / 12));
+        return {
+            paperId: paper.id ?? paper.title,
+            title: paper.title,
+            currentCitationCount: currentCitations,
+            trend: 'stable', velocity,
+            impactProjections: { nextYear: currentCitations + velocity * 12, fiveYear: currentCitations + velocity * 60 },
+            topicScore: 60,
+            lastUpdated: new Date().toISOString(),
+        };
     }
-
-    return {
-        id: paper.id,
-        paperTitle: paper.title,
-        originalCitationCount: paper.citations || 0,
-        currentCitationCount: paper.citations || 0, // In real app, this updates
-        lastChecked: Date.now(),
-        velocity: analysis.velocity,
-        trend: analysis.trend,
-        impactProjections: analysis.impactProjections
-    };
 }

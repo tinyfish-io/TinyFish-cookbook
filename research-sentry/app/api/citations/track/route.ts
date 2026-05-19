@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeCitationTrend } from '@/lib/citation-tracker';
+import { analyzeCitationNetwork } from '@/lib/citation-tracker';
 
 export async function POST(req: NextRequest) {
     try {
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Paper data required' }, { status: 400 });
         }
 
-        const trackedData = await analyzeCitationTrend(paper);
+        const trackedData = await analyzeCitationNetwork(paper);
 
         // In a real app, we would save this to a database here
 

@@ -1,160 +1,154 @@
-# StayScout Hub
+# Stay Scout Hub
+**Live Demo:** _add URL after deploy_
 
-**Live:** [https://stayscouthub.lovable.app/](https://stayscouthub.lovable.app/)
+**Smart hotel research tool — AI agents find the right neighborhood and booking platform before you book.**
 
-StayScout Hub helps travelers decide **where to stay in a city — and why**.  
-Instead of jumping straight to hotel booking sites, it analyzes **neighborhoods first**, using AI-powered area discovery and live browser research to explain the pros, cons, risks, and best hotels in each area.
+Enter your destination, travel purpose, and dates. Stay Scout discovers the best neighborhoods for your trip using real travel guides, researches each area via Google Maps, and checks availability across all relevant booking platforms simultaneously.
 
-The app combines:
-- **Gemini** for intelligent area suggestions
-- **Mino autonomous browser agents** for real-time hotel and neighborhood research
+## Architecture
 
----
-
-## Demo
-
-https://github.com/user-attachments/assets/0413dc34-c20d-481e-9a70-ca860cdf36e1
-
----
-
-## Mino API Usage
-
-StayScout Hub uses the **Mino SSE Browser Automation API** to research each recommended neighborhood in parallel.
-
-For every suggested area, a Mino agent:
-- Opens Google Maps and hotel listings
-- Observes location context, nearby landmarks, and transport
-- Scans hotel ratings and review signals
-- Returns a structured analysis with suitability, pros/cons, risks, and top hotels
-
-### Example Mino API Call
-
-```ts
-const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
-  method: "POST",
-  headers: {
-    "X-API-Key": process.env.TINYFISH_API_KEY,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: `https://www.google.com/maps/search/hotels+in+${areaName},+${city}`,
-    goal: `
-You are researching "${areaName}" in ${city} to help a traveler
-decide if it's a good place to stay for a ${purpose} trip.
-
-Return structured JSON with suitability, pros, cons, risks,
-and top hotel recommendations.
-`,
-  }),
-})
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Browser (Client)                       │
+│                                                             │
+│  SearchFormV2 → PurposeSelector → AreaResultsSection        │
+│                 (results stream in as agents finish)        │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+          ┌──────────────────┼──────────────────┐
+          │                  │                  │
+          ▼                  ▼                  ▼
+┌─────────────────┐ ┌───────────────┐ ┌────────────────────┐
+│ /api/discover-  │ │ /api/discover-│ │ /api/research-area │
+│ areas           │ │ platforms     │ │ /api/check-platform│
+│                 │ │               │ │                    │
+│ TinyFish Search │ │ TinyFish      │ │ TinyFish Agent     │
+│ → find guides   │ │ Search        │ │ client.agent       │
+│                 │ │ → find which  │ │ .stream(...)       │
+│ TinyFish Fetch  │ │ platforms     │ │                    │
+│ → extract       │ │ operate here  │ │ SSE → client       │
+│ neighborhoods   │ │               │ │                    │
+│                 │ │ Gemini LLM    │ │                    │
+│ Gemini LLM      │ │ → build URLs  │ │                    │
+│ → structure     │ │               │ │                    │
+└─────────────────┘ └───────────────┘ └────────────────────┘
 ```
 
-The response streams **Server-Sent Events (SSE)**:
+### All three TinyFish APIs — each used for what it does best
 
-- `STREAMING_URL` → live browser view
+```
+Search API  → client.search.query({ query })
+              Discovers relevant travel guide URLs and booking platform URLs
+              No browser needed — fast structured results
 
-- `STATUS` → progress updates
+Fetch API   → client.fetch.get_contents({ urls, format: "markdown" })
+              Extracts clean text from travel guides found by Search
+              Up to 10 URLs per call, returned as clean markdown
 
-- `COMPLETE` → final area analysis JSON
-
-## How It Works
-
-- User enters city and travel purpose (e.g., San Francisco — Business trip)
-
-- Area discovery (Gemini) suggests 3–6 relevant neighborhoods
-
-- Parallel Mino agents launch — one per area
-
-- Live research streams into the UI with screenshots and status updates
-
-- Final recommendations explain where to stay, with reasons and hotel examples
-
-## Architecture Overview
-```bash
-┌─────────────────────────────────────────────────────────┐
-│                     User (Browser)                       │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  React Frontend                                  │    │
-│  │                                                  │    │
-│  │  1. Enter city & purpose                         │    │
-│  │  2. View live area research cards                │    │
-│  │  3. Compare neighborhoods                        │    │
-│  └──────────────────┬──────────────────────────────┘    │
-└─────────────────────┼───────────────────────────────────┘
-                      │
-          Stage 1     │  POST /discover-areas
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                 Gemini API                               │
-│  - Suggests best neighborhoods for the trip             │
-└─────────────────────┬───────────────────────────────────┘
-                      │
-          Stage 2     │  POST /research-area (x N, parallel)
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                     Mino API                            │
-│  - Launches browser agents per area                     │
-│  - Streams live previews and status                     │
-│  - Returns structured area analysis                    │
-└──────────┬──────────┬──────────┬──────────┬────────────┘
-           ▼          ▼          ▼          ▼
-      Area 1      Area 2      Area 3      Area N
+Agent API   → client.agent.stream({ url, goal })
+              Full browser navigation for Google Maps area research
+              and entering dates/guests on booking platforms
+              EventType.STREAMING_URL → live iframe in UI
+              EventType.COMPLETE + RunStatus.COMPLETED → event.result
 ```
 
-## What the App Analyzes
+## Flow
 
-For each area, StayScout Hub returns:
+1. User enters city, purpose, dates, guests
+2. **`/api/discover-areas`** — Search finds travel guides → Fetch extracts neighborhood content → Gemini structures into area recommendations
+3. **`/api/discover-platforms`** — Search finds which booking platforms operate in that city/region
+4. **`/api/research-area`** — one TinyFish agent per area navigates Google Maps, returns suitability score, pros/cons, walkability, noise level, top hotels (streamed via SSE)
+5. **`/api/check-platform`** — one TinyFish agent per platform enters dates + guests, returns direct search results URL (streamed via SSE)
 
-  - Overall suitability score (1–10)
-  
-  - Who the area is best for (business, family, sightseeing, etc.)
-  
-  - Pros, cons, and potential risks
-  
-  - Walkability, noise level, safety notes
-  
-  - Top 3–5 recommended hotels with ratings
+## Purpose Modes
 
-This helps users choose the right neighborhood first, before comparing hotel prices.
-
-## How to Run
-Prerequisites :
-- Node.js 18+
-- Gemini API key
-- Mino API key [get one her](https://mino.ai/api-keys)
+| Purpose | What it optimises for |
+|---|---|
+| Business | Proximity to business district, conference centers |
+| Exam / Interview | Quiet area, good sleep, low noise |
+| Family Visit | Family-friendly, comfortable, residential |
+| Sightseeing | Walking distance to attractions, transport |
+| Late Night | Nightlife access, flexible check-in |
+| Airport Transit | Proximity to airport, shuttle access |
 
 ## Setup
 
-1. Install dependencies:
+### Prerequisites
+
+- Node.js 18+
+- TinyFish API key
+- Gemini API key
+
+### Environment Variables
+
 ```bash
-cd stay-scout-hub
+cp .env.example .env.local
+```
+
+Then fill in:
+
+```env
+# TinyFish (required) — https://agent.tinyfish.ai/api-keys
+TINYFISH_API_KEY=your-tinyfish-api-key
+
+# Google Gemini (required) — https://aistudio.google.com/apikey
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+### Install & Run
+
+```bash
 npm install
-```
-
-2. Create a .env.local file:
-```bash
-GEMINI_API_KEY=your_gemini_api_key
-TINYFISH_API_KEY=your_mino_api_key
-```
-
-3. Start the dev server:
-```bash
 npm run dev
 ```
 
-4. Open http://localhost:3000
+Open http://localhost:3000
 
-## Environment Variables
+## Project Structure
 
-- GEMINI_API_KEY	- Area discovery and neighborhood reasoning 
-- TINYFISH_API_KEY -	Live browser automation for area research	
+```
+stay-scout-hub/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx                   # Root layout
+│   │   ├── page.tsx                     # Main UI
+│   │   ├── globals.css
+│   │   └── api/
+│   │       ├── discover-areas/          # Search + Fetch → neighborhood discovery
+│   │       ├── discover-platforms/      # Search → booking platform discovery
+│   │       ├── research-area/           # Agent → Google Maps area research (SSE)
+│   │       └── check-platform/          # Agent → platform date/guest search (SSE)
+│   ├── components/
+│   │   ├── SearchFormV2.tsx
+│   │   ├── PurposeSelector.tsx
+│   │   ├── AreaCard.tsx
+│   │   └── LiveBrowserPreview.tsx       # Live agent iframe grid
+│   ├── hooks/
+│   │   ├── useAreaSearch.ts             # Area discovery + research state
+│   ├── lib/
+│   │   ├── api/area-search.ts
+│   │   └── utils.ts
+│   └── types/hotel.ts
+├── next.config.ts
+└── package.json
+```
 
-## Notes
+## Constraint Checklist
 
-- Area discovery uses Gemini for reasoning, not web scraping
+| Constraint | Status |
+|---|---|
+| External database used? | NO (pure in-memory) |
+| Cache layer used? | NO (all results fetched live) |
+| All three TinyFish APIs used? | YES (Search, Fetch, Agent) |
+| Area research via real browser? | YES (`client.agent.stream` → Google Maps) |
+| Platform check via real browser? | YES (`client.agent.stream` → booking sites) |
+| Live browser preview? | YES (`EventType.STREAMING_URL` → iframe) |
 
-- All neighborhood research uses live browser automation via Mino
+## Tech Stack
 
-- No booking platforms or hotel pricing APIs are required
-
-- Results explain why an area is good or bad — not just where to book
+- **Framework:** Next.js 15 (App Router), TypeScript, Tailwind CSS
+- **Animations:** Framer Motion
+- **Icons:** Lucide React
+- **Browser Agents:** TinyFish SDK (`client.agent.stream`, `client.search.query`, `client.fetch.get_contents`)
+- **LLM:** Gemini (`gemini-2.0-flash`) for structuring extracted content
+- **Deployment:** Vercel

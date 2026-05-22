@@ -1,16 +1,8 @@
-import { motion } from 'framer-motion';
-import { 
-  Monitor, 
-  HardHat, 
-  Heart, 
-  Briefcase, 
-  Truck, 
-  GraduationCap,
-  Search,
-  Sparkles
-} from 'lucide-react';
-import { SectorIcon } from './SectorIcon';
-import { Sector } from '@/types/tender';
+"use client";
+import { motion } from "framer-motion";
+import { Monitor, HardHat, Heart, Briefcase, Truck, GraduationCap, Search, Sparkles } from "lucide-react";
+import { SectorIcon } from "./SectorIcon";
+import type { Sector } from "@/types/tender";
 
 interface SectorSelectorProps {
   onSelectSector: (sector: Sector) => void;
@@ -18,12 +10,12 @@ interface SectorSelectorProps {
 }
 
 const SECTORS: { sector: Sector; icon: typeof Monitor; label: string; description: string }[] = [
-  { sector: 'IT / Software', icon: Monitor, label: 'IT / Software', description: 'Tech & digital services' },
-  { sector: 'Construction', icon: HardHat, label: 'Construction', description: 'Building & infrastructure' },
-  { sector: 'Healthcare', icon: Heart, label: 'Healthcare', description: 'Medical & pharma' },
-  { sector: 'Consulting', icon: Briefcase, label: 'Consulting', description: 'Advisory services' },
-  { sector: 'Logistics', icon: Truck, label: 'Logistics', description: 'Transport & supply chain' },
-  { sector: 'Education', icon: GraduationCap, label: 'Education', description: 'Training & schools' },
+  { sector: "IT / Software", icon: Monitor, label: "IT / Software", description: "Tech & digital services" },
+  { sector: "Construction", icon: HardHat, label: "Construction", description: "Building & infrastructure" },
+  { sector: "Healthcare", icon: Heart, label: "Healthcare", description: "Medical & pharma" },
+  { sector: "Consulting", icon: Briefcase, label: "Consulting", description: "Advisory services" },
+  { sector: "Logistics", icon: Truck, label: "Logistics", description: "Transport & supply chain" },
+  { sector: "Education", icon: GraduationCap, label: "Education", description: "Training & schools" },
 ];
 
 export function SectorSelector({ onSelectSector, disabled }: SectorSelectorProps) {
@@ -33,7 +25,6 @@ export function SectorSelector({ onSelectSector, disabled }: SectorSelectorProps
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-4xl mx-auto px-4"
     >
-      {/* Hero Section */}
       <div className="text-center mb-10">
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
@@ -44,8 +35,7 @@ export function SectorSelector({ onSelectSector, disabled }: SectorSelectorProps
           <Sparkles className="w-4 h-4" />
           <span className="text-sm font-medium">AI-Powered Tender Search</span>
         </motion.div>
-        
-        <motion.h2 
+        <motion.h2
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
@@ -53,21 +43,19 @@ export function SectorSelector({ onSelectSector, disabled }: SectorSelectorProps
         >
           Find Singapore Government Tenders
         </motion.h2>
-        
-        <motion.p 
+        <motion.p
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
           className="text-lg text-muted-foreground max-w-2xl mx-auto"
         >
-          Select your industry sector and our AI agents will search across 
-          <span className="text-primary font-semibold"> 7 major tender platforms </span>
+          Select your industry sector and our AI agents will search across{" "}
+          <span className="text-primary font-semibold">7 major tender platforms</span>{" "}
           simultaneously
         </motion.p>
       </div>
 
-      {/* Sector Grid */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
@@ -91,7 +79,6 @@ export function SectorSelector({ onSelectSector, disabled }: SectorSelectorProps
         ))}
       </motion.div>
 
-      {/* Bottom Info */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

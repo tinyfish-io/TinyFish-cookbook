@@ -40,7 +40,7 @@ function getExternalUrl(spot: WingSpot, menuSourceUrl?: string): string | null {
     // Prefer source_url from the menu response (may come from API)
     if (menuSourceUrl) return menuSourceUrl;
     // Then try the spot's platform IDs
-    if (spot.platform_ids?.source_url) return spot.platform_ids.source_url;
+    if (spot.sourceUrl) return spot.sourceUrl;
     // Fallback to Google Maps search
     if (spot.name && spot.address) {
         return `https://www.google.com/maps/search/${encodeURIComponent(spot.name + ' ' + spot.address)}`;

@@ -1,440 +1,158 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, getWingSpotsByZip, upsertWingSpots, deleteWingSpotsByZip } from '@/lib/supabase';
-import { getCachedWingSpots, cacheWingSpots, checkRateLimit, getCachedScrapeResult, cacheScrapeResult, purgeZipCache, setScoutingLock, getCachedMenu } from '@/lib/cache';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { TinyFish, EventType, RunStatus } from '@tiny-fish/sdk';
 import { geocodeZipCode } from '@/lib/geocode';
-import { scrapeAllSources } from '@/lib/tinyfish-scraper';
-import { generateSeedData } from '@/lib/seed-data';
-import { isValidZipCode, cleanZipCode, calculateAvailability } from '@/lib/utils';
-import { startBackgroundMenuScrape, getCheapestWingPrice } from '@/lib/menu';
-import { ScoutResponse, FlavorPersona, WingSpot, MenuSection } from '@/lib/types';
-import { getChainPriceEstimate } from '@/lib/chain-prices';
+import type { WingSpot, WingSource } from '@/lib/types';
 
-// Render.com: No timeout limit for Web Services (unlimited runtime)
-// Setting Node.js runtime explicitly
 export const runtime = 'nodejs';
+export const maxDuration = 120;
+export const dynamic = 'force-dynamic';
 
-// Render Web Services have no timeout constraint — we set a generous max here
-// for Next.js route handler purposes. Render won't kill long-running requests.
-export const maxDuration = 300;
-
-// In-flight request deduplication
-const inFlightRequests = new Map<string, Promise<ScoutResponse>>();
-const INFLIGHT_CLEANUP_INTERVAL = 5 * 60 * 1000;
-let lastCleanup = Date.now();
-
-function cleanupInFlightRequests() {
-    const now = Date.now();
-    if (now - lastCleanup > INFLIGHT_CLEANUP_INTERVAL) {
-        inFlightRequests.clear();
-        lastCleanup = now;
-    }
+function deriveStatus(spot: Partial<WingSpot>): 'green' | 'yellow' | 'red' {
+  if (!spot.isOpen) return 'red';
+  if (spot.rating && spot.rating >= 4.0) return 'green';
+  return 'yellow';
 }
 
-const VALID_FLAVORS: FlavorPersona[] = ['face-melter', 'classicist', 'sticky-finger'];
-const MAX_AUTO_SCRAPES = 10; // Auto-scrape top 10 spots for price data
-
-/**
- * Enrich spots with wing prices from multiple sources:
- * 1. Redis menu cache (fastest)
- * 2. Supabase menus table (if Redis misses)
- * 3. Supabase wing_spots table (if background scrape already wrote price_per_wing)
- */
-async function enrichSpotsWithPrices(spots: WingSpot[]): Promise<WingSpot[]> {
-    const enriched = [...spots];
-    const allIds = enriched.map((s, i) => ({ id: s.id, idx: i }));
-    const missingPriceIds = allIds.filter(({ idx }) => enriched[idx].price_per_wing === null && enriched[idx].cheapest_item_price === null);
-    const missingPhoneIds = allIds.filter(({ idx }) => !enriched[idx].phone);
-
-    if (missingPriceIds.length === 0 && missingPhoneIds.length === 0) return enriched;
-
-    // Step 1: Try Redis menu cache first for prices (parallel)
-    if (missingPriceIds.length > 0) {
-        const redisPromises = missingPriceIds.map(async ({ id, idx }) => {
-            try {
-                const cachedMenu = await getCachedMenu(id);
-                if (cachedMenu?.sections) {
-                    const result = getCheapestWingPrice(cachedMenu.sections);
-                    if (result.price_per_wing !== null || result.cheapest_item_price !== null) {
-                        enriched[idx] = {
-                            ...enriched[idx],
-                            price_per_wing: result.price_per_wing ?? enriched[idx].price_per_wing,
-                            cheapest_item_price: result.cheapest_item_price ?? enriched[idx].cheapest_item_price,
-                        };
-                    }
-                }
-            } catch { /* ignore */ }
-        });
-        await Promise.all(redisPromises);
-    }
-
-    // Step 2: Check Supabase wing_spots for prices AND phone numbers
-    const needsPriceFromDb = missingPriceIds.filter(({ idx }) => enriched[idx].price_per_wing === null && enriched[idx].cheapest_item_price === null);
-    const idsToQuery = new Set([
-        ...needsPriceFromDb.map(m => m.id),
-        ...missingPhoneIds.map(m => m.id),
-    ]);
-
-    if (idsToQuery.size > 0) {
-        try {
-            const supabase = createServerClient();
-            const { data: dbRows } = await supabase
-                .from('wing_spots')
-                .select('id, price_per_wing, phone, address')
-                .in('id', Array.from(idsToQuery));
-
-            if (dbRows) {
-                const dbMap = new Map(dbRows.map(d => [d.id, d]));
-                for (const { id, idx } of allIds) {
-                    const dbRow = dbMap.get(id);
-                    if (!dbRow) continue;
-                    // Enrich per-wing price
-                    if (enriched[idx].price_per_wing === null && dbRow.price_per_wing !== null) {
-                        enriched[idx] = { ...enriched[idx], price_per_wing: dbRow.price_per_wing };
-                    }
-                    // Enrich phone
-                    if (!enriched[idx].phone && dbRow.phone) {
-                        enriched[idx] = { ...enriched[idx], phone: dbRow.phone };
-                    }
-                    // Enrich address (if currently empty)
-                    if (!enriched[idx].address && dbRow.address) {
-                        enriched[idx] = { ...enriched[idx], address: dbRow.address };
-                    }
-                }
-            }
-        } catch { /* ignore */ }
-    }
-
-    // Step 3: For STILL remaining price nulls, check Supabase menus table
-    const stillMissing2 = missingPriceIds.filter(({ idx }) => enriched[idx].price_per_wing === null && enriched[idx].cheapest_item_price === null);
-    if (stillMissing2.length > 0 && stillMissing2.length <= 10) {
-        try {
-            const supabase = createServerClient();
-            const { data: dbMenus } = await supabase
-                .from('menus')
-                .select('spot_id, sections')
-                .in('spot_id', stillMissing2.map(m => m.id));
-
-            if (dbMenus) {
-                for (const dbMenu of dbMenus) {
-                    const match = stillMissing2.find(m => m.id === dbMenu.spot_id);
-                    if (match && dbMenu.sections) {
-                        const result = getCheapestWingPrice(dbMenu.sections as MenuSection[]);
-                        if (result.price_per_wing !== null || result.cheapest_item_price !== null) {
-                            enriched[match.idx] = {
-                                ...enriched[match.idx],
-                                price_per_wing: result.price_per_wing ?? enriched[match.idx].price_per_wing,
-                                cheapest_item_price: result.cheapest_item_price ?? enriched[match.idx].cheapest_item_price,
-                            };
-                        }
-                    }
-                }
-            }
-        } catch { /* ignore */ }
-    }
-
-    return enriched;
+function parseSpots(raw: unknown[], source: string, siteName: string): WingSpot[] {
+  return (raw || [])
+    .map((r: unknown, i: number) => {
+      const item = r as Record<string, unknown>;
+      const spot: WingSpot = {
+        id: `${source}-${Date.now()}-${i}`,
+        name: String(item.name || ''),
+        address: String(item.address || ''),
+        rating: item.rating ? Number(item.rating) : undefined,
+        deliveryTime: item.deliveryTime ? String(item.deliveryTime) : undefined,
+        deliveryFee: item.deliveryFee ? String(item.deliveryFee) : undefined,
+        isOpen: item.isOpen !== false,
+        imageUrl: item.imageUrl ? String(item.imageUrl) : undefined,
+        sourceUrl: item.sourceUrl ? String(item.sourceUrl) : undefined,
+        phone: item.phone ? String(item.phone) : undefined,
+        priceRange: item.priceRange ? String(item.priceRange) : undefined,
+        source: (source || 'google') as WingSource,
+        siteName,
+        status: 'yellow',
+      };
+      spot.status = deriveStatus(spot);
+      return spot;
+    })
+    .filter((s) => s.name && s.name.trim() !== '');
 }
 
-/**
- * Fire-and-forget: trigger background menu scrapes for top non-red spots.
- * Uses Redis SET NX lock to prevent duplicates.
- */
-function autoTriggerMenuScrapes(spots: WingSpot[]): void {
-    const eligible = spots
-        .filter(s => s.status !== 'red')
-        .slice(0, MAX_AUTO_SCRAPES);
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const zip = searchParams.get('zip') || '';
+  const flavor = searchParams.get('flavor') || '';
 
-    for (const spot of eligible) {
-        (async () => {
-            try {
-                const gotLock = await setScoutingLock(spot.id);
-                if (gotLock) {
-                    console.log(`Auto-triggering menu scrape for ${spot.id}: ${spot.name}`);
-                    startBackgroundMenuScrape(spot.id, spot.name, spot.address, spot.platform_ids);
-                }
-            } catch {
-                // Ignore lock/scrape errors — non-critical
-            }
-        })();
-    }
-}
+  if (!zip || zip.length !== 5) {
+    return NextResponse.json({ success: false, spots: [], message: 'Invalid zip code.' });
+  }
 
-/**
- * Estimate prices for spots that still have no price data after enrichment.
- * Hybrid approach:
- *   1. Chain lookup: if the restaurant is a known chain, use hardcoded price midpoint
- *   2. Zip-code average: for unknowns, average all real + chain prices in this batch
- */
-function estimateMissingPrices(spots: WingSpot[]): WingSpot[] {
-    const result = [...spots];
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
 
-    // Step 1: Collect real per-wing prices
-    const realPrices: number[] = [];
-    for (const spot of result) {
-        if (spot.price_per_wing != null) {
-            realPrices.push(spot.price_per_wing);
-        }
-    }
+  const send = (data: object) => {
+    writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+  };
 
-    // Step 2: For spots with no price data, try chain lookup
-    for (let i = 0; i < result.length; i++) {
-        const spot = result[i];
-        if (spot.price_per_wing != null || spot.cheapest_item_price != null) continue;
-
-        const chainEst = getChainPriceEstimate(spot.name);
-        if (chainEst) {
-            const midpoint = Math.round(((chainEst.min + chainEst.max) / 2) * 100) / 100;
-            result[i] = { ...spot, estimated_price_per_wing: midpoint, is_price_estimated: true };
-            realPrices.push(midpoint); // Include in zip average
-        }
-    }
-
-    // Step 3: Calculate zip average (need >= 2 data points)
-    if (realPrices.length >= 2) {
-        const avg = Math.round(
-            (realPrices.reduce((sum, p) => sum + p, 0) / realPrices.length) * 100
-        ) / 100;
-
-        // Step 4: For remaining no-price spots, use zip average
-        for (let i = 0; i < result.length; i++) {
-            const spot = result[i];
-            if (
-                spot.price_per_wing == null &&
-                spot.cheapest_item_price == null &&
-                spot.estimated_price_per_wing == null
-            ) {
-                result[i] = { ...spot, estimated_price_per_wing: avg, is_price_estimated: true };
-            }
-        }
-    }
-
-    return result;
-}
-
-export async function GET(request: NextRequest) {
-    const t0 = Date.now();
-    const log = (msg: string) => console.log(`[scout ${Date.now() - t0}ms] ${msg}`);
-
-    const searchParams = request.nextUrl.searchParams;
-    const rawZip = searchParams.get('zip');
-    const rawFlavor = searchParams.get('flavor');
-    const forceRefresh = searchParams.get('refresh') === 'true';
-    const purge = searchParams.get('purge') === 'true';
-
-    log(`START zip=${rawZip} flavor=${rawFlavor}${purge ? ' PURGE=true' : ''}`);
-
-    // Validate zip code
-    if (!rawZip || !isValidZipCode(rawZip)) {
-        return NextResponse.json<ScoutResponse>(
-            { success: false, spots: [], cached: false, message: 'Valid 5-digit US zip code required' },
-            { status: 400 }
-        );
-    }
-
-    const zipCode = cleanZipCode(rawZip);
-    const flavor: FlavorPersona | undefined = rawFlavor && VALID_FLAVORS.includes(rawFlavor as FlavorPersona)
-        ? rawFlavor as FlavorPersona
-        : undefined;
-
-    // Rate limiting
-    log('checking rate limit...');
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown';
-    const rateLimit = await checkRateLimit(ip, 20, 60);
-    log(`rate limit: allowed=${rateLimit.allowed} remaining=${rateLimit.remaining}`);
-
-    if (!rateLimit.allowed) {
-        return NextResponse.json<ScoutResponse>(
-            { success: false, spots: [], cached: false, message: `Rate limited. Try again in ${rateLimit.resetIn}s` },
-            { status: 429 }
-        );
-    }
-
-    cleanupInFlightRequests();
-
-    // Skip in-flight deduplication — it can cause deadlocks in dev mode
-    // where HMR restarts leave stale promises in memory
-
+  // Run everything in the background — return the stream immediately
+  (async () => {
     try {
-        // 0. Purge stale/incorrect data if requested
-        if (purge) {
-            log('PURGE: clearing Redis cache + Supabase data for zip...');
-            const supabasePurge = createServerClient();
-            await Promise.all([
-                purgeZipCache(zipCode),
-                deleteWingSpotsByZip(supabasePurge, zipCode),
-            ]);
-            log('PURGE: done');
-        }
+      // Step 1 — geocode
+      const geo = await geocodeZipCode(zip);
+      if (!geo) {
+        send({ type: 'ERROR', message: `Could not geocode zip ${zip}` });
+        writer.close();
+        return;
+      }
 
-        // 1. Check Redis cache first (skip if purging or force-refreshing)
-        if (!forceRefresh && !purge) {
-            log('checking Redis scrapeResult cache...');
-            const cachedResult = await getCachedScrapeResult(zipCode);
-            if (cachedResult) {
-                log(`HIT scrapeResult cache: ${cachedResult.spots.length} spots`);
-                const enrichedSpots = estimateMissingPrices(await enrichSpotsWithPrices(cachedResult.spots));
-                return NextResponse.json<ScoutResponse>({
-                    ...cachedResult,
-                    spots: enrichedSpots,
-                    cached: true,
-                    flavor,
-                    message: `Cached data (${cachedResult.spots.length} spots)`,
-                });
-            }
-            log('MISS scrapeResult cache');
+      const locationHint = `${geo.city}, ${geo.state}`;
+      send({ type: 'LOCATION', location: { city: geo.city, state: geo.state } });
 
-            log('checking Redis wingSpots cache...');
-            const cachedSpots = await getCachedWingSpots(zipCode);
-            if (cachedSpots && cachedSpots.length > 0) {
-                log(`HIT wingSpots cache: ${cachedSpots.length} spots`);
-                const enrichedSpots = estimateMissingPrices(await enrichSpotsWithPrices(cachedSpots));
-                const stats = calculateAvailability(enrichedSpots);
-                return NextResponse.json<ScoutResponse>({
-                    success: true,
-                    spots: enrichedSpots,
-                    cached: true,
-                    flavor,
-                    message: `Cached ${cachedSpots.length} spots (${stats.percentage}% available)`,
-                });
-            }
-            log('MISS wingSpots cache');
-        }
+      // Step 2 — Gemini discovers URLs (init inside handler)
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-        // 2. Check Supabase for recent data
-        log('checking Supabase...');
-        const supabase = createServerClient();
-        const { data: dbSpots } = await getWingSpotsByZip(supabase, zipCode);
-        log(`Supabase: ${dbSpots?.length ?? 0} rows`);
+      const prompt = `Find 5-7 real URLs of pages listing chicken wing restaurants for ${locationHint}.${flavor ? ` User prefers "${flavor}" wings.` : ''}
 
-        if (dbSpots && dbSpots.length > 0 && !forceRefresh && !purge) {
-            const timestamps = dbSpots.map(s => new Date(s.last_updated).getTime()).filter(t => !isNaN(t));
-            if (timestamps.length === 0) timestamps.push(0);
-            const latestUpdate = new Date(Math.max(...timestamps));
-            const ageMinutes = (Date.now() - latestUpdate.getTime()) / (1000 * 60);
-            log(`Supabase data age: ${ageMinutes.toFixed(1)} min`);
+Return ONLY a JSON array:
+[{ "url": "https://...", "siteName": "Site Name", "source": "doordash|ubereats|grubhub|google|yelp" }]
 
-            if (ageMinutes < 60) { // 1 hour — restaurant data (hours, menu, location) doesn't change fast
-                const enrichedDbSpots = estimateMissingPrices(await enrichSpotsWithPrices(dbSpots));
-                await cacheWingSpots(zipCode, enrichedDbSpots);
-                const stats = calculateAvailability(enrichedDbSpots);
-                return NextResponse.json<ScoutResponse>({
-                    success: true,
-                    spots: enrichedDbSpots,
-                    cached: true,
-                    flavor,
-                    message: `Fresh data: ${enrichedDbSpots.length} spots (${stats.percentage}% available)`,
-                });
-            }
-        }
+Rules:
+- Real currently active search result pages (not homepages)
+- Mix of DoorDash, UberEats, Grubhub city chicken-wings pages + a Google search URL
+- DoorDash: https://www.doordash.com/food-delivery/CITY-STATE-restaurants/chicken-wings/
+- Google: https://www.google.com/search?q=best+chicken+wings+near+${zip}
+- JSON only, no markdown`;
 
-        // 3. Geocode zip code
-        log('geocoding...');
-        const location = await geocodeZipCode(zipCode);
-        log(`geocode: ${location ? `${location.city}, ${location.state}` : 'FAILED'}`);
+      let urls: { url: string; siteName: string; source: string }[] = [];
+      try {
+        const result = await model.generateContent(prompt);
+        const text = result.response.text() || '[]';
+        const match = text.replace(/```json|```/g, '').trim().match(/\[[\s\S]*\]/);
+        if (match) urls = JSON.parse(match[0]);
+      } catch { urls = []; }
 
-        if (!location) {
-            if (dbSpots && dbSpots.length > 0) {
-                const estimated = estimateMissingPrices(await enrichSpotsWithPrices(dbSpots));
-                return NextResponse.json<ScoutResponse>({
-                    success: true,
-                    spots: estimated,
-                    cached: true,
-                    flavor,
-                    message: 'Could not geocode zip, showing cached data',
-                });
-            }
-            return NextResponse.json<ScoutResponse>(
-                { success: false, spots: [], cached: false, message: 'Could not geocode zip code. Please try again.' },
-                { status: 502 }
-            );
-        }
+      if (!urls.length) {
+        send({ type: 'DONE', spots: [], message: 'No sources found.' });
+        writer.close();
+        return;
+      }
 
-        // 4. Scrape all sources in parallel
-        log('starting scrapers...');
-        let scrapedSpots = await scrapeAllSources(zipCode, location.lat, location.lng, flavor, location.city, location.state);
-        log(`scrapers done: ${scrapedSpots.length} spots`);
+      send({ type: 'SOURCES', count: urls.length });
 
-        if (scrapedSpots.length === 0) {
-            if (dbSpots && dbSpots.length > 0) {
-                log('using stale DB data as fallback');
-                const estimated = estimateMissingPrices(await enrichSpotsWithPrices(dbSpots));
-                return NextResponse.json<ScoutResponse>({
-                    success: true,
-                    spots: estimated,
-                    cached: true,
-                    flavor,
-                    message: 'No new data found, showing cached results',
-                });
-            }
+      // Step 3 — TinyFish agents in parallel
+      const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY });
 
-            // Fallback: Generate seed data so the app has something to display
-            log('generating seed data...');
-            scrapedSpots = generateSeedData(
-                zipCode,
-                location.lat,
-                location.lng,
-                location.city,
-                location.state,
-                flavor,
-            );
-            log(`seed data: ${scrapedSpots.length} spots`);
-        }
+      const goal = `Scout chicken wing restaurants in ${locationHint}.${flavor ? ` Flavor: "${flavor}".` : ''}
 
-        // 5. Save to Supabase
-        log('saving to Supabase...');
-        await upsertWingSpots(supabase, scrapedSpots);
-        log('saved');
+Extract all chicken wing restaurants visible on this page.
+RULES: No scrolling beyond one scroll. No navigation. Up to 8 restaurants. Wings only.
 
-        // 6. Cache results + estimate missing prices
-        log('caching results...');
-        await cacheWingSpots(zipCode, scrapedSpots);
-        const estimatedSpots = estimateMissingPrices(await enrichSpotsWithPrices(scrapedSpots));
+Return ONLY valid JSON: { "restaurants": [{ "name", "address", "rating", "deliveryTime", "deliveryFee", "isOpen", "imageUrl", "sourceUrl", "phone", "priceRange" }] }`;
 
-        const result: ScoutResponse = {
-            success: true,
-            spots: estimatedSpots,
-            cached: false,
-            flavor,
-            message: `Found ${scrapedSpots.length} wing spots`,
-            location,
-        };
-
-        await cacheScrapeResult(zipCode, result);
-        log(`DONE: ${scrapedSpots.length} spots in ${Date.now() - t0}ms`);
-
-        // 7. Auto-trigger background menu scrapes for top spots (any non-red spot)
-        // This populates price_per_wing data without the user needing to open menus
-        autoTriggerMenuScrapes(scrapedSpots);
-        log(`Auto-triggered menu scrapes for up to ${MAX_AUTO_SCRAPES} spots`);
-
-        return NextResponse.json<ScoutResponse>(result);
-
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        log(`ERROR: ${errorMessage}`);
-        console.error('Scout API error:', errorMessage);
-
-        // Fallback to stale data
+      const agentPromises = urls.map(async ({ url, siteName, source }) => {
         try {
-            const supabase = createServerClient();
-            const { data: fallbackSpots } = await getWingSpotsByZip(supabase, zipCode);
-            if (fallbackSpots && fallbackSpots.length > 0) {
-                const estimated = estimateMissingPrices(await enrichSpotsWithPrices(fallbackSpots));
-                return NextResponse.json<ScoutResponse>({
-                    success: true,
-                    spots: estimated,
-                    cached: true,
-                    flavor,
-                    message: 'Error occurred, showing cached data',
-                });
+          const tfStream = await client.agent.stream({ url, goal });
+          for await (const evt of tfStream) {
+            const e = evt as Record<string, unknown>;
+            if (e.type === EventType.COMPLETE) {
+              if (e.status === RunStatus.COMPLETED) {
+                const result = e.result as Record<string, unknown> | null;
+                let restaurants: unknown[] = [];
+                if (Array.isArray(result?.restaurants)) {
+                  restaurants = result.restaurants;
+                }
+                const spots = parseSpots(restaurants, source, siteName);
+                if (spots.length > 0) send({ type: 'SPOTS', spots });
+              }
+              break;
             }
-        } catch (fallbackError) {
-            console.error('Fallback error:', fallbackError instanceof Error ? fallbackError.message : 'Unknown');
+          }
+        } catch (agentErr) {
+          send({ type: 'AGENT_ERROR', siteName, message: agentErr instanceof Error ? agentErr.message : 'Agent failed' });
         }
+      });
 
-        return NextResponse.json<ScoutResponse>(
-            { success: false, spots: [], cached: false, message: 'An error occurred while fetching data' },
-            { status: 500 }
-        );
+      await Promise.allSettled(agentPromises);
+      send({ type: 'DONE', message: `Scouted ${urls.length} sources near ${locationHint}` });
+
+    } catch (err) {
+      send({ type: 'ERROR', message: err instanceof Error ? err.message : 'Search failed' });
+    } finally {
+      writer.close();
     }
+  })();
+
+  // Return immediately — stream stays open while background async runs
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }

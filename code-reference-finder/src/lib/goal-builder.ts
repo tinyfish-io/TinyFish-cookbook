@@ -50,7 +50,6 @@ export function buildSOReasoningGoal(
 ): { url: string; goal: string } {
   const libs = analysis.libraries.join(', ');
   const apis = analysis.apis.join(', ');
-  const apiData = searchResult.apiData;
 
   const goal = `You are a reasoning agent analyzing a Stack Overflow post to determine its relevance to specific libraries and APIs.
 
@@ -63,7 +62,7 @@ STACK OVERFLOW POST DATA:
 - Answer count: ${searchResult.answerCount ?? 'unknown'}
 - Answered: ${searchResult.isAnswered ?? 'unknown'}
 - Tags: ${searchResult.tags?.join(', ') ?? 'none'}
-- Excerpt: ${searchResult.snippet || apiData?.body_excerpt || 'No excerpt available'}
+- Excerpt: ${searchResult.snippet || 'No excerpt available'}
 
 TARGET LIBRARIES: ${libs}
 TARGET APIs/SYMBOLS: ${apis}

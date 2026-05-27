@@ -1,0 +1,559 @@
+{
+  "name": "BundleRadar — Frontend Tech Stack Intelligence",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "BundleRadar — Tech Stack Scanner",
+        "formDescription": "Paste a URL to reconstruct its full frontend tech stack from live runtime signals using TinyFish.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Target URLs (one per line)",
+              "fieldType": "textarea",
+              "fieldName": "target_urls",
+              "placeholder": "https://www.notion.so\nhttps://linear.app\nhttps://vercel.com"
+            },
+            {
+              "fieldLabel": "Scan Label / Project Name (optional)",
+              "fieldName": "scan_label",
+              "placeholder": "e.g. Q2 Competitor Audit"
+            },
+            {
+              "fieldLabel": "Focus Areas (optional)",
+              "fieldName": "focus_areas",
+              "fieldType": "textarea",
+              "placeholder": "e.g. analytics stack, auth provider, feature flags, security posture"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "form-trigger-br-001",
+      "name": "BundleRadar Scan Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [-2800, 960],
+      "webhookId": "bundleradar-form-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse target URLs from form input\nconst formData = $input.first().json;\nconst urlsText = (formData.target_urls || '').trim();\nconst scanLabel = (formData.scan_label || '').trim();\nconst focusAreas = (formData.focus_areas || '').trim();\n\nfunction normalizeUrl(raw) {\n  if (!raw) return '';\n  let u = raw.trim().replace(/[),.;]+$/, '');\n  if (!/^https?:\\/\\//i.test(u)) u = 'https://' + u;\n  const hostish = u.replace(/^https?:\\/\\//i, '');\n  if (!hostish.includes('.')) return '';\n  return u;\n}\n\nconst lines = urlsText.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);\n\nconst targets = lines.map((line, index) => {\n  const url = normalizeUrl(line);\n  let domain = '';\n  try { domain = new URL(url).hostname.replace(/^www\\./, ''); } catch (e) { domain = line; }\n  return {\n    id: `target-${index + 1}`,\n    url,\n    domain,\n    scan_label: scanLabel,\n    focus_areas: focusAreas\n  };\n}).filter(t => t.url);\n\nreturn targets.map(t => ({ json: t }));"
+      },
+      "id": "parse-urls-br-001",
+      "name": "Parse Target URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2560, 960]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a numbered URL list for LLM goal planning\nconst items = $input.all();\nlet urlList = '';\nlet scanLabel = '';\nlet focusAreas = '';\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i].json;\n  if (i === 0) {\n    scanLabel = item.scan_label || '';\n    focusAreas = item.focus_areas || '';\n  }\n  urlList += `${i + 1}. ${item.domain} (${item.url})`;\n  if (i < items.length - 1) urlList += '\\n';\n}\n\nreturn { json: { urlList, scanLabel, focusAreas } };"
+      },
+      "id": "build-url-list-br-001",
+      "name": "Build URL List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2320, 1024],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a frontend intelligence planning assistant. Your job is to create 5 specific, sequential TinyFish web agent extraction goals for each target URL to reconstruct its full frontend tech stack.\n\nTinyFish (Mino) is a smart browser agent that sees the page like a user — it does NOT have access to DevTools, the Network tab, or internal browser APIs. It can: load the page, execute JavaScript, read the DOM and page source, inspect script tags and link tags, and see global variables after the page runs.\n\nFor each URL, create exactly 5 goals in this fixed order:\n1. Bundle Intelligence — script tags, global variables (window.__*, __next*, __nuxt*, etc.), framework signatures in the DOM, meta tags, inline scripts\n2. Page-visible Resources — script/link src/href URLs, third-party domains inferred from those URLs, prefetch/preload links\n3. Infrastructure Signals — visible response headers (server, x-powered-by, via, cf-ray), hosting/CDN clues from URLs or DOM, deployment platform signals\n4. Runtime Config — analytics IDs in globals or script sources, feature flag snippets, A/B test config, chat widget scripts, auth provider scripts\n5. Security Signals — Content-Security-Policy and HSTS headers if visible, source map URLs (.map files in script src), any exposed API keys or tokens in page source\n\nIMPORTANT: Goals must instruct the agent to: (a) wait for page load, (b) scroll the page to trigger lazy-loaded content, (c) then extract from DOM/source only — never ask for DevTools or Network tab. If headers are not visible, instruct fallback to URL/DOM inference.\n\nReturn a JSON object with a 'scan_plans' array. Each item has:\n- 'domain': the domain name\n- 'url': the target URL\n- 'goals': array of exactly 5 objects, each with 'phase' (1-5), 'phase_name' (string), and 'goal' (detailed instruction string)\n\nReturn ONLY valid JSON. No markdown. No code fences."
+            },
+            {
+              "content": "=Target URLs:\n{{ $json.urlList }}\n\nScan label: {{ $json.scanLabel }}\nFocus areas: {{ $json.focusAreas }}\n\nCreate 5 TinyFish extraction goals per URL as described. Return the full scan_plans JSON."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "plan-extraction-goals-br-001",
+      "name": "Plan Extraction Goals",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [-2096, 1024],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds-br-001",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse OpenAI response and flatten into one item per (domain, phase)\nconst j = $input.first().json;\n\nconst text =\n  j?.output?.[0]?.content?.find(c => c?.type === 'output_text')?.text\n  ?? j?.output?.[0]?.content?.[0]?.text\n  ?? null;\n\nif (!text) {\n  return [{ json: { error: 'No output_text in planning response', raw: j } }];\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  const stripped = text.replace(/```json\\s*|```/g, '').trim();\n  parsed = JSON.parse(stripped);\n}\n\nconst plans = Array.isArray(parsed?.scan_plans) ? parsed.scan_plans : [];\n\n// Flatten: one item per (domain, phase)\nconst items = [];\nfor (const plan of plans) {\n  for (const goal of (plan.goals || [])) {\n    items.push({\n      domain: plan.domain || '',\n      url: plan.url || '',\n      phase: goal.phase,\n      phase_name: goal.phase_name || '',\n      goal: goal.goal || ''\n    });\n  }\n}\n\nreturn items.map(i => ({ json: i }));"
+      },
+      "id": "parse-goals-br-001",
+      "name": "Parse Extraction Goals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1840, 1024],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "url",
+              "field2": "url"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "match-urls-goals-br-001",
+      "name": "Match URLs with Goals",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [-1600, 960]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare TinyFish run parameters for each (domain, phase) pair\nconst item = $input.item.json;\n\nlet runUrl = item.url || '';\nif (runUrl && !runUrl.startsWith('http://') && !runUrl.startsWith('https://')) {\n  runUrl = 'https://' + runUrl;\n}\n\nconst phaseNames = {\n  1: 'Bundle Intelligence',\n  2: 'Page-visible Resources',\n  3: 'Infrastructure Signals',\n  4: 'Runtime Config',\n  5: 'Security Signals'\n};\n\nconst phase = item.phase || 1;\nconst phaseName = item.phase_name || phaseNames[phase] || `Phase ${phase}`;\n\nlet runGoal = item.goal || '';\nif (!runGoal) {\n  runGoal = `Load ${runUrl} fully, scroll the page to trigger lazy-loaded scripts, then extract all observable ${phaseName} signals from the DOM, script tags, link tags, global variables, and page source. Do not use DevTools or the Network tab. Return findings as structured JSON.`;\n}\n\nrunGoal += '\\n\\nReturn your findings as structured JSON with clearly labelled keys. Include a sources array of any relevant URLs or script paths where you found evidence.';\n\nreturn {\n  json: {\n    id: item.id,\n    domain: item.domain,\n    url: runUrl,\n    phase,\n    phase_name: phaseName,\n    scan_label: item.scan_label,\n    focus_areas: item.focus_areas,\n    runUrl,\n    runGoal\n  }\n};"
+      },
+      "id": "prepare-tinyfish-br-001",
+      "name": "Prepare TinyFish Goal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1376, 960]
+    },
+    {
+      "parameters": {
+        "operation": "runAsync",
+        "url": "={{ $json.runUrl }}",
+        "goal": "={{ $json.runGoal }}",
+        "options": {}
+      },
+      "id": "tinyfish-agent-br-001",
+      "name": "TinyFish Web Agent",
+      "type": "n8n-nodes-tinyfish.tinyfish",
+      "typeVersion": 1,
+      "position": [-1152, 960],
+      "credentials": {
+        "tinyfishApi": {
+          "id": "tinyfish-creds-br-001",
+          "name": "TinyFish Web Agent account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://agent.tinyfish.ai/v1/runs/' + encodeURIComponent($json.run_id) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "tinyfishApi",
+        "options": {}
+      },
+      "id": "get-tinyfish-status-br-001",
+      "name": "Get TinyFish Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-928, 960],
+      "credentials": {
+        "tinyfishApi": {
+          "id": "tinyfish-creds-br-001",
+          "name": "TinyFish Web Agent account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluate Runs — aggregate across ALL incoming items\nconst items = $input.all().map(i => i.json);\n\nlet runs = [];\nfor (const x of items) {\n  if (Array.isArray(x)) runs.push(...x);\n  else if (Array.isArray(x?.data)) runs.push(...x.data);\n  else if (Array.isArray(x?.runs)) runs.push(...x.runs);\n  else if (x && (x.run_id || x.status)) runs.push(x);\n}\n\nconst seen = new Set();\nruns = runs.filter(r => {\n  const id = r?.run_id ?? r?.runId ?? JSON.stringify(r);\n  if (seen.has(id)) return false;\n  seen.add(id);\n  return true;\n});\n\nconst terminal = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);\nconst allDone =\n  runs.length > 0 &&\n  runs.every(r => terminal.has(String(r.status || '').toUpperCase()));\n\nreturn [{ json: { raw: items, runs, allDone } }];"
+      },
+      "id": "evaluate-runs-br-001",
+      "name": "Evaluate Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-704, 880]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-done-br-001",
+              "leftValue": "={{ $json.allDone }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "check-complete-br-001",
+      "name": "Check If Complete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [-480, 880]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rehydrate per-run items for next poll\nconst inItem = $input.first().json;\nconst arr = Array.isArray(inItem.runs)\n  ? inItem.runs\n  : (Array.isArray(inItem.raw) ? inItem.raw : []);\nconst runIds = arr.map(r => r?.run_id || r?.runId).filter(Boolean);\nreturn runIds.map(runId => ({ json: { runId, run_id: runId } }));"
+      },
+      "id": "rehydrate-run-ids-br-001",
+      "name": "Rehydrate RunIds for Next Poll",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-256, 1056]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "wait-br-001",
+      "name": "Wait 3 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [0, 1120],
+      "webhookId": "bundleradar-wait-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize TinyFish runs and merge with target context\nconst targetItems = $(\"Match URLs with Goals\")?.all?.() ?? [];\nconst targets = targetItems.map(it => {\n  const j = it.json ?? {};\n  return {\n    id: j.id ?? null,\n    domain: j.domain ?? '',\n    url: j.url ?? '',\n    phase: j.phase ?? null,\n    phase_name: j.phase_name ?? '',\n    scan_label: j.scan_label ?? '',\n    focus_areas: j.focus_areas ?? '',\n    runUrl: j.runUrl ?? j.url ?? '',\n    runGoal: j.runGoal ?? j.goal ?? ''\n  };\n}).filter(t => t.url);\n\n// Group targets by domain for later grouping\nconst domainMap = {};\nfor (const t of targets) {\n  if (!domainMap[t.domain]) domainMap[t.domain] = { domain: t.domain, url: t.url, scan_label: t.scan_label, focus_areas: t.focus_areas, phases: [] };\n  domainMap[t.domain].phases.push({ phase: t.phase, phase_name: t.phase_name });\n}\n\nconst inItems = $input.all().map(i => i.json);\nlet runsRaw = [];\nfor (const x of inItems) {\n  if (Array.isArray(x)) runsRaw.push(...x);\n  else if (Array.isArray(x?.data)) runsRaw.push(...x.data);\n  else if (Array.isArray(x?.runs)) runsRaw.push(...x.runs);\n  else if (x?.run_id || x?.status) runsRaw.push(x);\n}\n\nconst runs = runsRaw.map(run => {\n  const status = String(run.status ?? '').toUpperCase();\n  const resultObj = run.result ?? null;\n  return {\n    run_id: run.run_id ?? null,\n    status,\n    goal: run.goal ?? '',\n    created_at: run.created_at ?? null,\n    finished_at: run.finished_at ?? null,\n    error: run.error ?? null,\n    result: resultObj,\n    rawResultText: resultObj ? JSON.stringify(resultObj, null, 2) : ''\n  };\n});\n\nreturn [{\n  json: {\n    targets: Object.values(domainMap),\n    allTargets: targets,\n    runs,\n    allDone: runs.length > 0 && runs.every(r => ['COMPLETED', 'FAILED', 'CANCELLED'].includes(r.status))\n  }\n}];"
+      },
+      "id": "normalize-runs-br-001",
+      "name": "Normalize TinyFish Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-256, 784]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build full extraction payload grouped by domain for LLM synthesis\nconst root = $input.first().json;\nconst targets = Array.isArray(root.targets) ? root.targets : [];\nconst allTargets = Array.isArray(root.allTargets) ? root.allTargets : [];\nconst runs = Array.isArray(root.runs) ? root.runs : [];\n\n// Group runs by domain using goal text heuristic\nconst byDomain = {};\nfor (const t of targets) {\n  byDomain[t.domain] = {\n    domain: t.domain,\n    url: t.url,\n    scan_label: t.scan_label,\n    focus_areas: t.focus_areas,\n    phases: t.phases || [],\n    runs: runs.filter(r => (r.goal || '').toLowerCase().includes(t.domain.toLowerCase()) || (r.goal || '').includes(t.url))\n  };\n}\n\n// If no domain-matched runs, attach all runs to each domain (fallback)\nfor (const d of Object.values(byDomain)) {\n  if (d.runs.length === 0) d.runs = runs;\n}\n\nconst payload = {\n  scanLabel: targets[0]?.scan_label || '',\n  targetCount: targets.length,\n  runCount: runs.length,\n  byDomain,\n  allRuns: runs\n};\n\nreturn [{\n  json: {\n    targets,\n    runs,\n    byDomain,\n    scanLabel: payload.scanLabel,\n    researchPayloadText: JSON.stringify(payload, null, 2)\n  }\n}];"
+      },
+      "id": "explode-domain-runs-br-001",
+      "name": "Explode Domain Runs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, 864]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a senior frontend engineer and competitive intelligence analyst. You are given raw browser extraction results from TinyFish (a smart browser agent) across 5 observation phases for one or more websites. Your task is to synthesize these into a structured tech stack report.\n\nFor each domain, produce:\n1. tech_stack: object with these categories (only include detected items, set confidence to 'high', 'medium', or 'low'):\n   - framework: e.g. { name: 'Next.js', version: '14', confidence: 'high' }\n   - ui_library: array\n   - build_tool: e.g. { name: 'Webpack', confidence: 'medium' }\n   - state_management: array\n   - analytics: array (e.g. GA4, Segment, Amplitude)\n   - monitoring: array (e.g. Sentry, Datadog RUM)\n   - feature_flags: array\n   - auth: array\n   - payments: array\n   - cdn_hosting: e.g. { name: 'Vercel', confidence: 'high' }\n   - cms: array\n   - third_party_tools: array (chat, CRM, etc.)\n2. security_posture: object with:\n   - csp_present: boolean or null\n   - hsts_present: boolean or null\n   - source_maps_exposed: boolean or null\n   - leaked_secrets: boolean or null\n   - notes: string\n3. architecture_summary: 2-3 sentence narrative of the technical architecture\n4. architecture_ascii: a simple ASCII diagram of the inferred stack (e.g. CDN -> Next.js App -> APIs)\n5. competitive_insights: array of 3-5 bullet strings with actionable intelligence (what this stack reveals about the company's engineering choices, maturity, and strategy)\n6. failed_phases: array of phase numbers where extraction failed or returned no data\n7. warnings: array of warning strings (e.g. 'Phase 3 returned no header data; infra inferred from URLs only')\n\nBase detections only on observable signals from the extraction results. Use 'low' confidence when inferred, 'high' when directly observed.\n\nReturn a valid JSON object with a 'reports' array, one item per domain. No markdown. No code fences."
+            },
+            {
+              "content": "=Raw extraction data (JSON):\n{{ $json.researchPayloadText }}\n\nSynthesize the full tech stack report as described."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.15
+        }
+      },
+      "id": "synthesize-stack-br-001",
+      "name": "Synthesize Tech Stack",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [256, 864],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-creds-br-001",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and parse the structured stack report from OpenAI output\nconst j = $input.first().json;\n\nconst text =\n  j?.output?.[0]?.content?.find(c => c?.type === 'output_text')?.text\n  ?? j?.output?.[0]?.content?.[0]?.text\n  ?? null;\n\nif (!text) {\n  return [{ json: { error: 'No output_text in synthesis response', raw: j } }];\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  const stripped = text.replace(/```json\\s*|```/g, '').trim();\n  try {\n    parsed = JSON.parse(stripped);\n  } catch (e2) {\n    return [{ json: { error: 'Failed to parse synthesis JSON', rawText: text } }];\n  }\n}\n\nreturn [{ json: { stackReport: parsed, rawText: text } }];"
+      },
+      "id": "extract-stack-report-br-001",
+      "name": "Extract Stack Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [512, 864]
+    },
+    {
+      "parameters": {},
+      "id": "merge-report-br-001",
+      "name": "Merge Report Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [768, 784]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine run metadata with stack report\nconst items = $input.all().map(i => i.json);\nconst runData = items.find(x => Array.isArray(x.runs) || Array.isArray(x.targets)) || {};\nconst reportData = items.find(x => x.stackReport) || {};\n\nreturn [{\n  json: {\n    ...runData,\n    stackReport: reportData.stackReport || {},\n    generatedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "combine-report-br-001",
+      "name": "Combine Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1024, 784]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "br-scan-ts",
+              "name": "scanned_at",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            },
+            {
+              "id": "br-scan-label",
+              "name": "scan_label",
+              "value": "={{ ($json.targets || [])[0]?.scan_label || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "br-domains",
+              "name": "domains_scanned",
+              "value": "={{ ($json.targets || []).map(t => t.domain).join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "br-report-json",
+              "name": "full_report_json",
+              "value": "={{ JSON.stringify($json.stackReport || {}) }}",
+              "type": "string"
+            },
+            {
+              "id": "br-run-ids",
+              "name": "run_ids",
+              "value": "={{ ($json.runs || []).map(r => r.run_id).join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "br-warnings",
+              "name": "warnings",
+              "value": "={{ JSON.stringify(($json.stackReport?.reports || []).flatMap(r => r.warnings || [])) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-report-row-br-001",
+      "name": "Prepare Report Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1280, 784]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            { "id": "scanned_at", "displayName": "scanned_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "scan_label", "displayName": "scan_label", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "domains_scanned", "displayName": "domains_scanned", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "full_report_json", "displayName": "full_report_json", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "run_ids", "displayName": "run_ids", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "warnings", "displayName": "warnings", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "append-sheet-br-001",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1504, 960],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds-br-001",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Markdown report content for each domain\nconst j = $json;\nconst domains = j.domains_scanned || '';\nconst scanLabel = j.scan_label || 'BundleRadar Scan';\nconst createdAt = j.scanned_at || new Date().toISOString();\n\nlet fullReport = {};\ntry { fullReport = JSON.parse(j.full_report_json || '{}'); } catch (e) {}\n\nconst reports = Array.isArray(fullReport.reports) ? fullReport.reports : [];\n\nconst domainSections = reports.map(r => {\n  const stack = r.tech_stack || {};\n  const sec = r.security_posture || {};\n  const insights = Array.isArray(r.competitive_insights) ? r.competitive_insights : [];\n  const warnings = Array.isArray(r.warnings) ? r.warnings : [];\n  const failed = Array.isArray(r.failed_phases) ? r.failed_phases : [];\n\n  const listOrDash = (arr) => Array.isArray(arr) && arr.length\n    ? arr.map(x => typeof x === 'string' ? x : `${x.name || ''}${x.version ? ' ' + x.version : ''} [${x.confidence || '?'}]`).join(', ')\n    : '—';\n\n  const single = (obj) => obj && obj.name\n    ? `${obj.name}${obj.version ? ' ' + obj.version : ''} [${obj.confidence || '?'}]`\n    : '—';\n\n  const bool = (v) => v === true ? 'Yes' : v === false ? 'No' : 'Unknown';\n\n  return [\n    `## ${r.domain || 'Unknown'}`,\n    ``,\n    `### Tech Stack`,\n    `| Category | Detected |`,\n    `|---|---|`,\n    `| Framework | ${single(stack.framework)} |`,\n    `| UI Library | ${listOrDash(stack.ui_library)} |`,\n    `| Build Tool | ${single(stack.build_tool)} |`,\n    `| State Management | ${listOrDash(stack.state_management)} |`,\n    `| Analytics | ${listOrDash(stack.analytics)} |`,\n    `| Monitoring | ${listOrDash(stack.monitoring)} |`,\n    `| Feature Flags | ${listOrDash(stack.feature_flags)} |`,\n    `| Auth | ${listOrDash(stack.auth)} |`,\n    `| Payments | ${listOrDash(stack.payments)} |`,\n    `| CDN / Hosting | ${single(stack.cdn_hosting)} |`,\n    `| CMS | ${listOrDash(stack.cms)} |`,\n    `| Third-party Tools | ${listOrDash(stack.third_party_tools)} |`,\n    ``,\n    `### Security Posture`,\n    `- CSP Present: ${bool(sec.csp_present)}`,\n    `- HSTS Present: ${bool(sec.hsts_present)}`,\n    `- Source Maps Exposed: ${bool(sec.source_maps_exposed)}`,\n    `- Leaked Secrets: ${bool(sec.leaked_secrets)}`,\n    sec.notes ? `- Notes: ${sec.notes}` : '',\n    ``,\n    `### Architecture Summary`,\n    r.architecture_summary || '_No summary available._',\n    ``,\n    `### Architecture Diagram`,\n    '```',\n    r.architecture_ascii || '_No diagram available._',\n    '```',\n    ``,\n    `### Competitive Insights`,\n    insights.length ? insights.map((ins, i) => `${i + 1}. ${ins}`).join('\\n') : '_No insights available._',\n    ``,\n    failed.length ? `### Failed Phases\\nPhases with no data: ${failed.join(', ')}` : '',\n    warnings.length ? `### Warnings\\n${warnings.map(w => `- ${w}`).join('\\n')}` : '',\n    ``\n  ].filter(line => line !== undefined).join('\\n');\n}).join('\\n---\\n\\n');\n\nconst safe = (scanLabel || domains || 'scan')\n  .replace(/[^a-z0-9-_ ,]/gi, '').slice(0, 60).trim().replace(/[\\s,]+/g, '-');\nconst mdFilename = `bundleradar-report-${safe}-${Date.now()}.md`;\n\nconst mdContent =\n`# BundleRadar — Frontend Tech Stack Report\n\n**Scan Label:** ${scanLabel}\n**Domains:** ${domains}\n**Generated:** ${createdAt}\n\n---\n\n${domainSections || '_No report data available._'}\n`;\n\nreturn [{ json: { mdFilename, mdContent } }];"
+      },
+      "id": "create-md-content-br-001",
+      "name": "Create Markdown Report Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1504, 1200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const baseName = ($json.mdFilename || `bundleradar-report-${Date.now()}`).trim();\nconst filename = baseName.toLowerCase().endsWith('.md') ? baseName : `${baseName}.md`;\nconst md = $json.mdContent || '';\n\nconst binaryData = await this.helpers.prepareBinaryData(\n  Buffer.from(md, 'utf8'),\n  filename,\n  'text/markdown'\n);\n\nreturn [{ json: { mdFilename: filename }, binary: { data: binaryData } }];"
+      },
+      "id": "convert-binary-br-001",
+      "name": "Convert to Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1728, 1200]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "binaryData": true,
+        "name": "={{ $binary.data.fileName }}",
+        "options": {}
+      },
+      "id": "upload-drive-br-001",
+      "name": "Upload Report to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [1952, 1200],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-creds-br-001",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nconst content = JSON.stringify(data, null, 2);\nconst filename = `bundleradar-scan-${Date.now()}.json`;\n\nreturn [{\n  json: data,\n  binary: {\n    data: await this.helpers.prepareBinaryData(\n      Buffer.from(content, 'utf8'),\n      filename,\n      'application/json'\n    )\n  }\n}];"
+      },
+      "id": "save-json-br-001",
+      "name": "Save as JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1504, 784]
+    }
+  ],
+  "connections": {
+    "BundleRadar Scan Form": {
+      "main": [[{ "node": "Parse Target URLs", "type": "main", "index": 0 }]]
+    },
+    "Parse Target URLs": {
+      "main": [[
+        { "node": "Build URL List", "type": "main", "index": 0 },
+        { "node": "Match URLs with Goals", "type": "main", "index": 0 }
+      ]]
+    },
+    "Build URL List": {
+      "main": [[{ "node": "Plan Extraction Goals", "type": "main", "index": 0 }]]
+    },
+    "Plan Extraction Goals": {
+      "main": [[{ "node": "Parse Extraction Goals", "type": "main", "index": 0 }]]
+    },
+    "Parse Extraction Goals": {
+      "main": [[{ "node": "Match URLs with Goals", "type": "main", "index": 1 }]]
+    },
+    "Match URLs with Goals": {
+      "main": [[{ "node": "Prepare TinyFish Goal", "type": "main", "index": 0 }]]
+    },
+    "Prepare TinyFish Goal": {
+      "main": [[{ "node": "TinyFish Web Agent", "type": "main", "index": 0 }]]
+    },
+    "TinyFish Web Agent": {
+      "main": [[{ "node": "Get TinyFish Status", "type": "main", "index": 0 }]]
+    },
+    "Get TinyFish Status": {
+      "main": [[{ "node": "Evaluate Runs", "type": "main", "index": 0 }]]
+    },
+    "Evaluate Runs": {
+      "main": [[{ "node": "Check If Complete", "type": "main", "index": 0 }]]
+    },
+    "Check If Complete": {
+      "main": [
+        [{ "node": "Normalize TinyFish Runs", "type": "main", "index": 0 }],
+        [{ "node": "Rehydrate RunIds for Next Poll", "type": "main", "index": 0 }]
+      ]
+    },
+    "Rehydrate RunIds for Next Poll": {
+      "main": [[{ "node": "Wait 3 Seconds", "type": "main", "index": 0 }]]
+    },
+    "Wait 3 Seconds": {
+      "main": [[{ "node": "Get TinyFish Status", "type": "main", "index": 0 }]]
+    },
+    "Normalize TinyFish Runs": {
+      "main": [[
+        { "node": "Explode Domain Runs", "type": "main", "index": 0 },
+        { "node": "Merge Report Data", "type": "main", "index": 0 }
+      ]]
+    },
+    "Explode Domain Runs": {
+      "main": [[{ "node": "Synthesize Tech Stack", "type": "main", "index": 0 }]]
+    },
+    "Synthesize Tech Stack": {
+      "main": [[{ "node": "Extract Stack Report", "type": "main", "index": 0 }]]
+    },
+    "Extract Stack Report": {
+      "main": [[{ "node": "Merge Report Data", "type": "main", "index": 1 }]]
+    },
+    "Merge Report Data": {
+      "main": [[{ "node": "Combine Report", "type": "main", "index": 0 }]]
+    },
+    "Combine Report": {
+      "main": [[{ "node": "Prepare Report Row", "type": "main", "index": 0 }]]
+    },
+    "Prepare Report Row": {
+      "main": [[
+        { "node": "Save as JSON", "type": "main", "index": 0 },
+        { "node": "Append to Google Sheets", "type": "main", "index": 0 },
+        { "node": "Create Markdown Report Content", "type": "main", "index": 0 }
+      ]]
+    },
+    "Create Markdown Report Content": {
+      "main": [[{ "node": "Convert to Binary", "type": "main", "index": 0 }]]
+    },
+    "Convert to Binary": {
+      "main": [[{ "node": "Upload Report to Google Drive", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedPerExecution": 15
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "bundleradar-workflow-v1"
+  },
+  "id": "bundleradar-workflow-001",
+  "tags": ["bundleradar", "tech-stack", "frontend-intelligence", "tinyfish"]
+}

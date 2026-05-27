@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "app/api/tinyfish-agents-batch/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/tinyfish-agent/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/analyze-company/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/synthesize/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

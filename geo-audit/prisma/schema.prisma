@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model AuditRun {
+  id        String          @id @default(cuid())
+  url       String
+  scope     String?
+  status    String
+  score     Int?
+  rawReport Json?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  questions AuditQuestion[]
+
+  @@index([url])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditSession {
+  id                String      @id @default(cuid())
+  baseUrl           String
+  status            String
+  overallScore      Int?
+  consistencyScore  Int?
+  consistencyReport Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  pages             AuditPage[]
+
+  @@index([baseUrl])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditPage {
+  id           String          @id @default(cuid())
+  sessionId    String
+  url          String
+  pageOrder    Int
+  score        Int?
+  clarityIndex Int?
+  rawReport    Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  session      AuditSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questions    AuditQuestion[]
+
+  @@index([sessionId])
+  @@index([url])
+  @@index([pageOrder])
+  @@index([createdAt])
+  @@index([sessionId, pageOrder])
+}
+
+model AuditQuestion {
+  id             String       @id @default(cuid())
+  auditRunId     String?
+  auditPageId    String?
+  question       String
+  answeredInDocs AnswerStatus
+  partialAnswer  String?
+  importance     Importance
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  auditPage      AuditPage?   @relation(fields: [auditPageId], references: [id], onDelete: Cascade)
+  auditRun       AuditRun?    @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+  @@index([auditPageId])
+}
+
+enum AnswerStatus {
+  YES
+  NO
+  PARTIAL
+}
+
+enum Importance {
+  HIGH
+  MEDIUM
+}

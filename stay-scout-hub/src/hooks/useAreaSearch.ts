@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback, useRef } from 'react';
 import { AreaSuggestion, AreaResearchResult, SearchParams } from '@/types/hotel';
 import { discoverAreas, researchArea } from '@/lib/api/area-search';
@@ -20,7 +22,7 @@ export function useAreaSearch() {
     setResults([]);
 
     try {
-      // Stage 1: Discover areas via Gemini
+      // Stage 1: Discover areas via TinyFish Search + Gemini
       const areas = await discoverAreas(params);
 
       // Initialize results with pending status
@@ -31,7 +33,7 @@ export function useAreaSearch() {
       }));
       setResults(initialResults);
 
-      // Stage 2: Research each area in parallel via Mino
+      // Stage 2: Research each area in parallel via TinyFish agent
       let completedCount = 0;
       const totalAreas = areas.length;
 

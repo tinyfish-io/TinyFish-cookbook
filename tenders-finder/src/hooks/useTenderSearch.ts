@@ -1,10 +1,19 @@
-import { useState, useCallback, useRef } from 'react';
-import { Sector, Tender, AgentState, TenderSearchState } from '@/types/tender';
+"use client";
 
-const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+import { useState, useCallback, useRef } from "react";
+import { Sector, Tender, AgentState, TenderSearchState } from "@/types/tender";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const generateId = () =>
+  Math.random().toString(36).substring(2, 15) +
+  Math.random().toString(36).substring(2, 15);
+
+const currentDate = () =>
+  new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
 export function useTenderSearch() {
   const [state, setState] = useState<TenderSearchState>({
@@ -17,33 +26,28 @@ export function useTenderSearch() {
 
   const abortControllersRef = useRef<AbortController[]>([]);
 
-  const createAgentsFromLinks = (links: string[]): AgentState[] => {
-    return links.map((url, index) => {
-      // Extract domain name for display
-      let name = 'Unknown Site';
+  const createAgentsFromLinks = (links: string[]): AgentState[] =>
+    links.map((url, index) => {
+      let name = "Unknown Site";
       try {
-        const urlObj = new URL(url);
-        name = urlObj.hostname.replace('www.', '');
+        name = new URL(url).hostname.replace("www.", "");
       } catch {
         name = url.substring(0, 30);
       }
-      
       return {
         id: `agent-${index}`,
-        url: url,
-        name: name,
-        status: 'pending' as const,
-        message: 'Waiting to start...',
+        url,
+        name,
+        status: "pending" as const,
+        message: "Waiting to start...",
         tenders: [],
       };
     });
-  };
 
   const startSearch = useCallback(async (sector: Sector, links: string[]) => {
-    // Initialize agents from provided links
     const initialAgents = createAgentsFromLinks(links);
-    
-    setState(prev => ({
+
+    setState((prev) => ({
       ...prev,
       isSearching: true,
       selectedSector: sector,
@@ -52,215 +56,181 @@ export function useTenderSearch() {
       selectedTenders: new Set(),
     }));
 
-    // Clear any existing abort controllers
-    abortControllersRef.current.forEach(controller => controller.abort());
+    abortControllersRef.current.forEach((c) => c.abort());
     abortControllersRef.current = [];
 
-    // Launch all agents in parallel with SSE streaming
+    const goal = `TASK: Extract government tenders in Singapore for the field of ${sector}.
+
+CURRENT DATE: ${currentDate()}
+IMPORTANT: Only return tenders with submission deadlines AFTER today's date.
+
+STRICT RULES:
+- Read only what is visible on the page. Do NOT scroll or paginate.
+- Do NOT click any links unless required to reveal tender details.
+- Do NOT navigate away from this page.
+- Extract immediately and return. Be fast and efficient.
+- Find tenders with upcoming deadlines only.
+
+Return ONLY this JSON with no extra text:
+{
+  "tenderdetails": [
+    {
+      "Tender Title": "",
+      "Tender ID": "",
+      "Issuing Authority": "",
+      "Country / Region": "Singapore",
+      "Tender Type": "",
+      "Publication Date": "",
+      "Submission Deadline": "",
+      "Tender Status": "Open",
+      "Official Tender URL": "",
+      "Brief Description": "",
+      "Eligibility Criteria": "",
+      "Industry / Category": "${sector}"
+    }
+  ]
+}`;
+
     const agentPromises = links.map(async (url, index) => {
       const agentId = `agent-${index}`;
       const abortController = new AbortController();
       abortControllersRef.current.push(abortController);
-      
+
       try {
-        // Update agent to connecting
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          agents: prev.agents.map(a => 
-            a.id === agentId 
-              ? { ...a, status: 'connecting' as const, message: 'Connecting to TinyFish...' }
+          agents: prev.agents.map((a) =>
+            a.id === agentId
+              ? { ...a, status: "connecting" as const, message: "Connecting..." }
               : a
           ),
         }));
 
-        // Use fetch with SSE streaming
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/tinyfish-tender-search`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({ 
-            sector,
-            url: url,
-            agentId,
-          }),
+        const response = await fetch("/api/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, goal, agentId }),
           signal: abortController.signal,
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
 
         const reader = response.body?.getReader();
+        if (!reader) throw new Error("No response body");
+
         const decoder = new TextDecoder();
-        let buffer = '';
+        let buffer = "";
 
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
 
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  
-                  // Handle streaming URL - show live preview immediately
-                  if (data.type === 'STREAMING_URL' && data.streamingUrl) {
-                    console.log(`Agent ${agentId} received streaming URL:`, data.streamingUrl);
-                    setState(prev => ({
-                      ...prev,
-                      agents: prev.agents.map(a => 
-                        a.id === agentId 
-                          ? { 
-                              ...a, 
-                              status: 'searching' as const, 
-                              message: 'Browsing website...',
-                              streamingUrl: data.streamingUrl,
-                            }
-                          : a
-                      ),
-                    }));
-                  }
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
 
-                  // Handle status updates
-                  if (data.type === 'STATUS' && data.message) {
-                    setState(prev => ({
-                      ...prev,
-                      agents: prev.agents.map(a => 
-                        a.id === agentId 
-                          ? { ...a, message: data.message }
-                          : a
-                      ),
-                    }));
-                  }
-
-                  // Handle completion with tenders
-                  if (data.type === 'COMPLETE' && data.tenders) {
-                    const newTenders: Tender[] = data.tenders.map((t: any) => ({
-                      id: generateId(),
-                      tenderTitle: t['Tender Title'] || t.tenderTitle || 'Unknown',
-                      tenderId: t['Tender ID'] || t.tenderId || 'N/A',
-                      issuingAuthority: t['Issuing Authority'] || t.issuingAuthority || 'Unknown',
-                      countryRegion: t['Country / Region'] || t.countryRegion || 'Singapore',
-                      tenderType: t['Tender Type'] || t.tenderType || 'N/A',
-                      publicationDate: t['Publication Date'] || t.publicationDate || 'N/A',
-                      submissionDeadline: t['Submission Deadline'] || t.submissionDeadline || 'N/A',
-                      tenderStatus: t['Tender Status'] || t.tenderStatus || 'Open',
-                      officialTenderUrl: t['Official Tender URL'] || t.officialTenderUrl || url,
-                      briefDescription: t['Brief Description'] || t.briefDescription || 'No description',
-                      eligibilityCriteria: t['Eligibility Criteria'] || t.eligibilityCriteria || 'See tender',
-                      industryCategory: t['Industry / Category'] || t.industryCategory || sector,
-                      sourceUrl: url,
-                    }));
-
-                    setState(prev => ({
-                      ...prev,
-                      tenders: [...prev.tenders, ...newTenders],
-                      agents: prev.agents.map(a => 
-                        a.id === agentId 
-                          ? { 
-                              ...a, 
-                              status: 'complete' as const, 
-                              message: `Found ${newTenders.length} tenders`,
-                              tenders: newTenders,
-                            }
-                          : a
-                      ),
-                    }));
-                  }
-
-                  // Handle errors
-                  if (data.type === 'ERROR') {
-                    setState(prev => ({
-                      ...prev,
-                      agents: prev.agents.map(a => 
-                        a.id === agentId 
-                          ? { 
-                              ...a, 
-                              status: 'error' as const, 
-                              message: data.error || 'Unknown error',
-                            }
-                          : a
-                      ),
-                    }));
-                  }
-
-                  // Handle done
-                  if (data.type === 'DONE') {
-                    setState(prev => ({
-                      ...prev,
-                      agents: prev.agents.map(a => 
-                        a.id === agentId && a.status === 'searching'
-                          ? { 
-                              ...a, 
-                              status: 'complete' as const, 
-                              message: 'Search complete',
-                            }
-                          : a
-                      ),
-                    }));
-                  }
-                } catch (e) {
-                  // Ignore parsing errors
-                }
+              if (data.type === "STREAMING_URL" && data.streamingUrl) {
+                setState((prev) => ({
+                  ...prev,
+                  agents: prev.agents.map((a) =>
+                    a.id === agentId
+                      ? { ...a, status: "searching" as const, message: "Browsing website...", streamingUrl: data.streamingUrl }
+                      : a
+                  ),
+                }));
               }
+
+              if (data.type === "STATUS" && data.message) {
+                setState((prev) => ({
+                  ...prev,
+                  agents: prev.agents.map((a) =>
+                    a.id === agentId ? { ...a, message: data.message } : a
+                  ),
+                }));
+              }
+
+              if (data.type === "COMPLETE" && data.tenders) {
+                const newTenders: Tender[] = (data.tenders as Record<string, string>[])
+                  .filter((t) => t["Tender Title"] && t["Tender Title"] !== "Not specified")
+                  .map((t) => ({
+                    id: generateId(),
+                    tenderTitle: t["Tender Title"] || "Unknown",
+                    tenderId: t["Tender ID"] || "N/A",
+                    issuingAuthority: t["Issuing Authority"] || "Unknown",
+                    countryRegion: t["Country / Region"] || "Singapore",
+                    tenderType: t["Tender Type"] || "N/A",
+                    publicationDate: t["Publication Date"] || "N/A",
+                    submissionDeadline: t["Submission Deadline"] || "N/A",
+                    tenderStatus: t["Tender Status"] || "Open",
+                    officialTenderUrl: t["Official Tender URL"] || url,
+                    briefDescription: t["Brief Description"] || "No description",
+                    eligibilityCriteria: t["Eligibility Criteria"] || "See tender",
+                    industryCategory: t["Industry / Category"] || sector,
+                    sourceUrl: url,
+                  }));
+
+                setState((prev) => ({
+                  ...prev,
+                  tenders: [...prev.tenders, ...newTenders],
+                  agents: prev.agents.map((a) =>
+                    a.id === agentId
+                      ? { ...a, status: "complete" as const, message: `Found ${newTenders.length} tenders`, tenders: newTenders }
+                      : a
+                  ),
+                }));
+              }
+
+              if (data.type === "ERROR") {
+                setState((prev) => ({
+                  ...prev,
+                  agents: prev.agents.map((a) =>
+                    a.id === agentId
+                      ? { ...a, status: "error" as const, message: data.error || "Error" }
+                      : a
+                  ),
+                }));
+              }
+            } catch {
+              // ignore parse errors
             }
           }
         }
       } catch (error) {
-        if ((error as Error).name === 'AbortError') {
-          console.log(`Agent ${agentId} aborted`);
-          return;
-        }
-        console.error(`Agent ${agentId} error:`, error);
-        setState(prev => ({
+        if ((error as Error).name === "AbortError") return;
+        setState((prev) => ({
           ...prev,
-          agents: prev.agents.map(a => 
-            a.id === agentId 
-              ? { 
-                  ...a, 
-                  status: 'error' as const, 
-                  message: error instanceof Error ? error.message : 'Unknown error',
-                }
+          agents: prev.agents.map((a) =>
+            a.id === agentId
+              ? { ...a, status: "error" as const, message: error instanceof Error ? error.message : "Unknown error" }
               : a
           ),
         }));
       }
     });
 
-    // Wait for all agents to complete
     await Promise.allSettled(agentPromises);
-
-    setState(prev => ({
-      ...prev,
-      isSearching: false,
-    }));
+    setState((prev) => ({ ...prev, isSearching: false }));
   }, []);
 
   const toggleTenderSelection = useCallback((tenderId: string) => {
-    setState(prev => {
+    setState((prev) => {
       const newSelected = new Set(prev.selectedTenders);
-      if (newSelected.has(tenderId)) {
-        newSelected.delete(tenderId);
-      } else {
-        newSelected.add(tenderId);
-      }
+      newSelected.has(tenderId) ? newSelected.delete(tenderId) : newSelected.add(tenderId);
       return { ...prev, selectedTenders: newSelected };
     });
   }, []);
 
   const clearSelection = useCallback(() => {
-    setState(prev => ({ ...prev, selectedTenders: new Set() }));
+    setState((prev) => ({ ...prev, selectedTenders: new Set() }));
   }, []);
 
   const resetSearch = useCallback(() => {
-    abortControllersRef.current.forEach(controller => controller.abort());
+    abortControllersRef.current.forEach((c) => c.abort());
     abortControllersRef.current = [];
     setState({
       isSearching: false,
@@ -271,11 +241,5 @@ export function useTenderSearch() {
     });
   }, []);
 
-  return {
-    ...state,
-    startSearch,
-    toggleTenderSelection,
-    clearSelection,
-    resetSearch,
-  };
+  return { ...state, startSearch, toggleTenderSelection, clearSelection, resetSearch };
 }

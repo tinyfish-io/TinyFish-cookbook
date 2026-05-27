@@ -60,7 +60,7 @@ function SkeletonReportCard() {
 // ===========================================
 function calcGradeScore(spot: WingSpot): number {
     let score = 50;
-    if (spot.price_per_wing !== null) {
+    if (spot.price_per_wing != null) {
         if (spot.price_per_wing <= 1.0) score += 25;
         else if (spot.price_per_wing <= 1.5) score += 15;
         else if (spot.price_per_wing <= 2.0) score += 5;
@@ -72,7 +72,7 @@ function calcGradeScore(spot: WingSpot): number {
         else score -= 5;
     }
     if (spot.deal_text) score += 10;
-    if (spot.delivery_time_mins !== null) {
+    if (spot.delivery_time_mins != null) {
         if (spot.delivery_time_mins <= 20) score += 10;
         else if (spot.delivery_time_mins <= 35) score += 5;
         else score -= 5;
@@ -97,7 +97,7 @@ function findBestDealIndex(spots: WingSpot[]): number {
         if (spot.status === 'red') return;
 
         let score = 50;
-        if (spot.price_per_wing !== null) {
+        if (spot.price_per_wing != null) {
             if (spot.price_per_wing <= 1.0) score += 25;
             else if (spot.price_per_wing <= 1.5) score += 15;
             else if (spot.price_per_wing <= 2.0) score += 5;
@@ -109,7 +109,7 @@ function findBestDealIndex(spots: WingSpot[]): number {
             else score -= 5;
         }
         if (spot.deal_text) score += 10;
-        if (spot.delivery_time_mins !== null) {
+        if (spot.delivery_time_mins != null) {
             if (spot.delivery_time_mins <= 20) score += 10;
             else if (spot.delivery_time_mins <= 35) score += 5;
         }

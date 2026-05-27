@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -24,7 +25,7 @@ function calculateDraftGrade(spot: WingSpot): { grade: string; color: string; bg
     let score = 50; // base
 
     // Price factor (lower = better)
-    if (spot.price_per_wing !== null) {
+    if (spot.price_per_wing != null) {
         if (spot.price_per_wing <= 1.0) score += 25;
         else if (spot.price_per_wing <= 1.5) score += 15;
         else if (spot.price_per_wing <= 2.0) score += 5;
@@ -41,7 +42,7 @@ function calculateDraftGrade(spot: WingSpot): { grade: string; color: string; bg
     if (spot.deal_text) score += 10;
 
     // Delivery speed
-    if (spot.delivery_time_mins !== null) {
+    if (spot.delivery_time_mins != null) {
         if (spot.delivery_time_mins <= 20) score += 10;
         else if (spot.delivery_time_mins <= 35) score += 5;
         else score -= 5;
@@ -158,9 +159,9 @@ export function ScoutingReportCard({ spot, index, isBestDeal, autoFetchDeals, is
                 : 'MARKET PRICE';
     const isEstimatedPrice = spot.is_price_estimated === true
         && spot.price_per_wing == null && spot.cheapest_item_price == null;
-    const isGoodPrice = spot.price_per_wing !== null && spot.price_per_wing <= 1.5;
+    const isGoodPrice = spot.price_per_wing != null && spot.price_per_wing <= 1.5;
 
-    const deliveryStr = spot.delivery_time_mins !== null
+    const deliveryStr = spot.delivery_time_mins != null
         ? formatDeliveryTime(spot.delivery_time_mins)
         : 'N/A';
 
@@ -367,7 +368,7 @@ export function ScoutingReportCard({ spot, index, isBestDeal, autoFetchDeals, is
                             {spot.source.toUpperCase()}
                         </span>
                         <span className="text-[8px] text-gray-300">
-                            {formatRelativeTime(spot.last_updated)}
+                            {formatRelativeTime(spot.last_updated ?? undefined)}
                         </span>
                     </div>
 

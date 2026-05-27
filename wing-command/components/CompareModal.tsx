@@ -24,11 +24,11 @@ function formatDelivery(mins: number | null): string {
 }
 
 /** Find the index of the best (lowest) value, or -1 if all null */
-function bestIndex(values: (number | null)[], lower = true): number {
+function bestIndex(values: (number | null | undefined)[], lower = true): number {
     let bestIdx = -1;
     let bestVal: number | null = null;
     values.forEach((v, i) => {
-        if (v === null) return;
+        if (v == null) return;
         if (bestVal === null || (lower ? v < bestVal : v > bestVal)) {
             bestVal = v;
             bestIdx = i;
@@ -148,11 +148,11 @@ export function CompareModal({ spots, isOpen, onClose }: CompareModalProps) {
                                                         }`}
                                                     >
                                                         {spot.price_per_wing != null
-                                                            ? formatPrice(spot.price_per_wing)
+                                                            ? formatPrice(spot.price_per_wing ?? null)
                                                             : spot.estimated_price_per_wing != null
-                                                                ? `~${formatPrice(spot.estimated_price_per_wing)}`
+                                                                ? `~${formatPrice(spot.estimated_price_per_wing ?? null)}`
                                                                 : '—'}
-                                                        {i === bestPriceIdx && spot.price_per_wing !== null && (
+                                                        {i === bestPriceIdx && spot.price_per_wing != null && (
                                                             <span className="block text-[9px] text-stadium-green font-heading mt-0.5">BEST</span>
                                                         )}
                                                     </td>
@@ -190,8 +190,8 @@ export function CompareModal({ spots, isOpen, onClose }: CompareModalProps) {
                                                                 : 'text-amber-800'
                                                         }`}
                                                     >
-                                                        {formatDelivery(spot.delivery_time_mins)}
-                                                        {i === bestDeliveryIdx && spot.delivery_time_mins !== null && (
+                                                        {formatDelivery(spot.delivery_time_mins ?? null)}
+                                                        {i === bestDeliveryIdx && spot.delivery_time_mins != null && (
                                                             <span className="block text-[9px] text-stadium-green font-heading mt-0.5">FASTEST</span>
                                                         )}
                                                     </td>
@@ -232,9 +232,7 @@ export function CompareModal({ spots, isOpen, onClose }: CompareModalProps) {
                                                         key={spot.id}
                                                         className="text-center py-2.5 px-2 text-[10px] text-gray-500 uppercase font-heading"
                                                     >
-                                                        {spot.platform_ids?.source_url
-                                                            ? getPlatformLabel(spot.platform_ids.source_url)
-                                                            : spot.source.toUpperCase()}
+                                                        {spot.sourceUrl ? getPlatformLabel(spot.sourceUrl) : spot.source.toUpperCase()}
                                                     </td>
                                                 ))}
                                             </tr>

@@ -1,5 +1,5 @@
 // ===========================================
-// Wing Scout v3 — Utility Functions
+// Wing Command v4 — Utility Functions
 // "Wing-plosion" Comic Book Edition
 // ===========================================
 
@@ -175,18 +175,18 @@ export function calculateAvailability(spots: WingSpot[]): AvailabilityStats {
 // Formatting
 // ===========================================
 
-export function formatPrice(price: number | null): string {
-    if (price === null) return 'Price N/A';
+export function formatPrice(price: number | null | undefined): string {
+    if (price == null) return 'Price N/A';
     return `$${price.toFixed(2)}`;
 }
 
-export function formatPricePerWing(price: number | null): string {
-    if (price === null) return '';
+export function formatPricePerWing(price: number | null | undefined): string {
+    if (price == null) return '';
     return `$${price.toFixed(2)}/wing`;
 }
 
-export function formatDeliveryTime(mins: number | null): string {
-    if (mins === null) return 'Time N/A';
+export function formatDeliveryTime(mins: number | null | undefined): string {
+    if (mins == null) return 'Time N/A';
     if (mins < 60) return `${mins} min`;
     const hours = Math.floor(mins / 60);
     const remainingMins = mins % 60;
@@ -220,7 +220,8 @@ export function getStatusBorderClass(status: WingStatus): string {
     }
 }
 
-export function formatRelativeTime(dateString: string): string {
+export function formatRelativeTime(dateString: string | null | undefined): string {
+    if (!dateString) return 'Unknown';
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -245,7 +246,8 @@ export function getOrderSearchUrl(name: string, address: string): string {
     return `https://www.google.com/search?q=${encodeURIComponent(`${name} near ${address} order online`)}`;
 }
 
-export function getTelLink(phone: string): string {
+export function getTelLink(phone: string | undefined): string {
+    if (!phone) return '#';
     return `tel:+1${phone.replace(/\D/g, '')}`;
 }
 
@@ -253,14 +255,15 @@ export function getTelLink(phone: string): string {
  * Get the best order URL for a spot — prefers platform URL over Google search
  */
 export function getOrderUrl(spot: WingSpot): string {
-    if (spot.platform_ids?.source_url) return spot.platform_ids.source_url;
+    if (spot.sourceUrl) return spot.sourceUrl;
     return getOrderSearchUrl(spot.name, spot.address);
 }
 
 /**
  * Get human-readable platform label from a URL
  */
-export function getPlatformLabel(url: string): string {
+export function getPlatformLabel(url: string | undefined): string {
+    if (!url) return 'Unknown';
     if (url.includes('doordash')) return 'DoorDash';
     if (url.includes('ubereats')) return 'Uber Eats';
     if (url.includes('grubhub')) return 'Grubhub';

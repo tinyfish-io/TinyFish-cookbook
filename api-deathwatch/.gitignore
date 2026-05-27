@@ -1,0 +1,4 @@
+.env
+*.pem
+.last-runs.json
+node_modules/

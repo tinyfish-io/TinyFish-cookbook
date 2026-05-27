@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitPaid — OSS Bounty & Grant Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-wordmark">Git<span>Paid</span></div>
+      <div class="logo-divider"></div>
+      <div class="logo-sub">OSS Bounty &amp; Grant Finder</div>
+    </div>
+    <div class="header-right">
+      <div class="tier-chip"><div class="chip-dot cd-green"></div>Aggregators</div>
+      <div class="tier-chip"><div class="chip-dot cd-blue"></div>Repo Discovery</div>
+      <div class="tier-chip"><div class="chip-dot cd-purple"></div>Grants</div>
+    </div>
+  </header>
+
+  <!-- ── Search ──────────────────────────────────────────────────────────── -->
+  <div class="search-panel">
+    <div class="panel-eyebrow">Search Parameters</div>
+    <div class="search-row">
+      <div class="field">
+        <div class="field-label">Stack</div>
+        <select id="stack">
+          <option>Python</option><option>TypeScript</option><option>JavaScript</option>
+          <option>Rust</option><option>Go</option><option>Java</option>
+          <option>C++</option><option>Swift</option><option>Elixir</option>
+          <option>Zig</option><option>Ruby</option><option>Haskell</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label">Keywords</div>
+        <input type="text" id="keywords" placeholder="async, cli, web3 …">
+      </div>
+      <div class="field">
+        <div class="field-label">Min $</div>
+        <input type="number" id="min-amount" value="0" min="0" placeholder="0">
+      </div>
+      <button class="btn-search" id="btn-search" onclick="startSearch()">
+        <span class="btn-icon">▶</span>
+        <div class="btn-spinner"></div>
+        Search
+      </button>
+      <button class="btn-stop" id="btn-stop" onclick="stopSearch()">■ Stop</button>
+    </div>
+  </div>
+
+  <!-- ── Status bar ──────────────────────────────────────────────────────── -->
+  <div class="status-bar" id="status-bar"></div>
+
+  <!-- ── Main layout ─────────────────────────────────────────────────────── -->
+  <div class="main-layout" id="main-layout" style="display:none">
+    <aside class="sidebar">
+
+      <!-- Stats -->
+      <div class="panel">
+        <div class="panel-header">📊 Overview</div>
+        <div class="stats-grid">
+          <div class="stat-cell"><div class="stat-n" id="s-total">0</div><div class="stat-l">Results</div></div>
+          <div class="stat-cell"><div class="stat-n" id="s-bounties">0</div><div class="stat-l">Bounties</div></div>
+          <div class="stat-cell"><div class="stat-n" id="s-grants">0</div><div class="stat-l">Grants</div></div>
+          <div class="stat-cell"><div class="stat-n" id="s-agents">0</div><div class="stat-l">Agents</div></div>
+        </div>
+      </div>
+
+      <!-- Agent status (T1 + T3 only — T2 repos shown in Live View) -->
+      <div class="panel">
+        <div class="panel-header">🤖 Agent Status</div>
+        <div class="agent-list" id="agent-list"></div>
+      </div>
+
+      <!-- Tier 2 repo discovery -->
+      <div class="panel">
+        <div class="panel-header">🔍 Repo Discovery</div>
+        <div class="t2-body">
+          <div class="t2-meta">
+            <span class="t2-meta-label">Phase</span>
+            <span class="t2-phase-val" id="t2-phase">idle</span>
+          </div>
+          <div class="prog-track"><div class="prog-fill" id="t2-prog"></div></div>
+          <div class="prog-label" id="t2-lbl">—</div>
+          <div class="repo-scroll" id="t2-repos"></div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── Right column ───────────────────────────────────────────────────── -->
+    <main class="results-area">
+
+      <!-- View toggle + filter bar -->
+      <div class="view-toolbar">
+
+        <!-- Results / Live View tabs -->
+        <div class="view-tabs">
+          <button id="tab-results" class="view-tab active" onclick="setView('results')">
+            📋 Results
+          </button>
+          <button id="tab-live" class="view-tab" onclick="setView('live')">
+            🖥️ Live Agents
+            <span id="live-tab-count" class="live-tab-badge" style="display:none"></span>
+          </button>
+        </div>
+
+        <!-- Filters (only shown in Results view) -->
+        <div class="filter-bar visible" id="filter-bar">
+          <div class="filter-group">
+            <span class="filter-sep">Type</span>
+            <button class="filter-btn active" data-filter="type" data-val="all"    onclick="setFilter('type','all',this)">All</button>
+            <button class="filter-btn"        data-filter="type" data-val="bounty" onclick="setFilter('type','bounty',this)">Bounty</button>
+            <button class="filter-btn"        data-filter="type" data-val="grant"  onclick="setFilter('type','grant',this)">Grant</button>
+          </div>
+          <span style="color:var(--border2);font-size:16px;font-weight:300">|</span>
+          <div class="filter-group">
+            <span class="filter-sep">Tier</span>
+            <button class="filter-btn active" data-filter="tier" data-val="all" onclick="setFilter('tier','all',this)">All</button>
+            <button class="filter-btn"        data-filter="tier" data-val="1"   onclick="setFilter('tier','1',this)">T1</button>
+            <button class="filter-btn"        data-filter="tier" data-val="2"   onclick="setFilter('tier','2',this)">T2</button>
+            <button class="filter-btn"        data-filter="tier" data-val="3"   onclick="setFilter('tier','3',this)">T3</button>
+          </div>
+          <select class="sort-select" id="sort-select" onchange="renderResults()">
+            <option value="amount_desc">$ High → Low</option>
+            <option value="amount_asc">$ Low → High</option>
+            <option value="tier_asc">Tier 1 → 3</option>
+            <option value="newest">Newest First</option>
+          </select>
+        </div>
+
+      </div>
+
+      <!-- ── Results view ─────────────────────────────────────────────────── -->
+      <div id="results-view">
+        <div class="results-meta" id="results-meta">
+          Showing <strong id="r-showing">0</strong>&nbsp;of&nbsp;<strong id="r-total">0</strong> results
+        </div>
+        <div id="skel-area"></div>
+        <div class="results-grid" id="results-grid"></div>
+      </div>
+
+      <!-- ── Live Agents view ─────────────────────────────────────────────── -->
+      <div id="live-view" style="display:none">
+        <div class="live-view-header">
+          <div class="live-view-desc">
+            Each tile shows a TinyFish browser session navigating a site in real time.
+            Tiles appear as agents start — live streams render as iframes.
+          </div>
+          <div class="live-filter-bar">
+            <span class="filter-sep">Show</span>
+            <button class="live-filter-btn active" onclick="setLiveFilter('all',this)">All agents</button>
+            <button class="live-filter-btn" onclick="setLiveFilter('t1t3',this)">T1 + T3 only</button>
+            <button class="live-filter-btn" onclick="setLiveFilter('t2',this)">Repo agents (T2)</button>
+          </div>
+        </div>
+        <div class="live-grid" id="live-grid">
+          <div class="live-empty">
+            <div class="live-empty-icon">🤖</div>
+            <div>No agents running yet — hit Search to start</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── Empty state ─────────────────────────────────────────────────────── -->
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon-wrap">💰</div>
+    <div class="empty-headline">Find paid open source work</div>
+    <div class="empty-body">
+      Select your stack, add optional keywords, and hit Search.
+      Three agent tiers run concurrently — results stream in live.
+    </div>
+    <div class="empty-chips">
+      <div class="empty-chip">T1 · Aggregators</div>
+      <div class="empty-chip">T2 · Repo Discovery</div>
+      <div class="empty-chip">T3 · Grants</div>
+    </div>
+  </div>
+
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

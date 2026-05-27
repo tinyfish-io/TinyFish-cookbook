@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap");
+
+:root {
+  --brand-cyan: #00e5ff;
+  --brand-green: #00e676;
+  --brand-red: #ff1744;
+  --brand-amber: #ffab00;
+  --brand-dark: #0a0e17;
+  --brand-card: #111827;
+  --brand-border: #1f2937;
+}
+
+body {
+  background: var(--brand-dark);
+  color: #e5e7eb;
+  font-family: "Outfit", sans-serif;
+}
+
+/* Glowing score ring */
+.score-ring {
+  filter: drop-shadow(0 0 20px var(--glow-color, var(--brand-cyan)));
+}
+
+/* Scan animation on cards */
+.scan-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 229, 255, 0.08) 50%,
+    transparent 100%
+  );
+  animation: scan-line 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Grid pattern background */
+.grid-bg {
+  background-image: linear-gradient(
+      rgba(0, 229, 255, 0.03) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Pulsing dot */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.5);
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Shimmer overlay for queued cards */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.shimmer-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(107, 114, 128, 0.06) 40%,
+    rgba(107, 114, 128, 0.10) 50%,
+    rgba(107, 114, 128, 0.06) 60%,
+    transparent 100%
+  );
+  animation: shimmer 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Icon pulse for running state */
+@keyframes icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.animate-icon-pulse {
+  animation: icon-pulse 2s ease-in-out infinite;
+}
+
+/* Running card glow */
+.running-glow {
+  box-shadow: inset 3px 0 0 0 #00E5FF, 0 0 15px -3px rgba(0, 229, 255, 0.15);
+}
+
+/* Completion flash */
+@keyframes status-flash {
+  0% { box-shadow: 0 0 0 0 var(--flash-color, rgba(0, 230, 118, 0.4)); }
+  50% { box-shadow: 0 0 20px 2px var(--flash-color, rgba(0, 230, 118, 0.3)); }
+  100% { box-shadow: 0 0 0 0 var(--flash-color, rgba(0, 230, 118, 0)); }
+}
+
+.status-flash {
+  animation: status-flash 0.6s ease-out;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--brand-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--brand-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}

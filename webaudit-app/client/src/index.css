@@ -1,0 +1,255 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Spring Green: oklch(0.90 0.22 155) ≈ #00FF7F ── */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  /* ── Brand: Spring Green ── */
+  --brand: oklch(0.90 0.22 155);          /* #00FF7F spring green */
+  --brand-dim: oklch(0.75 0.20 155);      /* slightly dimmer green */
+  --brand-glow: oklch(0.90 0.22 155 / 0.30);
+  --brand-subtle: oklch(0.90 0.22 155 / 0.12);
+
+  /* ── Score colors ── */
+  --score-excellent: oklch(0.90 0.22 155);   /* spring green */
+  --score-good: oklch(0.80 0.18 155);        /* lighter green */
+  --score-average: oklch(0.80 0.18 85);      /* amber */
+  --score-poor: oklch(0.63 0.22 25);         /* red */
+
+  /* ── Pure black base palette ── */
+  --primary: oklch(0.90 0.22 155);
+  --primary-foreground: oklch(0.08 0.005 155);
+  --sidebar-primary: oklch(0.90 0.22 155);
+  --sidebar-primary-foreground: oklch(0.08 0.005 155);
+
+  --chart-1: oklch(0.90 0.22 155);
+  --chart-2: oklch(0.75 0.20 155);
+  --chart-3: oklch(0.80 0.18 85);
+  --chart-4: oklch(0.63 0.22 25);
+  --chart-5: oklch(0.70 0.18 200);
+
+  --radius: 0.75rem;
+
+  /* Pure black backgrounds */
+  --background: oklch(0.06 0.003 155);       /* near-pure black with green tint */
+  --foreground: oklch(0.96 0.01 155);        /* near-white with green tint */
+
+  --card: oklch(0.10 0.008 155);             /* very dark card */
+  --card-foreground: oklch(0.96 0.01 155);
+
+  --popover: oklch(0.12 0.008 155);
+  --popover-foreground: oklch(0.96 0.01 155);
+
+  --secondary: oklch(0.14 0.012 155);
+  --secondary-foreground: oklch(0.80 0.01 155);
+
+  --muted: oklch(0.14 0.010 155);
+  --muted-foreground: oklch(0.50 0.01 155);
+
+  --accent: oklch(0.90 0.22 155 / 0.15);    /* spring green tinted accent */
+  --accent-foreground: oklch(0.90 0.22 155);
+
+  --destructive: oklch(0.63 0.22 25);
+  --destructive-foreground: oklch(0.98 0.005 25);
+
+  --border: oklch(0.18 0.015 155);
+  --input: oklch(0.16 0.012 155);
+  --ring: oklch(0.90 0.22 155);
+
+  --sidebar: oklch(0.08 0.006 155);
+  --sidebar-foreground: oklch(0.80 0.01 155);
+  --sidebar-accent: oklch(0.14 0.012 155);
+  --sidebar-accent-foreground: oklch(0.90 0.22 155);
+  --sidebar-border: oklch(0.16 0.012 155);
+  --sidebar-ring: oklch(0.90 0.22 155);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1280px;
+    }
+  }
+}
+
+/* ── WebAudit Spring Green utilities ─────────────────────────────────────── */
+
+/* Spring green gradient text */
+.gradient-text {
+  background: linear-gradient(135deg,
+    oklch(0.90 0.22 155) 0%,
+    oklch(0.80 0.20 155) 40%,
+    oklch(0.96 0.10 155) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Spring green glow */
+.glow-brand {
+  box-shadow: 0 0 40px oklch(0.90 0.22 155 / 0.30),
+              0 0 80px oklch(0.90 0.22 155 / 0.12);
+}
+
+.glow-brand-sm {
+  box-shadow: 0 0 20px oklch(0.90 0.22 155 / 0.25);
+}
+
+/* Grid background with spring green tint */
+.bg-grid {
+  background-image:
+    linear-gradient(oklch(0.90 0.22 155 / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.90 0.22 155 / 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Hero radial glow */
+.hero-glow {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% -10%,
+    oklch(0.90 0.22 155 / 0.18) 0%,
+    transparent 70%
+  );
+}
+
+/* Gauge animation */
+@keyframes gauge-fill {
+  from { stroke-dashoffset: 339.3; }
+}
+.gauge-arc { animation: gauge-fill 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.10 0.008 155) 25%,
+    oklch(0.16 0.015 155) 50%,
+    oklch(0.10 0.008 155) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* Float-up entrance */
+@keyframes float-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.float-up { animation: float-up 0.6s ease-out forwards; }
+
+/* Spring green pulse ring */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 oklch(0.90 0.22 155 / 0.40); }
+  70% { box-shadow: 0 0 0 12px oklch(0.90 0.22 155 / 0); }
+  100% { box-shadow: 0 0 0 0 oklch(0.90 0.22 155 / 0); }
+}
+.pulse-ring { animation: pulse-ring 2s ease-out infinite; }
+
+/* Spring green border glow */
+.border-brand-glow {
+  border-color: oklch(0.90 0.22 155 / 0.50);
+  box-shadow: 0 0 0 1px oklch(0.90 0.22 155 / 0.20) inset;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: oklch(0.06 0.003 155); }
+::-webkit-scrollbar-thumb { background: oklch(0.90 0.22 155 / 0.30); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.90 0.22 155 / 0.55); }
+
+/* Spring green selection */
+::selection {
+  background: oklch(0.90 0.22 155 / 0.25);
+  color: oklch(0.96 0.01 155);
+}

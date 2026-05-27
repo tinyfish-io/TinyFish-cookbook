@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `audits` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`slug` varchar(32) NOT NULL,\n\t`url` varchar(2048) NOT NULL,\n\t`status` enum('pending','running','completed','failed') NOT NULL DEFAULT 'pending',\n\t`overallScore` float,\n\t`results` json,\n\t`errorMessage` text,\n\t`ipHash` varchar(64),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`completedAt` timestamp,\n\tCONSTRAINT `audits_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `audits_slug_unique` UNIQUE(`slug`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3ystBTevgXg4B7k.29d3d1cf011b --database kTWQFLNkJbAfdaPb5DWhps --execute CREATE TABLE `audits` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`slug` varchar(32) NOT NULL,\n\t`url` varchar(2048) NOT NULL,\n\t`status` enum('pending','running','completed','failed') NOT NULL DEFAULT 'pending',\n\t`overallScore` float,\n\t`results` json,\n\t`errorMessage` text,\n\t`ipHash` varchar(64),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`completedAt` timestamp,\n\tCONSTRAINT `audits_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `audits_slug_unique` UNIQUE(`slug`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1962
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `content_sources` MODIFY COLUMN `type` enum('rss','blog','newsletter','news','linkedin','x','podcast') NOT NULL;

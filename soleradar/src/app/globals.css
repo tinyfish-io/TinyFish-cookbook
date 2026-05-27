@@ -1,0 +1,61 @@
+:root {
+  --black: #0a0a0a;
+  --white: #f5f0e8;
+  --yellow: #FFE600;
+  --red: #FF2E2E;
+  --orange: #FF6B00;
+  --ink: #1a1a1a;
+  --mid: #2a2a2a;
+  --dim: #444;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: 'Space Grotesk', sans-serif;
+  overflow-x: hidden;
+  cursor: crosshair;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.5;
+}
+
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4)} }
+@keyframes floatShoe {
+  0%   { transform: translateY(0px) rotate(-5deg); }
+  25%  { transform: translateY(-30px) rotate(3deg); }
+  50%  { transform: translateY(-10px) rotate(-8deg); }
+  75%  { transform: translateY(-40px) rotate(5deg); }
+  100% { transform: translateY(0px) rotate(-5deg); }
+}
+@keyframes barSweep {
+  0%   { width: 10%; margin-left: 0; }
+  50%  { width: 50%; margin-left: 30%; }
+  100% { width: 10%; margin-left: 90%; }
+}
+@keyframes agentGlow {
+  0%,100% { box-shadow: 0 0 0 rgba(255,230,0,0); }
+  50%      { box-shadow: 0 0 12px rgba(255,230,0,0.15); }
+}
+@keyframes fadeOut {
+  0%   { opacity: 0.5; }
+  100% { opacity: 0; height: 0; padding: 0; margin: 0; overflow: hidden; }
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+input, select, button { font-family: 'Space Grotesk', sans-serif; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--black); }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }

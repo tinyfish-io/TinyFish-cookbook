@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stay vs Hotel Scout</title>
+  <style>
+    /* Hide Google Maps error icons injected into input */
+    .gm-err-autocomplete, input + div[style*="position: absolute"] img { display: none !important; }
+    #city { background-image: none !important; padding-right: 12px !important; }
+
+    /* Google Places autocomplete dropdown styling */
+    .pac-container {
+      border-radius: 8px;
+      border: 1.5px solid #e5e7eb;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin-top: 4px;
+    }
+    .pac-item { padding: 8px 14px; font-size: 0.88rem; cursor: pointer; }
+    .pac-item:hover { background: #f3f4f6; }
+    .pac-item-query { font-weight: 600; font-size: 0.88rem; }
+    .pac-icon { display: none; }
+  </style>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8f7f4;
+      --card: #ffffff;
+      --primary: #ff5a5f;
+      --primary-dark: #e04b50;
+      --hotel: #0071c2;
+      --hotel-light: #e8f3ff;
+      --airbnb-light: #fff1f1;
+      --text: #1a1a2e;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --radius: 12px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header .logo { font-size: 1.5rem; }
+
+    .hero {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+      padding: 48px 24px 60px;
+      text-align: center;
+    }
+
+    .hero h2 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      color: #a0aec0;
+      font-size: 1rem;
+      margin-bottom: 32px;
+    }
+
+    .search-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      padding: 24px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .search-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 60px 80px;
+      gap: 12px;
+      align-items: end;
+    }
+
+    @media (max-width: 640px) {
+      .search-grid { grid-template-columns: 1fr 1fr; }
+      .search-grid .btn-search { grid-column: span 2; }
+      .field-city { grid-column: span 2; }
+    }
+
+    .autocomplete-wrap { position: relative; }
+
+    .autocomplete-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      z-index: 100;
+      overflow: hidden;
+      display: none;
+    }
+
+    .autocomplete-list.open { display: block; }
+
+    .autocomplete-item {
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .autocomplete-item:last-child { border-bottom: none; }
+
+    .autocomplete-item:hover,
+    .autocomplete-item.active { background: #f3f4f6; }
+
+    .autocomplete-item .city-name { font-weight: 600; color: var(--text); }
+    .autocomplete-item .city-sub { font-size: 0.75rem; color: var(--muted); }
+
+    .field label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      color: var(--text);
+      background: #fafafa;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: white;
+    }
+
+    .btn-search {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .btn-search:hover { background: var(--primary-dark); }
+    .btn-search:active { transform: scale(0.97); }
+    .btn-search:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+
+    #status-bar {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+    }
+
+    #status-bar.visible { display: flex; }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .platform-section {
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .platform-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .platform-header.airbnb { background: var(--airbnb-light); }
+    .platform-header.hotel { background: var(--hotel-light); }
+
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 7px;
+      border-radius: 99px;
+    }
+
+    .badge.airbnb { background: var(--primary); color: white; }
+    .badge.hotel { background: var(--hotel); color: white; }
+
+    .status-pill {
+      margin-left: auto;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 99px;
+      background: #f3f4f6;
+      color: var(--muted);
+    }
+
+    .status-pill.connecting { background: #fef3c7; color: #92400e; }
+    .status-pill.live { background: #d1fae5; color: #065f46; }
+    .status-pill.done { background: #dbeafe; color: #1e40af; }
+    .status-pill.error { background: #fee2e2; color: #991b1b; }
+
+    .platform-body { padding: 0; }
+
+    .listing-card {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+
+    .listing-card:last-child { border-bottom: none; }
+    .listing-card:hover { background: #f9fafb; }
+
+    .listing-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .listing-name a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .listing-name a:hover { text-decoration: underline; }
+
+    .listing-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .listing-prices {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .price-total {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .price-per-night {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .rating {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .rating .star { color: #f59e0b; }
+
+    .placeholder-msg {
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .live-preview {
+      width: 100%;
+      height: 220px;
+      border: none;
+      display: block;
+      background: #f3f4f6;
+    }
+
+    .live-preview-wrap {
+      position: relative;
+    }
+
+    .live-preview-label {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      background: rgba(0,0,0,0.55);
+      color: white;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 99px;
+      pointer-events: none;
+    }
+
+    #results-header {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    #results-header.visible { display: flex; }
+
+    #results-header h3 { font-size: 1rem; font-weight: 700; }
+
+    .summary-bar {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .summary-bar.visible { display: flex; }
+
+    .summary-stat { font-size: 0.88rem; }
+    .summary-stat strong { font-size: 1.1rem; display: block; font-weight: 700; }
+    .summary-stat span { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🏡</span>
+  <h1>Stay vs Hotel Scout</h1>
+</header>
+
+<div class="hero">
+  <h2>Compare stays &amp; hotels side by side</h2>
+  <p>Airbnb, Booking.com, and Hotels.com — searched simultaneously.</p>
+  <div class="search-card">
+    <form id="search-form" class="search-grid" autocomplete="off">
+      <div class="field field-city">
+        <label for="city">Destination</label>
+        <div class="autocomplete-wrap">
+          <input id="city" name="city" type="text" placeholder="Paris, Tokyo, New York…" required autocomplete="off" />
+          <div class="autocomplete-list" id="city-suggestions"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="check_in">Check-in</label>
+        <input id="check_in" name="check_in" type="date" required />
+      </div>
+      <div class="field">
+        <label for="check_out">Check-out</label>
+        <input id="check_out" name="check_out" type="date" required />
+      </div>
+      <div class="field">
+        <label for="guests">Guests</label>
+        <input id="guests" name="guests" type="number" min="1" max="16" value="2" required />
+      </div>
+      <button class="btn-search" type="submit">Search</button>
+    </form>
+  </div>
+</div>
+
+<main>
+  <div id="status-bar">
+    <div class="spinner"></div>
+    <span id="status-text">Searching…</span>
+  </div>
+
+  <div id="summary-bar" class="summary-bar"></div>
+
+  <div id="results-header">
+    <h3 id="results-title">Results</h3>
+  </div>
+
+  <div id="platform-grid" class="platform-grid"></div>
+</main>
+
+<script>
+  const form = document.getElementById('search-form');
+  const statusBar = document.getElementById('status-bar');
+  const statusText = document.getElementById('status-text');
+  const grid = document.getElementById('platform-grid');
+  const resultsHeader = document.getElementById('results-header');
+  const summaryBar = document.getElementById('summary-bar');
+
+  // --- city autocomplete (Google Places) ---
+  async function initGooglePlaces() {
+    const { googleMapsKey } = await fetch('/api/config').then(r => r.json());
+    if (!googleMapsKey) { console.warn('No Google Maps key'); return; }
+
+    await new Promise((resolve, reject) => {
+      window.__googleMapsReady = resolve;
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsKey}&libraries=places&v=weekly&callback=__googleMapsReady`;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+
+    const cityInput = document.getElementById('city');
+    const autocomplete = new google.maps.places.Autocomplete(cityInput, {
+      types: ['(cities)'],
+      fields: ['name', 'address_components', 'formatted_address'],
+    });
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (place && place.formatted_address) {
+        const parts = place.formatted_address.split(',');
+        cityInput.value = parts.slice(0, 2).join(',').trim();
+      }
+    });
+  }
+  initGooglePlaces().catch(e => console.error('Google Places init failed:', e));
+  // --- end autocomplete ---
+
+  // set default dates
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 8);
+  const fmt = d => d.toISOString().slice(0, 10);
+  document.getElementById('check_in').value = fmt(tomorrow);
+  document.getElementById('check_out').value = fmt(nextWeek);
+
+  let currentSource = null;
+  const platformState = {};
+
+  function getPlatformType(key, name) {
+    if (key === 'airbnb') return 'airbnb';
+    return 'hotel';
+  }
+
+  function initPlatform(key, name, type) {
+    platformState[key] = { name, type, listings: [], status: 'connecting', streamingUrl: null };
+
+    const section = document.createElement('div');
+    section.className = 'platform-section';
+    section.id = `platform-${key}`;
+
+    const typeClass = type === 'airbnb' ? 'airbnb' : 'hotel';
+    section.innerHTML = `
+      <div class="platform-header ${typeClass}">
+        <span>${name}</span>
+        <span class="badge ${typeClass}">${type === 'airbnb' ? 'Stay' : 'Hotel'}</span>
+        <span class="status-pill connecting" id="pill-${key}">Connecting…</span>
+      </div>
+      <div class="platform-body" id="body-${key}">
+        <div class="placeholder-msg">Searching…</div>
+      </div>
+    `;
+    grid.appendChild(section);
+  }
+
+  function setPlatformStatus(key, status, extra = '') {
+    const pill = document.getElementById(`pill-${key}`);
+    if (!pill) return;
+    const labels = { connecting: 'Connecting…', live: 'Live ✦', done: 'Done', error: 'Error' };
+    pill.className = `status-pill ${status}`;
+    pill.textContent = labels[status] || status;
+    if (platformState[key]) platformState[key].status = status;
+  }
+
+  function renderListings(key, listings, nights) {
+    const body = document.getElementById(`body-${key}`);
+    if (!body) return;
+    if (!listings || listings.length === 0) {
+      body.innerHTML = '<div class="placeholder-msg">No listings found.</div>';
+      return;
+    }
+    body.innerHTML = listings.map(l => {
+      const ratingVal = l.rating ? parseFloat(l.rating) : null;
+      const ratingMax = platformState[key]?.type === 'airbnb' ? 5 : 10;
+      const ratingDisplay = ratingVal ? `<span class="rating"><span class="star">★</span>${ratingVal.toFixed(1)}${ratingMax === 10 ? '/10' : ''} ${l.review_count ? `(${l.review_count})` : ''}</span>` : '';
+      const totalDisplay = l.total_price ? `<span class="price-total">$${Number(l.total_price).toLocaleString()}</span>` : '';
+      const perNight = l.price_per_night ? `<span class="price-per-night">$${Number(l.price_per_night).toLocaleString()}/night</span>` : '';
+      const urlLink = l.listing_url ? `<a href="${encodeURI(l.listing_url)}" target="_blank" rel="noopener" class="listing-name"><a>` : '';
+      const name = l.listing_url
+        ? `<a href="${encodeURI(l.listing_url)}" target="_blank" rel="noopener">${escHtml(l.name || 'Listing')}</a>`
+        : escHtml(l.name || 'Listing');
+      const extras = [];
+      if (l.property_type) extras.push(escHtml(l.property_type));
+      if (l.breakfast_included === true) extras.push('🍳 Breakfast included');
+      if (l.cleaning_fee) extras.push(`Cleaning: $${l.cleaning_fee}`);
+      if (l.service_fee) extras.push(`Service: $${l.service_fee}`);
+      return `
+        <div class="listing-card">
+          <div class="listing-name">${name}</div>
+          <div class="listing-meta">${extras.map(e => `<span>${e}</span>`).join('')} ${ratingDisplay}</div>
+          <div class="listing-prices">${totalDisplay} ${perNight}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function buildSummary(nights) {
+    const allListings = Object.values(platformState).flatMap(p => p.listings || []);
+    if (!allListings.length) return;
+
+    const withPrice = allListings.filter(l => l.total_price);
+    if (!withPrice.length) return;
+
+    const sorted = [...withPrice].sort((a,b) => Number(a.total_price) - Number(b.total_price));
+    const cheapest = sorted[0];
+    const cheapestPlatform = Object.values(platformState).find(p => p.listings?.includes(cheapest));
+
+    const airbnbListings = Object.entries(platformState)
+      .filter(([,p]) => p.type === 'airbnb').flatMap(([,p]) => p.listings || []).filter(l => l.total_price);
+    const hotelListings = Object.entries(platformState)
+      .filter(([,p]) => p.type !== 'airbnb').flatMap(([,p]) => p.listings || []).filter(l => l.total_price);
+
+    const avg = arr => arr.length ? arr.reduce((s,l) => s + Number(l.total_price), 0) / arr.length : null;
+    const airbnbAvg = avg(airbnbListings);
+    const hotelAvg = avg(hotelListings);
+
+    let html = '';
+    if (cheapest) {
+      html += `<div class="summary-stat"><strong>$${Number(cheapest.total_price).toLocaleString()}</strong><span>Cheapest total (${escHtml(cheapestPlatform?.name || '')})</span></div>`;
+    }
+    if (airbnbAvg) {
+      html += `<div class="summary-stat"><strong>$${Math.round(airbnbAvg).toLocaleString()}</strong><span>Avg stay (Airbnb)</span></div>`;
+    }
+    if (hotelAvg) {
+      html += `<div class="summary-stat"><strong>$${Math.round(hotelAvg).toLocaleString()}</strong><span>Avg hotel total</span></div>`;
+    }
+    if (airbnbAvg && hotelAvg) {
+      const diff = airbnbAvg - hotelAvg;
+      const cheaper = diff > 0 ? 'Hotels' : 'Stays';
+      html += `<div class="summary-stat"><strong>${cheaper} cheaper</strong><span>by $${Math.abs(Math.round(diff)).toLocaleString()} on avg</span></div>`;
+    }
+    if (nights) {
+      html += `<div class="summary-stat"><strong>${nights} night${nights !== 1 ? 's' : ''}</strong><span>trip length</span></div>`;
+    }
+
+    summaryBar.innerHTML = html;
+    summaryBar.classList.add('visible');
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (currentSource) currentSource.close();
+
+    const city = document.getElementById('city').value.trim();
+    const checkIn = document.getElementById('check_in').value;
+    const checkOut = document.getElementById('check_out').value;
+    const guests = Math.min(16, Math.max(1, parseInt(document.getElementById('guests').value || '2', 10)));
+
+    grid.innerHTML = '';
+    summaryBar.innerHTML = '';
+    summaryBar.classList.remove('visible');
+    resultsHeader.classList.remove('visible');
+    Object.keys(platformState).forEach(k => delete platformState[k]);
+
+    statusBar.classList.add('visible');
+    statusText.textContent = 'Connecting…';
+    form.querySelector('button').disabled = true;
+
+    const url = `/api/search/live?city=${encodeURIComponent(city)}&check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`;
+    const source = new EventSource(url);
+    currentSource = source;
+    let nights = null;
+
+    source.onmessage = (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+
+      if (msg.event === 'search_start') {
+        nights = msg.nights;
+        statusText.textContent = `Searching ${msg.platforms?.length || ''} platforms for ${msg.city}…`;
+        resultsHeader.classList.add('visible');
+        document.getElementById('results-title').textContent =
+          `${msg.city} · ${msg.check_in} → ${msg.check_out} · ${msg.guests} guest(s)`;
+      }
+
+      if (msg.event === 'platform_status') {
+        if (!platformState[msg.platform]) {
+          initPlatform(msg.platform, msg.name, msg.platform === 'airbnb' ? 'airbnb' : 'hotel');
+        }
+        setPlatformStatus(msg.platform, 'connecting');
+      }
+
+      if (msg.event === 'platform_live') {
+        if (!platformState[msg.platform]) {
+          initPlatform(msg.platform, msg.name, msg.platform === 'airbnb' ? 'airbnb' : 'hotel');
+        }
+        setPlatformStatus(msg.platform, 'live');
+        platformState[msg.platform].streamingUrl = msg.streaming_url;
+        const body = document.getElementById(`body-${msg.platform}`);
+        if (body && msg.streaming_url) {
+          body.innerHTML = `
+            <div class="live-preview-wrap">
+              <span class="live-preview-label">LIVE</span>
+              <iframe class="live-preview" src="${encodeURI(msg.streaming_url)}" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>
+            </div>`;
+        }
+      }
+
+      if (msg.event === 'platform_result') {
+        if (!platformState[msg.platform]) {
+          initPlatform(msg.platform, msg.name, msg.platform === 'airbnb' ? 'airbnb' : 'hotel');
+        }
+        platformState[msg.platform].listings = msg.listings || [];
+        nights = nights || msg.nights;
+        renderListings(msg.platform, msg.listings, nights);
+        setPlatformStatus(msg.platform, 'done');
+        buildSummary(nights);
+      }
+
+      if (msg.event === 'platform_error') {
+        if (!platformState[msg.platform]) {
+          initPlatform(msg.platform, msg.name, msg.platform === 'airbnb' ? 'airbnb' : 'hotel');
+        }
+        setPlatformStatus(msg.platform, 'error');
+        const body = document.getElementById(`body-${msg.platform}`);
+        if (body) body.innerHTML = `<div class="placeholder-msg" style="color:#991b1b">${escHtml(msg.error || 'Unknown error')}</div>`;
+      }
+
+      if (msg.event === 'complete') {
+        source.close();
+        currentSource = null;
+        statusBar.classList.remove('visible');
+        form.querySelector('button').disabled = false;
+      }
+    };
+
+    source.onerror = () => {
+      source.close();
+      currentSource = null;
+      statusText.textContent = 'Connection lost.';
+      form.querySelector('button').disabled = false;
+    };
+  });
+</script>
+</body>
+</html>

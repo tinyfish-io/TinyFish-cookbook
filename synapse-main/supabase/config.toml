@@ -1,0 +1,7 @@
+project_id = "hclfbztkexgknfgbgtbi"
+
+[functions.execute-action]
+verify_jwt = false
+
+[functions.run-action]
+verify_jwt = false

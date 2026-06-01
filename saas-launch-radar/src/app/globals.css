@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fafaf9;
+  --foreground: #0a0a0a;
+  --secondary-text: rgb(10 10 10 / 0.7);
+  --muted-text: rgb(10 10 10 / 0.4);
+  --brand-orange: #FF6700;
+  --brand-blue: #3B82F6;
+  --brand-teal: #1B7064;
+  --border-color: rgb(0 0 0 / 0.08);
+  --card-bg: rgba(255, 255, 255, 1);
+  --header-bg: rgba(255, 255, 255, 1);
+}
+
+body {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Dotted half-tone background pattern matching TinyFish site */
+.dots-pattern {
+  background-image: radial-gradient(var(--brand-teal) 1.5px, transparent 1.5px);
+  background-size: 20px 20px;
+  opacity: 0.15;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle at center, black, transparent 80%);
+  pointer-events: none;
+}
+
+/* Custom scrollbar matching clean minimal styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Tight minimal borders and sharp corners */
+.boxy-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 16px 48px -8px rgb(0 0 0 / 0.08), 0 4px 12px -2px rgb(0 0 0 / 0.04);
+}
+
+.boxy-button-primary {
+  background-color: #0a0a0a;
+  color: #ffffff;
+  border-radius: 3px;
+  border: 1px solid #0a0a0a;
+  box-shadow: 0 16px 48px -8px rgb(0 0 0 / 0.12), 0 4px 12px -2px rgb(0 0 0 / 0.06);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.boxy-button-primary:hover {
+  background-color: var(--brand-orange);
+  border-color: var(--brand-orange);
+  transform: translateY(-1px);
+}
+
+.boxy-button-secondary {
+  background-color: transparent;
+  color: #0a0a0a;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.boxy-button-secondary:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+/* Card hover animation */
+.product-card {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.05);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border-left: 3px solid var(--border-color);
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 0, 0, 0.15);
+  border-left-color: var(--brand-orange);
+  box-shadow: 0 16px 48px -8px rgb(0 0 0 / 0.1), 0 4px 12px -2px rgb(0 0 0 / 0.05);
+}
+
+/* Blockquote left-border highlight */
+.orange-highlight-border {
+  border-left: 3px solid var(--brand-orange);
+  background-color: rgba(255, 103, 0, 0.02);
+}
+
+/* Code Snippet Box (Nvidia container replica) */
+.code-container {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 16px 48px -8px rgb(0 0 0 / 0.08), 0 4px 12px -2px rgb(0 0 0 / 0.04);
+}
+
+/* SSE Terminals */
+.console-term {
+  background: #121315;
+  color: #e3e4e6;
+  border-radius: 4px;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+/* Pulse animation for active scraping status */
+@keyframes active-glow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 8px var(--brand-orange);
+  }
+}
+
+.glow-dot-orange {
+  background-color: var(--brand-orange);
+  animation: active-glow 1.8s infinite ease-in-out;
+}

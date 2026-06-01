@@ -147,6 +147,7 @@ These use the latest TinyFish SDK and are deployed with live demos you can try r
 | [summer-school-finder](./summer-school-finder) | Discover and compare summer school programs from universities around the world | [Demo](https://cookbook-summer-school-finder.vercel.app/) |
 | [tinyskills](./tinyskills) | Multi-source AI skill guide generator that scrapes docs, GitHub, and blogs into a single SKILL.md | [Demo](https://cookbook-tinyskills.vercel.app/) |
 | [saigon-happy-hour-sniper](./saigon-happy-hour-sniper) | Find happy hour deals across Saigon in seconds | [Demo](https://saigon-happy-hour-sniper.vercel.app/) |
+| [saas-launch-radar](./saas-launch-radar) | Scout and extract pricing structures of newly launched SaaS products in any market niche | [Demo](https://saas-launch-radar.vercel.app/) |
 
 ### Shopping & Deals
 
@@ -179,6 +180,7 @@ These use the latest TinyFish SDK and are deployed with live demos you can try r
 | [competitor-scout-cli](./competitor-scout-cli) | Natural-language CLI for researching competitor feature decisions |
 | [logistics-sentry](./logistics-sentry) | Port congestion and carrier-risk tracking |
 | [tenders-finder](./tenders-finder) | Singapore government tender discovery across multiple portals |
+| [saas-launch-radar](./saas-launch-radar) | Real-time autonomous SaaS launch and pricing intelligence aggregator |
 
 ### Education & Discovery
 
